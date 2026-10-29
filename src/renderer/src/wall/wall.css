@@ -1,0 +1,256 @@
+.wall {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  outline: none;
+  user-select: none;
+  touch-action: none;
+  cursor: default;
+}
+
+.wall-plane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--tile-w);
+  height: var(--tile-h);
+  contain: strict;
+  border-radius: 6px;
+  background: #17171b;
+  transition: opacity 200ms var(--ease-out);
+}
+
+.tile[hidden] {
+  display: none;
+}
+
+/* Scale lives on the children so the slot's own transform stays a plain translate. */
+.tile > img,
+.tile::after {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  transition: transform 200ms var(--ease-out);
+}
+
+.tile > img {
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.tile > img:not([src]) {
+  visibility: hidden;
+}
+
+/* Outline and lift for the focused tile; only transform and opacity animate. */
+.tile::after {
+  content: '';
+  pointer-events: none;
+  box-shadow: 0 0 0 2px #fff, 0 24px 48px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: transform 200ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+
+.wall.has-focus .tile {
+  opacity: 0.85;
+}
+
+.wall.has-focus .tile[data-focused='true'] {
+  opacity: 1;
+  z-index: 1;
+  contain: layout style;
+}
+
+.tile[data-focused='true'] > img,
+.tile[data-focused='true']::after,
+.tile[data-focused='true'] > .tile-title {
+  transform: scale(1.12);
+}
+
+.tile[data-focused='true']::after {
+  opacity: 1;
+}
+
+/* Generated tile for a title with no usable poster. */
+.tile-title {
+  display: none;
+}
+
+.tile.generated {
+  background: linear-gradient(160deg, hsl(var(--hue) 35% 30%), hsl(var(--hue) 40% 12%));
+}
+
+.tile.generated > img {
+  visibility: hidden;
+}
+
+.tile.generated > .tile-title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  transition: transform 200ms var(--ease-out);
+}
+
+.tile-progress {
+  display: none;
+}
+
+.tile.has-progress > .tile-progress {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+
+.tile.has-progress > .tile-progress::before {
+  content: '';
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #fff;
+  transform: scaleX(var(--progress));
+  transform-origin: left;
+}
+
+.tile[data-focused='true'] > .tile-progress {
+  visibility: hidden;
+}
+
+/* One static blurred layer per image; the crossfade animates opacity only. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.backdrop-layer {
+  position: absolute;
+  inset: -60px;
+  background: center / cover no-repeat;
+  filter: blur(40px) saturate(1.2);
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.backdrop-layer.shown {
+  opacity: 0.4;
+}
+
+.wall-shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  pointer-events: none;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+}
+
+.info-card {
+  position: absolute;
+  left: 48px;
+  bottom: 40px;
+  width: min(560px, calc(100% - 96px));
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+
+.info-card.shown {
+  opacity: 1;
+  transform: none;
+}
+
+.card-title {
+  margin: 0 0 6px;
+  font-size: 32px;
+  line-height: 1.1;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--fg);
+}
+
+.card-meta {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #c4c4cc;
+}
+
+.card-synopsis {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #e2e2e8;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.card-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.wall-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  gap: 4px;
+}
+
+.wall-empty p {
+  margin: 0 0 16px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile > img,
+  .tile::after,
+  .tile > .tile-title,
+  .info-card {
+    transition: opacity 150ms ease;
+  }
+
+  .info-card {
+    transform: none;
+  }
+}

@@ -32,11 +32,27 @@ test('the menu opens a drawer with Search, Home and Settings, and Escape closes 
   const nav = win.getByRole('navigation', { name: 'Main' })
   await expect(nav.getByRole('button')).toHaveText(['Search', 'Home', 'Settings'])
   await expect(nav.getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page')
-  await expect(nav.getByRole('button', { name: 'Home' })).toBeFocused()
+  // A mouse open puts no focus ring on an entry, but keys still work in the drawer.
+  await expect(nav.getByRole('button', { name: 'Home' })).not.toBeFocused()
 
   await win.keyboard.press('Escape')
   await expect(nav).toBeHidden()
   await expect(menu).toBeFocused()
+})
+
+test('opening the menu from the keyboard focuses the current page', async () => {
+  await win.getByRole('button', { name: 'Menu' }).focus()
+  await win.keyboard.press('Enter')
+  await expect(win.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Home' })).toBeFocused()
+  await win.keyboard.press('ArrowDown')
+  await win.keyboard.press('Enter')
+  await expect(win.getByRole('heading', { name: 'Settings' })).toBeVisible()
+  await expect(win.getByRole('button', { name: 'Menu' })).toBeFocused()
+})
+
+test('picking a page with the mouse leaves no focus ring behind', async () => {
+  await goTo(win, 'Settings')
+  expect(await win.evaluate(() => document.activeElement === document.body)).toBe(true)
 })
 
 test('switches between Settings, Search and Home', async () => {

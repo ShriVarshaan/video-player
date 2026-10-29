@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { goTo } from './pages'
+import { goTo, openTile, wallTitles } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 let userData: string
@@ -42,48 +42,42 @@ async function addLibrary() {
   await expect(win.getByTestId('folder-row')).toContainText(LIBRARY)
 }
 
-// The movie and show lists left with the placeholder; Task 5 re-points these at the wall.
-test.fixme('scans, matches and shows the library with artwork', async () => {
+test('scans, matches and puts every title on the wall with artwork', async () => {
   await addLibrary()
-
-  const movies = win.getByTestId('movie-item')
-  await expect(movies).toHaveCount(4, { timeout: 30_000 })
-  await expect(movies).toHaveText([/Amélie/, /Inception/, /Some Unknown Home Video/, /The Matrix/])
-  await expect(movies.filter({ hasText: 'The Matrix' })).toContainText('1999')
-
-  const shows = win.getByTestId('show-item')
-  await expect(shows).toHaveCount(1)
-  await expect(shows).toContainText('Breaking Bad')
-  await expect(shows).toContainText('3 episodes')
+  await goTo(win, 'Home')
+  await expect
+    .poll(() => wallTitles(win), { timeout: 30_000 })
+    .toEqual(expect.arrayContaining(['Amélie', 'Breaking Bad', 'Inception', 'Some Unknown Home Video', 'The Matrix']))
+  expect(await wallTitles(win)).toHaveLength(5)
 
   // Every poster is served through poster:// as a 400 px WebP: TMDB art for
   // matched titles, a frame from the video for the home video.
   await expect
     .poll(
       () =>
-        win.evaluate(() =>
-          [...document.querySelectorAll<HTMLImageElement>('[data-testid="movie-item"] img')].map((i) => i.naturalWidth)
-        ),
+        win.evaluate(() => {
+          const tiles = [...document.querySelectorAll<HTMLElement>('[data-testid="wall-tile"]:not([hidden])')]
+          return tiles.length > 0 && tiles.every((t) => t.querySelector('img')?.naturalWidth === 400 && !t.classList.contains('generated'))
+        }),
       { timeout: 30_000 }
     )
-    .toEqual([400, 400, 400, 400])
+    .toBe(true)
 })
 
-test.fixme('opens a show with its seasons, episodes and next episode', async () => {
+test("a matched movie's card shows its TMDB details", async () => {
   await addLibrary()
-  await win.getByTestId('show-item').click({ timeout: 30_000 })
-
-  await expect(win.getByRole('heading', { name: 'Season 1' })).toBeVisible()
-  await expect(win.getByRole('heading', { name: 'Season 2' })).toBeVisible()
-  await expect(win.getByTestId('episode-item')).toHaveCount(3)
-  await expect(win.getByTestId('episode-item').first()).toContainText('Pilot')
-  await expect(win.getByTestId('next-up')).toContainText('Play episode')
-  await expect(win.getByTestId('next-up')).toContainText('S1 · E1')
+  await goTo(win, 'Home')
+  await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toContain('The Matrix')
+  await openTile(win, 'The Matrix')
+  await expect(win.getByTestId('info-card')).toContainText('1999')
+  await expect(win.getByTestId('info-card').getByRole('button', { name: 'Play' })).toBeDisabled()
 })
 
-test.fixme('removing the folder asks first, then clears the library', async () => {
+test('removing the folder asks first, then empties the wall', async () => {
   await addLibrary()
-  await expect(win.getByTestId('movie-item')).toHaveCount(4, { timeout: 30_000 })
+  await goTo(win, 'Home')
+  await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toHaveLength(5)
+  await goTo(win, 'Settings')
 
   await win.getByRole('button', { name: 'Remove' }).click()
   await expect(win.getByText('Remove this folder? Watch progress for its videos will be deleted.')).toBeVisible()
@@ -93,7 +87,8 @@ test.fixme('removing the folder asks first, then clears the library', async () =
   await win.getByRole('button', { name: 'Remove' }).click()
   await win.getByRole('dialog').getByRole('button', { name: 'Remove' }).click()
   await expect(win.getByTestId('folder-row')).toHaveCount(0)
-  await expect(win.getByTestId('movie-item')).toHaveCount(0)
+  await goTo(win, 'Home')
+  await expect(win.getByRole('button', { name: 'Choose a folder' })).toBeVisible()
 })
 
 test('shows the TMDB credit line', async () => {

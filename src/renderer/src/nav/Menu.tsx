@@ -17,19 +17,28 @@ type Props = {
 // Top-left menu button and the drawer it opens. Text-only entries, by design.
 export function Menu({ page, open, onOpenChange, onNavigate }: Props) {
   const button = useRef<HTMLButtonElement>(null)
+  const drawer = useRef<HTMLElement>(null)
   const entries = useRef<(HTMLButtonElement | null)[]>([])
+  // Focus rings are for keyboard use: a mouse open focuses the drawer itself
+  // (keys still work there), a keyboard open focuses the current page's entry.
+  const byKeyboard = useRef(false)
+  const current = ENTRIES.findIndex((e) => e.page === page)
 
   useEffect(() => {
-    if (open) entries.current[ENTRIES.findIndex((e) => e.page === page)]?.focus()
-  }, [open, page])
+    if (!open) return
+    if (byKeyboard.current) entries.current[current]?.focus()
+    else drawer.current?.focus()
+  }, [open, current])
 
-  function close() {
+  function close(keyboard = true) {
     onOpenChange(false)
-    button.current?.focus()
+    if (keyboard) button.current?.focus()
+    else (document.activeElement as HTMLElement | null)?.blur()
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    const i = entries.current.indexOf(document.activeElement as HTMLButtonElement)
+    const focused = entries.current.indexOf(document.activeElement as HTMLButtonElement)
+    const i = focused >= 0 ? focused : current
     if (e.key === 'Escape') close()
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       const step = e.key === 'ArrowDown' ? 1 : -1
@@ -48,12 +57,22 @@ export function Menu({ page, open, onOpenChange, onNavigate }: Props) {
         aria-label="Menu"
         aria-expanded={open}
         aria-controls="main-drawer"
-        onClick={() => onOpenChange(!open)}
+        onClick={(e) => {
+          byKeyboard.current = e.detail === 0
+          onOpenChange(!open)
+        }}
       >
         <span aria-hidden="true" />
       </button>
-      <div className={`scrim${open ? ' open' : ''}`} onClick={close} aria-hidden="true" />
-      <nav id="main-drawer" aria-label="Main" className={`drawer${open ? ' open' : ''}`} onKeyDown={onKeyDown}>
+      <div className={`scrim${open ? ' open' : ''}`} onClick={() => close(false)} aria-hidden="true" />
+      <nav
+        ref={drawer}
+        id="main-drawer"
+        aria-label="Main"
+        tabIndex={-1}
+        className={`drawer${open ? ' open' : ''}`}
+        onKeyDown={onKeyDown}
+      >
         <ul>
           {ENTRIES.map((e, i) => (
             <li key={e.page}>
@@ -63,9 +82,10 @@ export function Menu({ page, open, onOpenChange, onNavigate }: Props) {
                 }}
                 type="button"
                 aria-current={e.page === page ? 'page' : undefined}
-                onClick={() => {
+                onClick={(ev) => {
                   onNavigate(e.page)
-                  onOpenChange(false)
+                  // Focus leaves the closing drawer at once, so the next key reaches the page.
+                  close(ev.detail === 0)
                 }}
               >
                 {e.label}
