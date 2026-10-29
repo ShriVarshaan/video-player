@@ -12,13 +12,18 @@ const TABLES = [
   'genres',
   'images',
   'library_folders',
-  'movies',
   'people',
   'playback_state',
   'settings',
+  'show_credits',
   'subtitle_transforms',
+  'tmdb_episodes',
   'tmdb_movie_genres',
-  'tmdb_movies'
+  'tmdb_movies',
+  'tmdb_seasons',
+  'tmdb_show_genres',
+  'tmdb_shows',
+  'videos'
 ]
 
 const now = 1_700_000_000_000
@@ -31,11 +36,10 @@ function seedMovie(db: Db) {
   db.exec(`
     INSERT INTO library_folders (id, path, added_at) VALUES (1, 'D:\\Movies', ${now});
     INSERT INTO tmdb_movies (tmdb_id, title, fetched_at) VALUES (603, 'The Matrix', ${now});
-    INSERT INTO movies (id, folder_id, path, size_bytes, mtime_ms, wall_key, parsed_title, tmdb_id, added_at)
+    INSERT INTO videos (id, folder_id, path, size_bytes, mtime_ms, wall_key, parsed_title, tmdb_id, added_at)
       VALUES (10, 1, 'D:\\Movies\\The.Matrix.1999.mkv', 1, ${now}, 42, 'The Matrix', 603, ${now});
-    INSERT INTO playback_state (movie_id, position_s, last_played_at) VALUES (10, 120, ${now});
-    INSERT INTO subtitle_transforms (movie_id, subtitle_key, source, updated_at) VALUES (10, 'embedded:2', 'manual', ${now});
-    INSERT INTO images (movie_id, kind, file, source, created_at) VALUES (10, 'poster', 'p/10.webp', 'tmdb', ${now});
+    INSERT INTO playback_state (video_id, position_s, last_played_at) VALUES (10, 120, ${now});
+    INSERT INTO subtitle_transforms (video_id, subtitle_key, source, updated_at) VALUES (10, 'embedded:2', 'manual', ${now});
   `)
 }
 
@@ -119,27 +123,27 @@ describe('openDb', () => {
 })
 
 describe('schema', () => {
-  it('cascades a removed folder to its movies and their per-movie rows', () => {
+  it('cascades a removed folder to its videos and their per-video rows', () => {
     const db = openDb(':memory:')
     seedMovie(db)
     db.exec('DELETE FROM library_folders WHERE id = 1')
-    for (const t of ['movies', 'playback_state', 'subtitle_transforms', 'images']) {
+    for (const t of ['videos', 'playback_state', 'subtitle_transforms']) {
       expect(count(db, t)).toBe(0)
     }
   })
 
-  it('clears movies.tmdb_id when the TMDB record is removed', () => {
+  it('clears videos.tmdb_id when the TMDB record is removed', () => {
     const db = openDb(':memory:')
     seedMovie(db)
     db.exec('DELETE FROM tmdb_movies WHERE tmdb_id = 603')
-    expect(db.prepare('SELECT tmdb_id FROM movies WHERE id = 10').get()).toEqual({ tmdb_id: null })
+    expect(db.prepare('SELECT tmdb_id FROM videos WHERE id = 10').get()).toEqual({ tmdb_id: null })
   })
 
   it.each([
-    ['movies.match_status', `UPDATE movies SET match_status = 'bogus' WHERE id = 10`],
+    ['videos.match_status', `UPDATE videos SET match_status = 'bogus' WHERE id = 10`],
     [
-      'images.kind',
-      `INSERT INTO images (movie_id, kind, file, source, created_at) VALUES (10, 'thumb', 'x', 'tmdb', 0)`
+      'images.source',
+      `INSERT INTO images (key, file, source, created_at) VALUES ('k', 'x', 'web', 0)`
     ],
     [
       'credits.role',

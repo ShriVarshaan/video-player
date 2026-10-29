@@ -122,5 +122,82 @@ CREATE TABLE settings (
   key    TEXT PRIMARY KEY,
   value  TEXT NOT NULL                       -- JSON
 );
+`,
+  `
+-- 2: TV shows. The file table now holds movies and episodes.
+ALTER TABLE movies RENAME TO videos;
+ALTER TABLE playback_state      RENAME COLUMN movie_id TO video_id;
+ALTER TABLE subtitle_transforms RENAME COLUMN movie_id TO video_id;
+DROP INDEX movies_folder;
+DROP INDEX movies_tmdb;
+DROP INDEX movies_hash;
+CREATE INDEX videos_folder ON videos(folder_id);
+CREATE INDEX videos_tmdb   ON videos(tmdb_id);
+CREATE INDEX videos_hash   ON videos(quick_hash);
+
+CREATE TABLE tmdb_shows (
+  tmdb_id         INTEGER PRIMARY KEY,
+  name            TEXT NOT NULL,
+  original_name   TEXT,
+  first_air_year  INTEGER,
+  overview        TEXT,
+  rating          REAL,
+  poster_path     TEXT,
+  backdrop_path   TEXT,
+  logo_path       TEXT,
+  fetched_at      INTEGER NOT NULL
+);
+CREATE TABLE tmdb_seasons (
+  show_tmdb_id  INTEGER NOT NULL REFERENCES tmdb_shows(tmdb_id) ON DELETE CASCADE,
+  season        INTEGER NOT NULL,
+  name          TEXT,
+  poster_path   TEXT,
+  PRIMARY KEY (show_tmdb_id, season)
+);
+CREATE TABLE tmdb_episodes (
+  show_tmdb_id  INTEGER NOT NULL REFERENCES tmdb_shows(tmdb_id) ON DELETE CASCADE,
+  season        INTEGER NOT NULL,
+  episode       INTEGER NOT NULL,
+  name          TEXT,
+  overview      TEXT,
+  air_date      TEXT,
+  runtime_min   INTEGER,
+  still_path    TEXT,
+  PRIMARY KEY (show_tmdb_id, season, episode)
+);
+CREATE TABLE tmdb_show_genres (
+  show_tmdb_id  INTEGER NOT NULL REFERENCES tmdb_shows(tmdb_id) ON DELETE CASCADE,
+  genre_id      INTEGER NOT NULL REFERENCES genres(id),
+  PRIMARY KEY (show_tmdb_id, genre_id)
+);
+CREATE TABLE show_credits (
+  show_tmdb_id  INTEGER NOT NULL REFERENCES tmdb_shows(tmdb_id) ON DELETE CASCADE,
+  person_id     INTEGER NOT NULL REFERENCES people(id),
+  role          TEXT NOT NULL CHECK (role IN ('cast','creator')),
+  character     TEXT,
+  ord           INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (show_tmdb_id, person_id, role)
+);
+
+-- What a file is. Movies use videos.tmdb_id; episodes use show_tmdb_id + season/episode.
+ALTER TABLE videos ADD COLUMN kind TEXT NOT NULL DEFAULT 'movie' CHECK (kind IN ('movie','episode'));
+ALTER TABLE videos ADD COLUMN parsed_show TEXT;          -- normalized show name, groups unmatched episodes
+ALTER TABLE videos ADD COLUMN season INTEGER;
+ALTER TABLE videos ADD COLUMN episode INTEGER;
+ALTER TABLE videos ADD COLUMN episode_end INTEGER;       -- S01E01-E02 files
+ALTER TABLE videos ADD COLUMN show_tmdb_id INTEGER REFERENCES tmdb_shows(tmdb_id) ON DELETE SET NULL;
+ALTER TABLE videos ADD COLUMN match_tried_at INTEGER;    -- last TMDB attempt, for retry
+CREATE INDEX videos_show ON videos(show_tmdb_id, season, episode);
+
+-- Image cache, keyed by what the image is rather than by file (shows aren't files).
+DROP TABLE images;
+CREATE TABLE images (
+  key         TEXT PRIMARY KEY,    -- 'tmdb:<size><path>' or 'frame:<videoId>'
+  file        TEXT NOT NULL,       -- relative to userData/cache/images
+  width       INTEGER,
+  height      INTEGER,
+  source      TEXT NOT NULL CHECK (source IN ('tmdb','ffmpeg')),
+  created_at  INTEGER NOT NULL
+);
 `
 ]
