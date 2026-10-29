@@ -130,6 +130,17 @@ describe('scanFolder', () => {
     expect(r.added).toBe(3)
   })
 
+  it('carries on when a file vanishes or is locked mid-scan', async () => {
+    const quickHash = async (file: string) => {
+      if (file.endsWith('A.2001.mkv')) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' })
+      return createHash('sha1').update(readFileSync(file)).digest('hex')
+    }
+    const r = await scanFolder(db, folder(), deps({ quickHash }))
+    expect(r.failed).toEqual([{ path: join(lib, 'A.2001.mkv'), error: 'EBUSY: resource busy or locked' }])
+    expect(r.added).toBe(1)
+    expect(row('A.2001.mkv')).toBeUndefined()
+  })
+
   it('keeps everything when the folder is offline and restores it when it is back', async () => {
     await scanFolder(db, folder(), deps())
     const id = row('A.2001.mkv')!['id']

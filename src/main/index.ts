@@ -5,14 +5,18 @@ import { version } from '../../package.json'
 import { createAppInfo } from './appInfo'
 import { openDb, type Db } from './db'
 import { registerDomain } from './ipc'
+import { registerPosterScheme, setupLibrary } from './library/setup'
+import type { LibraryService } from './library/service'
 import { binaryPath, userDataDir } from './paths'
 import { createSettings } from './settings'
 import { startOrQuit } from './startup'
 
 // Must run before 'ready' (and the single-instance lock) so everything sees it.
 app.setPath('userData', userDataDir(process.argv, app.getPath('appData')))
+registerPosterScheme()
 
 let db: Db | null = null
+let library: LibraryService | null = null
 let mainWindow: BrowserWindow | null = null
 
 // One process per userData dir, so two instances never open the database at once.
@@ -83,16 +87,28 @@ function start(): void {
     })
   )
   registerDomain(ipcMain, 'settings', createSettings(db))
+  library = setupLibrary({
+    db,
+    userDataPath,
+    binaryBase,
+    devRoot: app.isPackaged ? null : join(__dirname, '..', '..'),
+    getWindow: () => mainWindow
+  })
 
   mainWindow = createWindow()
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  // Catch up on changes made while the app was closed, then keep watching.
+  library.startWatching()
+  library.rescan().catch((e: unknown) => console.error('Startup rescan failed:', e))
 }
 
 app.on('window-all-closed', () => app.quit())
 
 app.on('will-quit', () => {
+  library?.stopWatching()
   db?.close()
   db = null
 })

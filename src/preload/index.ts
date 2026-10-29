@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import { apiMethods, channelFor, type API } from '@shared/api'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { apiMethods, channelFor, eventChannel, type API, type ApiEvents, type RendererApi } from '@shared/api'
 
 // Build window.api from the shared method table so every call goes to its
 // derived channel; no channel name is written by hand.
@@ -15,4 +15,14 @@ const api = Object.fromEntries(
   ])
 ) as API
 
-contextBridge.exposeInMainWorld('api', api)
+// Subscribe to a main → renderer event; returns the unsubscribe function.
+const on: RendererApi['on'] = <K extends keyof ApiEvents>(event: K, callback: (payload: ApiEvents[K]) => void) => {
+  const channel = eventChannel(event)
+  const listener = (_event: IpcRendererEvent, payload: ApiEvents[K]) => callback(payload)
+  ipcRenderer.on(channel, listener)
+  return () => {
+    ipcRenderer.removeListener(channel, listener)
+  }
+}
+
+contextBridge.exposeInMainWorld('api', { ...api, on } satisfies RendererApi)

@@ -108,8 +108,8 @@ export async function scanFolder(db: Db, folder: { id: number; path: string }, d
   const result: ScanResult = { added: 0, updated: 0, renamed: 0, missing: 0, unchanged: 0, offline: false, failed: [] }
   const now = deps.now()
 
-  if (!existsSync(folder.path) || !statSync(folder.path).isDirectory()) {
-    // Unplugged drive: keep every row so progress and offsets come back with it.
+  // Unplugged drive: keep every row so progress and offsets come back with it.
+  const offline = () => {
     const r = db
       .prepare('UPDATE videos SET missing_since = ? WHERE folder_id = ? AND missing_since IS NULL')
       .run(now, folder.id)
@@ -117,8 +117,14 @@ export async function scanFolder(db: Db, folder: { id: number; path: string }, d
     result.offline = true
     return result
   }
+  if (!existsSync(folder.path) || !statSync(folder.path).isDirectory()) return offline()
 
-  const found = await findVideos(folder.path)
+  let found: { path: string; parsed: ParsedVideo }[]
+  try {
+    found = await findVideos(folder.path)
+  } catch {
+    return offline() // the drive went away while we were listing it
+  }
   const foundPaths = new Set(found.map((f) => f.path))
   const rows = db.prepare('SELECT * FROM videos WHERE folder_id = ?').all(folder.id) as Row[]
   const byPath = new Map(rows.map((r) => [r.path, r]))
@@ -139,8 +145,19 @@ export async function scanFolder(db: Db, folder: { id: number; path: string }, d
     }
   }
 
+  // A file can vanish or be locked between listing and reading it; record it
+  // and carry on with the rest.
+  const safely = (fn: (f: { path: string; parsed: ParsedVideo }) => Promise<void>) => async (f: { path: string; parsed: ParsedVideo }) => {
+    try {
+      await fn(f)
+    } catch (e) {
+      result.failed.push({ path: f.path, error: e instanceof Error ? e.message : String(e) })
+      tick()
+    }
+  }
+
   await Promise.all(
-    found.map(async ({ path, parsed }) => {
+    found.map(safely(async ({ path, parsed }) => {
       const s = await stat(path)
       const size = s.size
       const mtime = Math.floor(s.mtimeMs)
@@ -212,7 +229,7 @@ export async function scanFolder(db: Db, folder: { id: number; path: string }, d
             p.width, p.height, p.hdr, p.probe_json, now)
       )
       tick()
-    })
+    }))
   )
 
   for (const r of rows) {
