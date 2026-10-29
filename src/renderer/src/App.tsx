@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppInfo, BinaryName } from '@shared/api'
 import { catchAppError } from '@shared/appError'
+import { Library } from './Library'
 import './app.css'
 
 const BINARIES: BinaryName[] = ['mpv', 'ffmpeg', 'ffprobe']
@@ -38,6 +39,7 @@ export function App() {
         </dl>
       )}
       {missing.length > 0 && <p className="hint">Run npm run fetch-vendor to download mpv and ffmpeg.</p>}
+      <Library />
     </main>
   )
 }
