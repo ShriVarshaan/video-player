@@ -13,6 +13,7 @@ description: Building and releasing the Windows app — fetching pinned mpv/ffmp
 - **ffmpeg/ffprobe:** a BtbN `FFmpeg-Builds` **LGPL shared** win64 build. The app only decodes and extracts, so it needs no GPL encoders.
 - Treat downloaded archives as untrusted: extract into a fresh empty directory and run nothing from inside it.
 - Update binaries by bumping the manifest, re-running the script, and running the full smoke test.
+- The app has no native Node modules. SQLite is the built-in `node:sqlite`, so nothing needs `electron-rebuild` or `asarUnpack`.
 
 ## 2. Resolving binary paths at runtime
 ```ts

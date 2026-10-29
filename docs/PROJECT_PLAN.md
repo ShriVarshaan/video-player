@@ -18,7 +18,7 @@ Detailed specs for each area are in the project skills in `.claude/skills/`. The
 ## Architecture
 ```
 Electron main process (Node/TS)
- ├─ LibraryService   – folder scan, chokidar watch, ffprobe, filename parse, SQLite (better-sqlite3)
+ ├─ LibraryService   – folder scan, chokidar watch, ffprobe, filename parse, SQLite (built-in node:sqlite)
  ├─ MetadataService  – TMDB lookup + poster/backdrop cache (userData/cache), ffmpeg frame fallback
  ├─ PlayerService    – spawns mpv.exe with --wid=<player window HWND>, JSON IPC over a named pipe   [mpv-ipc]
  ├─ SubtitleService  – load .srt/.vtt/.ass + extract embedded subs, offset store, export            [subtitle-formats]
@@ -52,6 +52,10 @@ Python sidecar (PyInstaller onedir)
   - Folder scan plus ffprobe, and `parse-torrent-title` to clean filenames.
   - TMDB results are cached in SQLite and on disk. A user-supplied API key is set in Settings.
   - Unmatched or offline files get an ffmpeg frame thumbnail.
+- **Database:**
+  - Built-in `node:sqlite` (Electron 45 ships Node 24), so there is no native module to rebuild.
+  - One database per Windows user at `%APPDATA%\video-player\library.db`. Nothing is stored in movie folders.
+  - Schema version lives in `PRAGMA user_version`; migrations are in `src/main/db/migrations.ts`.
 - **ML sync:**
   - Fast: ffsubsync (VAD), recovering offset and framerate scale.
   - Deep: faster-whisper with word timestamps, matched to subtitle lines with rapidfuzz, then a RANSAC global fit, with piecewise segments for cuts.
