@@ -1,15 +1,52 @@
 # Video Player
 
-A Windows desktop player for local movie folders. It has:
-- an endless poster wall that pans in all directions, with tiles repeating when there are few movies
+A Windows desktop player for local movie and TV folders. It has:
+- an endless poster wall that pans in all directions, with tiles repeating when there are few titles
+- a show page per TV show (season/episode picker; Play episode / Continue watching + Restart episode)
 - Apple TV-style subtitles
 - Netflix-style search
 - ML subtitle sync (VAD first, Whisper as fallback) plus manual offsets
 - VLC-style volume boost to 200%
 
-**Stack:** Electron + React/TypeScript (Vite) · mpv (child process, `--wid` embed, JSON IPC) · FFmpeg/ffprobe · SQLite · TMDB · Python sidecar (ffsubsync, faster-whisper).
+**Stack:** Electron 45 + React 19/TypeScript (electron-vite) · mpv (child process, `--wid` embed, JSON IPC) · FFmpeg/ffprobe · SQLite (built-in `node:sqlite`) · TMDB · Python sidecar (ffsubsync, faster-whisper).
 
 The full plan, with architecture, milestones and verification, is in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md). Keep it up to date when decisions change. Skill details are in `required_skills.md`, which is local only and gitignored.
+
+## Resuming work
+
+- **Where we are:** the milestone table in `docs/PROJECT_PLAN.md` has a Status column. ✅ = merged into `main` and pushed. Start the next milestone without a ✅.
+- **Each milestone** has a design doc (`docs/superpowers/specs/<date>-milestone-N-*-design.md`) and a plan (`docs/superpowers/plans/…`). Read the previous milestone's design doc before starting the next one; it records decisions and deferred items.
+- **Flow per milestone:** `brainstorming` → design doc approved by the user → `writing-plans` → `executing-plans` on a `milestone-N-<name>` branch, test-first → a fresh reviewer on the whole branch → fix Critical/Important findings with a failing test first → full verification → fast-forward merge into `main` → push.
+- **Pushing:** the user has given standing permission to push `main` when a milestone is finished, fully tested, review-fixed and working as intended. Never push mid-milestone; never tag or publish releases without asking.
+
+## Setup and commands (Windows, Node 24)
+
+```
+npm install
+npm run fetch-vendor          # mpv + LGPL ffmpeg into vendor/ (pinned in vendor/manifest.json)
+node scripts/make-fixtures.mjs  # test clips + fake movie/TV library (gitignored)
+npm run dev                   # app with hot reload
+npm run typecheck             # tsc for main/preload and renderer
+npm test                      # Vitest unit + integration (uses vendor ffmpeg)
+npm run test:e2e              # builds, then Playwright-Electron
+```
+- The library DB is `%APPDATA%\video-player\library.db` (one per Windows user). `--user-data-dir=<dir>` points the app elsewhere; E2E tests always do.
+- `VP_TMDB_MODE=fixtures` (dev builds only) reads `tests/fixtures/tmdb/*.json` instead of the network. Those fixtures are real TMDB responses; re-record with `TMDB_TOKEN=… node scripts/record-tmdb-fixtures.mjs`.
+- The user's TMDB key is entered in the app (stored encrypted with DPAPI). **Never write a TMDB key or token to any file, commit or memory**; pass it through an environment variable for one command only.
+
+## Codebase map
+
+- `src/shared/` — `api.ts` (the one IPC contract: `API`, `apiMethods`, `ApiEvents`), `appError.ts`, `library.ts` types, `normalize.ts`.
+- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg).
+- `src/preload/index.ts` builds `window.api` from `apiMethods`. To add an endpoint: add it to `API` and `apiMethods`, then register a handler with `registerDomain`. Channel names are derived, never hand-written.
+- `src/renderer/src/` — currently a placeholder screen (`App`, `Library`, `ShowView`); the wall replaces it in milestone 3.
+
+## Gotchas learned so far
+
+- Electron launched with a file path (as Playwright does) reports `app.getAppPath()` = `out/main` and Electron's own version. Use `join(__dirname, '..', '..')` for the dev root and `package.json` for the version.
+- Saving TMDB rows uses upsert, never `INSERT OR REPLACE`: REPLACE deletes first and `ON DELETE SET NULL` unlinks matched videos.
+- Git converts files to CRLF on checkout here (`core.autocrlf=true`). Edit with the Edit tool. Shell `sed`/heredoc edits keep mangling backslashes and CRLF text.
+- The vendor ffmpeg is an LGPL build: no x264/x265 encoders (fixtures use mpeg4/VP9), but it has libwebp and librsvg. TMDB SVG logos rasterize badly, so PNG logos are preferred.
 
 ## Skill routing
 
@@ -54,4 +91,4 @@ Project-specific skills are the source of truth for their area: `mpv-ipc`, `subt
 - Never overwrite a user's original subtitle file. Save synced output as `<movie>.synced.srt`.
 - Third-party binaries (mpv, ffmpeg) go in `vendor/`, which is fetched by a script and gitignored.
 - Commit `.claude/skills/` and `skills-lock.json`. Restore skills with `npx skills experimental_install`. The seven project-specific skills aren't in the lock file; they live only in this repo.
-- Commit at sensible checkpoints, but **never push, tag or publish without the user's explicit permission**.
+- Commit at sensible checkpoints. Push only as described in "Resuming work" (end of a finished milestone); **never tag or publish without the user's explicit permission**.
