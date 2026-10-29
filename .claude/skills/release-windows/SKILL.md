@@ -16,15 +16,11 @@ description: Building and releasing the Windows app — fetching pinned mpv/ffmp
 - The app has no native Node modules. SQLite is the built-in `node:sqlite`, so nothing needs `electron-rebuild` or `asarUnpack`.
 
 ## 2. Resolving binary paths at runtime
+`src/main/paths.ts` → `binaryPath(name, base)` maps `mpv` → `vendor/mpv/mpv.exe`, `ffmpeg`/`ffprobe` → `vendor/ffmpeg/*.exe`, `sidecar` → `sidecar/vp-sync/vp-sync.exe`. `src/main/index.ts` picks the base:
 ```ts
-export const resolveBinary = (name: 'mpv' | 'ffmpeg' | 'ffprobe' | 'sidecar') => {
-  const base = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), '..');
-  return { mpv: 'vendor/mpv/mpv.exe', ffmpeg: 'vendor/ffmpeg/ffmpeg.exe',
-           ffprobe: 'vendor/ffmpeg/ffprobe.exe', sidecar: 'sidecar/vp-sync/vp-sync.exe' }[name]
-           .split('/').reduce((p, s) => path.join(p, s), base);
-};
+const binaryBase = app.isPackaged ? process.resourcesPath : join(__dirname, '..', '..')
 ```
-This is the only place that knows binary locations. Pass the ffmpeg path to the sidecar in the `VP_FFMPEG` environment variable.
+Don't use `app.getAppPath()` in development: it's `out/main` when Electron is launched with a file path (Playwright does this). `paths.ts` is the only place that knows binary locations. Pass the ffmpeg path to the sidecar in the `VP_FFMPEG` environment variable.
 
 ## 3. Sidecar
 `sidecar\.venv\Scripts\pyinstaller sidecar/build.spec --noconfirm` produces `sidecar/dist/vp-sync/`. Details are in `subtitle-sync-ml`. Smoke-test it on its own: `echo {"id":1,"method":"ping"} | sidecar\dist\vp-sync\vp-sync.exe`.
