@@ -9,7 +9,7 @@ A Windows desktop player for local movie folders. It has:
 
 **Stack:** Electron + React/TypeScript (Vite) · mpv (child process, `--wid` embed, JSON IPC) · FFmpeg/ffprobe · SQLite · TMDB · Python sidecar (ffsubsync, faster-whisper).
 
-The full plan is in `C:\Users\varsh\.claude\plans\i-want-to-make-graceful-pudding.md`. Skill details are in `required_skills.md`.
+The full plan, with architecture, milestones and verification, is in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md). Keep it up to date when decisions change. Skill details are in `required_skills.md`, which is local only and gitignored.
 
 ## Skill routing
 
@@ -24,7 +24,14 @@ Project skills live in `.claude/skills/`. Before starting the matching kind of w
 | Before saying work is done | `verification-before-completion` |
 | End of a milestone | `requesting-code-review`, then `/code-review` and `/security-review` |
 | Code structure getting messy | `improve-codebase-architecture`, `/simplify` |
-| Electron main/preload/windows, packaging | `electron` |
+| Electron main/preload/windows | `electron` |
+| mpv process, player/overlay windows, playback controls, tracks, volume boost | `mpv-ipc` |
+| Subtitle parsing, encodings, auto-matching, offsets, manual sync, export, Apple TV renderer | `subtitle-formats` |
+| Python sidecar, auto sync (ffsubsync / Whisper), sync accuracy | `subtitle-sync-ml` |
+| Home-screen poster wall | `infinite-wall` |
+| Search overlay and ranking | `netflix-search` |
+| Test media, fixtures, running test suites | `test-media-fixtures` |
+| Vendor binaries, packaging, installer, signing, licenses, releases | `release-windows` |
 | Any IPC endpoint (renderer ↔ main) | `electron-skills` |
 | Build config (`vite.config.ts`, electron-vite) | `vite` |
 | React components and state | `vercel-react-best-practices`, `vercel-composition-patterns` |
@@ -41,19 +48,10 @@ Project skills live in `.claude/skills/`. Before starting the matching kind of w
 | Renderer speed, frame budget, memory | `performance`, `animation-performance` |
 | Launching the app or taking screenshots to check UI | `/run` |
 
-### Not yet written
-These custom skills are still to be written with `skill-creator` when their milestone starts:
-- `mpv-ipc`
-- `subtitle-formats`
-- `subtitle-sync-ml`
-- `infinite-wall`
-- `netflix-search`
-- `test-media-fixtures`
-- `release-windows`
-
-Until then, follow the plan file for those areas.
+Project-specific skills are the source of truth for their area: `mpv-ipc`, `subtitle-formats`, `subtitle-sync-ml`, `infinite-wall`, `netflix-search`, `test-media-fixtures` and `release-windows`. When an implementation decision changes, update the matching skill and `docs/PROJECT_PLAN.md` in the same commit.
 
 ## Conventions
 - Never overwrite a user's original subtitle file. Save synced output as `<movie>.synced.srt`.
 - Third-party binaries (mpv, ffmpeg) go in `vendor/`, which is fetched by a script and gitignored.
-- Commit `.claude/skills/` and `skills-lock.json`. Restore skills with `npx skills experimental_install`.
+- Commit `.claude/skills/` and `skills-lock.json`. Restore skills with `npx skills experimental_install`. The seven project-specific skills aren't in the lock file; they live only in this repo.
+- Commit at sensible checkpoints, but **never push, tag or publish without the user's explicit permission**.
