@@ -83,17 +83,17 @@ video-player/
 ```
 
 ## Milestones
-| # | Milestone | Main skills |
-|---|---|---|
-| 1 | **Scaffold:** electron-vite + React + TS, `fetch-vendor` script, SQLite schema, type-safe IPC | `electron`, `electron-skills`, `vite`, `release-windows` (vendor) |
-| 2 | **Library:** folder picker, scan and watch, ffprobe, filename parse, TMDB + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` |
-| 3 | **Infinite wall** | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` |
-| 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume | `mpv-ipc`, `apple-design`, `emil-design-eng` |
-| 5 | **Subtitles:** parse and extract, auto-match, Apple TV renderer, style settings | `subtitle-formats`, `apple-design` |
-| 6 | **Manual sync:** hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` |
-| 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` |
-| 8 | **Search** | `netflix-search` |
-| 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` |
+| # | Milestone | Main skills | Status |
+|---|---|---|---|
+| 1 | **Scaffold:** electron-vite + React + TS, `fetch-vendor` script, SQLite schema, type-safe IPC | `electron`, `electron-skills`, `vite`, `release-windows` (vendor) | ✅ done |
+| 2 | **Library:** folder picker, scan and watch, ffprobe, filename parse, TMDB + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` | |
+| 3 | **Infinite wall** | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | |
+| 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume | `mpv-ipc`, `apple-design`, `emil-design-eng` | |
+| 5 | **Subtitles:** parse and extract, auto-match, Apple TV renderer, style settings | `subtitle-formats`, `apple-design` | |
+| 6 | **Manual sync:** hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |
+| 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |
+| 8 | **Search** | `netflix-search` | |
+| 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
 
 Every milestone follows the same flow: `brainstorming` → `writing-plans` → `executing-plans` with `test-driven-development` → `verification-before-completion` → `requesting-code-review` / `/code-review`.
 

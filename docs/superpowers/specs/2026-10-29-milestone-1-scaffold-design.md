@@ -62,7 +62,7 @@ Why A: the app's DB load is small, and A removes the most common Windows build f
 - Extraction via the `7zip-bin` package (handles both `.7z` and `.zip`; Windows has no built-in 7z).
 - Output: `vendor/mpv/mpv.exe`, `vendor/ffmpeg/{ffmpeg,ffprobe}.exe` (+ DLLs), plus a `vendor/.installed.json` recording which manifest hashes are installed, so re-runs skip.
 - Hash mismatch or a 404 is a hard failure with a message saying to bump the manifest.
-- `src/main/paths.ts` exports `resolveBinary()` exactly as in `release-windows` §2 — the only place that knows binary locations.
+- `src/main/paths.ts` exports `binaryPath(name, base)` — the only place that knows binary locations; `src/main/index.ts` picks the base (see `release-windows` §2). *(Changed during implementation: `app.getAppPath()` is `out/main` when Electron is launched with a file path.)*
 
 ### Database
 - File: `path.join(app.getPath('userData'), 'library.db')` → `%APPDATA%\video-player\library.db`. Per-user, never in movie folders. E2E tests pass `--user-data-dir=<temp>` so they never touch the real DB.
