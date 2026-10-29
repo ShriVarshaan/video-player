@@ -1,0 +1,7 @@
+interface:
+  display_name: "Electron Skills"
+  short_description: "Type-safe Electron IPC architecture guidance"
+  default_prompt: "Use $electron-skills to design or extend a type-safe Electron IPC flow."
+
+policy:
+  allow_implicit_invocation: false
