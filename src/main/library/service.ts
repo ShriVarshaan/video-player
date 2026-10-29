@@ -1,5 +1,5 @@
 import { statSync } from 'node:fs'
-import { resolve as resolvePath } from 'node:path'
+import { isAbsolute, relative, resolve as resolvePath } from 'node:path'
 import type { ApiEvents } from '@shared/api'
 import { throwAppError } from '@shared/appError'
 import type { LibraryFolder, MetadataStatus, ScanProgress } from '@shared/library'
@@ -57,7 +57,11 @@ export function createLibraryService(deps: LibraryServiceDeps) {
       for (const f of folders) {
         progress('scanning')
         try {
-          await scanFolder(db, f, { ...deps.scan, onProgress: (d, t) => progress('scanning', d, t) })
+          await scanFolder(db, f, {
+            ...deps.scan,
+            onProgress: (d, t) => progress('scanning', d, t),
+            onFlush: () => deps.emit('library.changed', {}) // show rows as they land
+          })
           db.prepare('UPDATE library_folders SET last_scan_at = ? WHERE id = ?').run(deps.now(), f.id)
         } catch (e) {
           console.error(`Scanning ${f.path} failed:`, e) // one bad folder must not stop the others
@@ -131,8 +135,22 @@ export function createLibraryService(deps: LibraryServiceDeps) {
         // falls through to the error below
       }
       if (!isDir) throwAppError({ code: 'invalid_argument', message: `${full} is not a folder.` })
-      if (db.prepare('SELECT 1 FROM library_folders WHERE path = ?').get(full)) {
-        throwAppError({ code: 'invalid_argument', message: `${full} is already in the library.` })
+      // Folders may not overlap: a file must belong to exactly one of them.
+      // path.relative compares case-insensitively on Windows.
+      const within = (parent: string, child: string) => {
+        const rel = relative(parent, child)
+        return !rel.startsWith('..') && !isAbsolute(rel)
+      }
+      for (const { path: existing } of db.prepare('SELECT path FROM library_folders').all() as { path: string }[]) {
+        if (within(existing, full)) {
+          throwAppError({ code: 'invalid_argument', message: `${existing} is in the library and already covers this folder.` })
+        }
+        if (within(full, existing)) {
+          throwAppError({
+            code: 'invalid_argument',
+            message: `${existing} is in the library and already covers part of this folder. Remove it first.`
+          })
+        }
       }
       const id = Number(db.prepare('INSERT INTO library_folders (path, added_at) VALUES (?, ?)').run(full, deps.now()).lastInsertRowid)
       startWatch({ id, path: full })

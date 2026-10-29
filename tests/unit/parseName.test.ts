@@ -43,6 +43,21 @@ describe('parseVideoPath', () => {
   })
 })
 
+describe('parseVideoPath with the library folder name', () => {
+  it('uses it when the files sit directly in a show folder', () => {
+    expect(parseVideoPath('Season 1/01 - Pilot.mkv', 'Breaking Bad')).toEqual(ep('Breaking Bad', 1, 1))
+    expect(parseVideoPath('Season 1/S01E02.mkv', 'Breaking Bad')).toEqual(ep('Breaking Bad', 1, 2))
+  })
+
+  it('uses it for a generic movie file name', () => {
+    expect(parseVideoPath('movie.mkv', 'Amélie (2001)')).toEqual(movie('Amélie', 2001))
+  })
+
+  it('never names a show after an episode code', () => {
+    expect(parseVideoPath('S01E02.mkv')).toEqual(ep('Unknown show', 1, 2))
+  })
+})
+
 describe('isVideoFile', () => {
   it('matches video extensions case-insensitively', () => {
     expect(isVideoFile('A.MKV')).toBe(true)

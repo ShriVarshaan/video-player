@@ -4,15 +4,23 @@ import type { ShowDetail } from '@shared/library'
 
 // Placeholder show page: the real one (and playback) arrive in milestones 3–4.
 export function ShowView({ showKey, onBack }: { showKey: string; onBack: () => void }) {
-  const [show, setShow] = useState<ShowDetail | null>(null)
+  const [show, setShow] = useState<ShowDetail | null | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
+  // A show opened before TMDB matched it changes key ('local:…' → 'tmdb:…').
+  const [key, setKey] = useState(showKey)
 
   useEffect(() => {
-    window.api.library
-      .getShow({ key: showKey })
-      .then(setShow)
-      .catch((e: unknown) => catchAppError(e, { DEFAULT: ({ message }) => setError(message) }))
-  }, [showKey])
+    const load = () =>
+      window.api.library
+        .getShow({ key })
+        .then((s) => {
+          setShow(s)
+          if (s && s.key !== key) setKey(s.key)
+        })
+        .catch((e: unknown) => catchAppError(e, { DEFAULT: ({ message }) => setError(message) }))
+    void load()
+    return window.api.on('library.changed', () => void load())
+  }, [key])
 
   const next = show?.nextUp
   return (
@@ -21,6 +29,7 @@ export function ShowView({ showKey, onBack }: { showKey: string; onBack: () => v
         Back
       </button>
       {error && <p role="alert">{error}</p>}
+      {show === null && <p className="muted">This show is no longer in the library.</p>}
       {show && (
         <>
           <h2>{show.name}</h2>

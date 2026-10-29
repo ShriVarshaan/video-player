@@ -45,8 +45,10 @@ function isGeneric(title: string): boolean {
   return n === '' || GENERIC_TITLES.has(n) || /^\d+$/.test(n)
 }
 
-// The library folder's own name is not part of relativePath, so the nearest
-// non-season folder above a file is the show (or the movie's own folder).
+const UNKNOWN_SHOW = 'Unknown show'
+
+// The nearest non-season folder above a file is the show (or the movie's own
+// folder). The library folder itself counts too, for a show added directly.
 function nearestNamedFolder(dirs: string[]): string | null {
   for (let i = dirs.length - 1; i >= 0; i--) {
     if (seasonOfFolder(dirs[i]!) === null) return dirs[i]!
@@ -54,7 +56,9 @@ function nearestNamedFolder(dirs: string[]): string | null {
   return null
 }
 
-export function parseVideoPath(relativePath: string): ParsedVideo | null {
+// relativePath is relative to the library folder; rootName is that folder's own
+// name, used only when nothing below it names the show or movie.
+export function parseVideoPath(relativePath: string, rootName?: string): ParsedVideo | null {
   const parts = relativePath.split(/[\\/]+/).filter(Boolean)
   const file = parts.pop()
   if (!file || !isVideoFile(file)) return null
@@ -66,11 +70,12 @@ export function parseVideoPath(relativePath: string): ParsedVideo | null {
   const parsed = parse(file)
   const sxe = SXXEYY.exec(base)
   const folderSeason = parts.length ? seasonOfFolder(parts[parts.length - 1]!) : null
-  const showFromFolder = () => nearestNamedFolder(parts)
+  const dirs = rootName ? [rootName, ...parts] : parts
+  const showFromFolder = () => nearestNamedFolder(dirs) ?? UNKNOWN_SHOW
 
   if (sxe || (parsed.season !== undefined && parsed.episode !== undefined)) {
     const title = parsed.title ?? ''
-    const show = isGeneric(title) || SXXEYY.test(title) ? (showFromFolder() ?? title) : title
+    const show = isGeneric(title) || SXXEYY.test(title) ? showFromFolder() : title
     return {
       kind: 'episode',
       show,
@@ -86,7 +91,7 @@ export function parseVideoPath(relativePath: string): ParsedVideo | null {
   if (folderSeason !== null && leading) {
     return {
       kind: 'episode',
-      show: showFromFolder() ?? '',
+      show: showFromFolder(),
       year: null,
       season: folderSeason,
       episode: Number(leading[1]),
@@ -95,9 +100,10 @@ export function parseVideoPath(relativePath: string): ParsedVideo | null {
   }
 
   const title = parsed.title ?? base
-  if (isGeneric(title) && parts.length) {
-    const folder = parse(parts[parts.length - 1]!)
-    return { kind: 'movie', title: folder.title ?? parts[parts.length - 1]!, year: folder.year ?? parsed.year ?? null }
+  if (isGeneric(title) && dirs.length) {
+    const name = dirs[dirs.length - 1]!
+    const folder = parse(name)
+    return { kind: 'movie', title: folder.title ?? name, year: folder.year ?? parsed.year ?? null }
   }
   return { kind: 'movie', title, year: parsed.year ?? null }
 }

@@ -43,6 +43,7 @@ export function setupLibrary(opts: {
 
   const credential = createCredentialStore(db, safeStorage)
   const client = createTmdbClient({ credential: () => credential.get(), mode, fixturesDir })
+  const tmdbLimit = createLimiter(4) // every TMDB request, API and images alike
   const images = createImageCache({
     db,
     dir: join(opts.userDataPath, 'cache', 'images'),
@@ -50,6 +51,7 @@ export function setupLibrary(opts: {
     toWebp: (input, output, width) => toWebp(ffmpeg, input, output, width),
     grabFrame: (input, atS, output, width) => grabFrame(ffmpeg, input, atS, output, width),
     limit: createLimiter(2),
+    downloadLimit: tmdbLimit,
     now: Date.now
   })
 
@@ -60,7 +62,7 @@ export function setupLibrary(opts: {
   const library = createLibraryService({
     db,
     scan: { probe: (file) => probe(ffprobe, file), quickHash, now: Date.now, limit: createLimiter(4) },
-    tmdbLimit: createLimiter(4),
+    tmdbLimit,
     client,
     checkKey: async (key) => {
       await createTmdbClient({ credential: () => key, mode, fixturesDir }).get('authentication')

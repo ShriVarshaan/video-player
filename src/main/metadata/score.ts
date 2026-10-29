@@ -30,6 +30,7 @@ function similarity(a: string, b: string): number {
 // Accept at 0.8 or above; ties go to the more popular title.
 export function pickBest(query: { title: string; year: number | null }, candidates: Candidate[]): Candidate | null {
   const q = normalizeTitle(query.title)
+  if (q === '') return null // nothing to compare; '' vs '' would score a perfect 1
   let best: { c: Candidate; score: number } | null = null
   for (const c of candidates) {
     if (query.year !== null && c.year !== null && Math.abs(query.year - c.year) > 1) continue

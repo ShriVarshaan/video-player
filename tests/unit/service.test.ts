@@ -103,6 +103,24 @@ describe('library service', () => {
     expect(db.prepare('SELECT count(*) AS n FROM videos').get()).toEqual({ n: 2 })
   })
 
+  it('refuses a folder inside, or containing, one already in the library', async () => {
+    const { service } = setup()
+    await service.addFolderPath(join(lib(), 'Breaking Bad'))
+    const parent = await service.addFolderPath(lib()).catch((e) => e)
+    expect(parseAppError(parent)?.code).toBe('invalid_argument')
+    expect(parseAppError(parent)?.message).toContain('already covers')
+    const inside = await service.addFolderPath(join(lib(), 'BREAKING BAD', 'Season 1')).catch((e) => e)
+    expect(parseAppError(inside)?.code).toBe('invalid_argument')
+    await service.rescan()
+  })
+
+  it('announces new rows while a scan is still running', async () => {
+    const { service, events } = setup()
+    db.prepare('INSERT INTO library_folders (path, added_at) VALUES (?, 0)').run(lib())
+    await service.rescan()
+    expect(events.filter((e) => e.name === 'library.changed').length).toBeGreaterThanOrEqual(2)
+  })
+
   it('removing a folder removes its videos', async () => {
     const { service } = setup()
     const f = await service.addFolderPath(lib())

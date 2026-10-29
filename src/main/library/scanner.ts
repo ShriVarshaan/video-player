@@ -1,6 +1,6 @@
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, statSync, type Dirent } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import { normalizeTitle } from '@shared/normalize'
 import { tx, type Db } from '../db'
 import type { ProbeResult } from '../media/probe'
@@ -12,6 +12,10 @@ export type ScanDeps = {
   now: () => number
   limit: <T>(fn: () => Promise<T>) => Promise<T>
   onProgress?: (done: number, total: number) => void
+  // Called after each committed batch, so the screen can show rows as they land.
+  onFlush?: () => void
+  // Lists one directory; defaults to fs.promises.readdir.
+  readDir?: (dir: string) => Promise<Dirent[]>
 }
 
 export type ScanResult = {
@@ -26,6 +30,7 @@ export type ScanResult = {
 
 type Row = {
   id: number
+  folder_id: number
   path: string
   size_bytes: number
   mtime_ms: number
@@ -38,6 +43,8 @@ type Row = {
   episode: number | null
   episode_end: number | null
 }
+
+type Found = { path: string; parsed: ParsedVideo }
 
 const SKIPPED_DIRS = new Set(['$recycle.bin', 'system volume information'])
 const BATCH = 50
@@ -89,17 +96,32 @@ function sameParse(row: Row, cols: ReturnType<typeof parsedColumns>): boolean {
   )
 }
 
-async function findVideos(root: string): Promise<{ path: string; parsed: ParsedVideo }[]> {
-  const entries = await readdir(root, { recursive: true, withFileTypes: true })
-  const found: { path: string; parsed: ParsedVideo }[] = []
-  for (const e of entries) {
-    if (!e.isFile() || !isVideoFile(e.name)) continue
-    const full = join(e.parentPath, e.name)
-    const rel = relative(root, full)
-    const dirs = rel.split(sep).slice(0, -1)
-    if (dirs.some((d) => d.startsWith('.') || SKIPPED_DIRS.has(d.toLowerCase()))) continue
-    const parsed = parseVideoPath(rel)
-    if (parsed) found.push({ path: full, parsed })
+// Walks the tree one directory at a time, so an unreadable subfolder (another
+// user's recycle bin, a locked folder) is skipped instead of failing the scan.
+// Only a failure to read the library folder itself is thrown.
+async function findVideos(root: string, readDir: (dir: string) => Promise<Dirent[]>): Promise<Found[]> {
+  const found: Found[] = []
+  const rootName = basename(root)
+  const pending = [root]
+  while (pending.length) {
+    const dir = pending.pop()!
+    let entries: Dirent[]
+    try {
+      entries = await readDir(dir)
+    } catch (e) {
+      if (dir === root) throw e
+      console.warn(`Skipping unreadable folder ${dir}:`, e instanceof Error ? e.message : e)
+      continue
+    }
+    for (const e of entries) {
+      const full = join(dir, e.name)
+      if (e.isDirectory()) {
+        if (!e.name.startsWith('.') && !SKIPPED_DIRS.has(e.name.toLowerCase())) pending.push(full)
+      } else if (e.isFile() && isVideoFile(e.name)) {
+        const parsed = parseVideoPath(relative(root, full), rootName)
+        if (parsed) found.push({ path: full, parsed })
+      }
+    }
   }
   return found
 }
@@ -107,6 +129,7 @@ async function findVideos(root: string): Promise<{ path: string; parsed: ParsedV
 export async function scanFolder(db: Db, folder: { id: number; path: string }, deps: ScanDeps): Promise<ScanResult> {
   const result: ScanResult = { added: 0, updated: 0, renamed: 0, missing: 0, unchanged: 0, offline: false, failed: [] }
   const now = deps.now()
+  const readDir = deps.readDir ?? ((dir: string) => readdir(dir, { withFileTypes: true }))
 
   // Unplugged drive: keep every row so progress and offsets come back with it.
   const offline = () => {
@@ -119,20 +142,60 @@ export async function scanFolder(db: Db, folder: { id: number; path: string }, d
   }
   if (!existsSync(folder.path) || !statSync(folder.path).isDirectory()) return offline()
 
-  let found: { path: string; parsed: ParsedVideo }[]
+  let found: Found[]
   try {
-    found = await findVideos(folder.path)
+    found = await findVideos(folder.path, readDir)
   } catch {
     return offline() // the drive went away while we were listing it
   }
+
   const foundPaths = new Set(found.map((f) => f.path))
   const rows = db.prepare('SELECT * FROM videos WHERE folder_id = ?').all(folder.id) as Row[]
   const byPath = new Map(rows.map((r) => [r.path, r]))
-  const byHash = db.prepare('SELECT * FROM videos WHERE quick_hash = ?')
   const claimed = new Set<number>()
 
-  // Do the slow, async work first, then write in batches.
-  const writes: (() => void)[] = []
+  const sql = {
+    byHash: db.prepare(
+      `SELECT v.*, f.path AS folder_path FROM videos v JOIN library_folders f ON f.id = v.folder_id WHERE v.quick_hash = ?`
+    ),
+    clearMissing: db.prepare('UPDATE videos SET missing_since = NULL WHERE id = ?'),
+    setMissing: db.prepare('UPDATE videos SET missing_since = ? WHERE id = ?'),
+    update: db.prepare(
+      `UPDATE videos SET size_bytes = ?, mtime_ms = ?, quick_hash = ?, wall_key = ?, kind = ?, parsed_title = ?,
+         parsed_year = ?, parsed_show = ?, season = ?, episode = ?, episode_end = ?, duration_s = ?, container = ?,
+         video_codec = ?, width = ?, height = ?, hdr = ?, probe_json = ?, missing_since = NULL,
+         match_status = CASE WHEN ? THEN match_status ELSE 'pending' END
+       WHERE id = ?`
+    ),
+    move: db.prepare(
+      `UPDATE videos SET path = ?, folder_id = ?, size_bytes = ?, mtime_ms = ?, kind = ?, parsed_title = ?,
+         parsed_year = ?, parsed_show = ?, season = ?, episode = ?, episode_end = ?, missing_since = NULL,
+         match_status = CASE WHEN ? THEN match_status ELSE 'pending' END
+       WHERE id = ?`
+    ),
+    insert: db.prepare(
+      `INSERT INTO videos (folder_id, path, size_bytes, mtime_ms, quick_hash, wall_key, kind, parsed_title,
+         parsed_year, parsed_show, season, episode, episode_end, duration_s, container, video_codec, width,
+         height, hdr, probe_json, added_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+  }
+
+  // Writes are queued as each file finishes and committed 50 at a time, so the
+  // library fills in during a long first scan and an interrupted scan keeps its work.
+  let writes: (() => void)[] = []
+  const flush = () => {
+    if (writes.length === 0) return
+    const batch = writes
+    writes = []
+    tx(db, () => batch.forEach((w) => w()))
+    deps.onFlush?.()
+  }
+  const write = (w: () => void) => {
+    writes.push(w)
+    if (writes.length >= BATCH) flush()
+  }
+
   let done = 0
   const tick = () => deps.onProgress?.(++done, found.length)
 
@@ -145,102 +208,86 @@ export async function scanFolder(db: Db, folder: { id: number; path: string }, d
     }
   }
 
+  // A row this file may have been renamed from: same content, its old file gone,
+  // and its folder online (a copy on an unplugged drive is not a rename).
+  // Rows from this folder win over rows from others.
+  const renamedFrom = (hash: string): Row | undefined =>
+    (sql.byHash.all(hash) as (Row & { folder_path: string })[])
+      .filter(
+        (r) =>
+          !foundPaths.has(r.path) &&
+          !claimed.has(r.id) &&
+          !existsSync(r.path) &&
+          (r.folder_id === folder.id || existsSync(r.folder_path))
+      )
+      .sort((a, b) => Number(b.folder_id === folder.id) - Number(a.folder_id === folder.id))[0]
+
   // A file can vanish or be locked between listing and reading it; record it
   // and carry on with the rest.
-  const safely = (fn: (f: { path: string; parsed: ParsedVideo }) => Promise<void>) => async (f: { path: string; parsed: ParsedVideo }) => {
-    try {
-      await fn(f)
-    } catch (e) {
-      result.failed.push({ path: f.path, error: e instanceof Error ? e.message : String(e) })
-      tick()
+  const scanOne = async ({ path, parsed }: Found) => {
+    const s = await stat(path)
+    const size = s.size
+    const mtime = Math.floor(s.mtimeMs)
+    const cols = parsedColumns(parsed)
+    const existing = byPath.get(path)
+
+    if (existing && existing.size_bytes === size && existing.mtime_ms === mtime) {
+      result.unchanged++
+      if (existing.missing_since !== null) write(() => sql.clearMissing.run(existing.id))
+      return
     }
+
+    const hash = await deps.limit(() => deps.quickHash(path, size))
+
+    if (existing) {
+      const p = probeColumns(await tryProbe(path))
+      result.updated++
+      write(() =>
+        sql.update.run(size, mtime, hash, wallKey(hash), cols.kind, cols.parsed_title, cols.parsed_year, cols.parsed_show,
+          cols.season, cols.episode, cols.episode_end, p.duration_s, p.container, p.video_codec, p.width, p.height,
+          p.hdr, p.probe_json, sameParse(existing, cols) ? 1 : 0, existing.id)
+      )
+      return
+    }
+
+    const moved = renamedFrom(hash)
+    if (moved) {
+      claimed.add(moved.id)
+      result.renamed++
+      write(() =>
+        sql.move.run(path, folder.id, size, mtime, cols.kind, cols.parsed_title, cols.parsed_year, cols.parsed_show,
+          cols.season, cols.episode, cols.episode_end, sameParse(moved, cols) ? 1 : 0, moved.id)
+      )
+      return
+    }
+
+    const p = probeColumns(await tryProbe(path))
+    result.added++
+    write(() =>
+      sql.insert.run(folder.id, path, size, mtime, hash, wallKey(hash), cols.kind, cols.parsed_title, cols.parsed_year,
+        cols.parsed_show, cols.season, cols.episode, cols.episode_end, p.duration_s, p.container, p.video_codec,
+        p.width, p.height, p.hdr, p.probe_json, now)
+    )
   }
 
   await Promise.all(
-    found.map(safely(async ({ path, parsed }) => {
-      const s = await stat(path)
-      const size = s.size
-      const mtime = Math.floor(s.mtimeMs)
-      const cols = parsedColumns(parsed)
-      const existing = byPath.get(path)
-
-      if (existing && existing.size_bytes === size && existing.mtime_ms === mtime) {
-        result.unchanged++
-        if (existing.missing_since !== null) {
-          writes.push(() => db.prepare('UPDATE videos SET missing_since = NULL WHERE id = ?').run(existing.id))
-        }
-        return tick()
+    found.map(async (f) => {
+      try {
+        await scanOne(f)
+      } catch (e) {
+        result.failed.push({ path: f.path, error: e instanceof Error ? e.message : String(e) })
+      } finally {
+        tick()
       }
-
-      const hash = await deps.limit(() => deps.quickHash(path, size))
-
-      if (existing) {
-        const probed = await tryProbe(path)
-        const p = probeColumns(probed)
-        result.updated++
-        writes.push(() =>
-          db
-            .prepare(
-              `UPDATE videos SET size_bytes = ?, mtime_ms = ?, quick_hash = ?, wall_key = ?, kind = ?, parsed_title = ?,
-                 parsed_year = ?, parsed_show = ?, season = ?, episode = ?, episode_end = ?, duration_s = ?, container = ?,
-                 video_codec = ?, width = ?, height = ?, hdr = ?, probe_json = ?, missing_since = NULL,
-                 match_status = CASE WHEN ? THEN match_status ELSE 'pending' END
-               WHERE id = ?`
-            )
-            .run(size, mtime, hash, wallKey(hash), cols.kind, cols.parsed_title, cols.parsed_year, cols.parsed_show,
-              cols.season, cols.episode, cols.episode_end, p.duration_s, p.container, p.video_codec, p.width, p.height,
-              p.hdr, p.probe_json, sameParse(existing, cols) ? 1 : 0, existing.id)
-        )
-        return tick()
-      }
-
-      // A new path with the content of a row whose file is gone: a rename.
-      const moved = (byHash.all(hash) as Row[]).find((r) => !foundPaths.has(r.path) && !claimed.has(r.id))
-      if (moved) {
-        claimed.add(moved.id)
-        result.renamed++
-        writes.push(() =>
-          db
-            .prepare(
-              `UPDATE videos SET path = ?, folder_id = ?, size_bytes = ?, mtime_ms = ?, kind = ?, parsed_title = ?,
-                 parsed_year = ?, parsed_show = ?, season = ?, episode = ?, episode_end = ?, missing_since = NULL,
-                 match_status = CASE WHEN ? THEN match_status ELSE 'pending' END
-               WHERE id = ?`
-            )
-            .run(path, folder.id, size, mtime, cols.kind, cols.parsed_title, cols.parsed_year, cols.parsed_show,
-              cols.season, cols.episode, cols.episode_end, sameParse(moved, cols) ? 1 : 0, moved.id)
-        )
-        return tick()
-      }
-
-      const probed = await tryProbe(path)
-      const p = probeColumns(probed)
-      result.added++
-      writes.push(() =>
-        db
-          .prepare(
-            `INSERT INTO videos (folder_id, path, size_bytes, mtime_ms, quick_hash, wall_key, kind, parsed_title,
-               parsed_year, parsed_show, season, episode, episode_end, duration_s, container, video_codec, width,
-               height, hdr, probe_json, added_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .run(folder.id, path, size, mtime, hash, wallKey(hash), cols.kind, cols.parsed_title, cols.parsed_year,
-            cols.parsed_show, cols.season, cols.episode, cols.episode_end, p.duration_s, p.container, p.video_codec,
-            p.width, p.height, p.hdr, p.probe_json, now)
-      )
-      tick()
-    }))
+    })
   )
 
   for (const r of rows) {
     if (!foundPaths.has(r.path) && !claimed.has(r.id) && r.missing_since === null) {
       result.missing++
-      writes.push(() => db.prepare('UPDATE videos SET missing_since = ? WHERE id = ?').run(now, r.id))
+      write(() => sql.setMissing.run(now, r.id))
     }
   }
-
-  for (let i = 0; i < writes.length; i += BATCH) {
-    tx(db, () => writes.slice(i, i + BATCH).forEach((w) => w()))
-  }
+  flush()
   return result
 }

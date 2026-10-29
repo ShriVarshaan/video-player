@@ -35,6 +35,11 @@ describe('pickBest', () => {
     expect(pickBest({ title: 'Dune', year: null }, [c(1, 'Dune', 1984, 20), c(2, 'Dune', 2021, 90)])?.id).toBe(2)
   })
 
+  it('matches non-Latin titles by their letters, and never matches an empty title', () => {
+    expect(pickBest({ title: 'Брат', year: 1997 }, [c(1, 'Брат 2', 2000), c(2, 'Брат', 1997)])?.id).toBe(2)
+    expect(pickBest({ title: '!!!', year: null }, [c(3, '???', null)])).toBeNull()
+  })
+
   it('returns null with no candidates', () => {
     expect(pickBest({ title: 'x', year: null }, [])).toBeNull()
   })

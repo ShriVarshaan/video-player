@@ -43,16 +43,16 @@ describe('listLibrary', () => {
   it('lists movies once per film, with TMDB titles and poster URLs', () => {
     const { movies } = listLibrary(db)
     expect(movies).toEqual([
-      { videoId: 3, title: 'Some Unknown Home Video', year: null, posterUrl: 'poster://poster/video/3', matched: false },
-      { videoId: 2, title: 'The Matrix', year: 1999, posterUrl: 'poster://poster/video/2', matched: true }
+      { videoId: 3, title: 'Some Unknown Home Video', year: null, posterUrl: 'poster://poster/video/3?v=f', matched: false },
+      { videoId: 2, title: 'The Matrix', year: 1999, posterUrl: 'poster://poster/video/2?v=t603', matched: true }
     ])
   })
 
   it('lists shows, including ones TMDB could not match', () => {
     const { shows } = listLibrary(db)
     expect(shows).toEqual([
-      { key: 'tmdb:1396', name: 'Breaking Bad', year: 2008, posterUrl: 'poster://poster/show/1396', episodeCount: 3, matched: true },
-      { key: 'local:my show', name: 'My Show', year: null, posterUrl: 'poster://poster/video/8', episodeCount: 1, matched: false }
+      { key: 'tmdb:1396', name: 'Breaking Bad', year: 2008, posterUrl: 'poster://poster/show/1396?v=t1396', episodeCount: 3, matched: true },
+      { key: 'local:my show', name: 'My Show', year: null, posterUrl: 'poster://poster/video/8?v=f', episodeCount: 1, matched: false }
     ])
   })
 })
@@ -71,7 +71,7 @@ describe('getShow', () => {
       episode: 1,
       title: 'Pilot',
       videoId: 5,
-      stillUrl: 'poster://still/video/5',
+      stillUrl: 'poster://still/video/5?v=t1396',
       positionS: 1500,
       durationS: 3000,
       finished: false
@@ -84,6 +84,12 @@ describe('getShow', () => {
     expect(show.name).toBe('My Show')
     expect(show.seasons[0]!.episodes[0]).toMatchObject({ videoId: 8, title: null })
     expect(show.nextUp).toMatchObject({ action: 'play', videoId: 8 })
+  })
+
+  it('follows a local show to its TMDB match once it has been matched', () => {
+    const show = getShow(db, 'local:breaking bad')!
+    expect(show.key).toBe('tmdb:1396')
+    expect(show.name).toBe('Breaking Bad')
   })
 
   it('returns null for an unknown key', () => {

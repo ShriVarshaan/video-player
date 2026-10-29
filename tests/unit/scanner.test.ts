@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { openDb, type Db } from '../../src/main/db'
+import { createLimiter } from '../../src/main/library/queue'
 import { scanFolder, wallKey, type ScanDeps } from '../../src/main/library/scanner'
 import type { ProbeResult } from '../../src/main/media/probe'
 
@@ -156,6 +158,79 @@ describe('scanFolder', () => {
     await scanFolder(db, folder(), deps())
     expect(db.prepare('SELECT count(*) AS n FROM videos WHERE missing_since IS NULL').get()).toEqual({ n: 2 })
     expect(db.prepare('SELECT position_s FROM playback_state').get()).toEqual({ position_s: 42 })
+  })
+
+  it('skips a subfolder it cannot read instead of calling the folder offline', async () => {
+    put('locked/Hidden.2003.mkv', 'hidden')
+    const readDir = async (dir: string) => {
+      if (dir.endsWith('locked')) throw Object.assign(new Error('EPERM: operation not permitted, scandir'), { code: 'EPERM' })
+      return readdir(dir, { withFileTypes: true })
+    }
+    const r = await scanFolder(db, folder(), deps({ readDir }))
+    expect(r.offline).toBe(false)
+    expect(r.added).toBe(2)
+  })
+
+  it('calls the folder offline only when the folder itself cannot be read', async () => {
+    await scanFolder(db, folder(), deps())
+    const readDir = async () => {
+      throw Object.assign(new Error('EIO'), { code: 'EIO' })
+    }
+    const r = await scanFolder(db, folder(), deps({ readDir }))
+    expect(r.offline).toBe(true)
+  })
+
+  it('does not take over a row whose file still exists in another folder', async () => {
+    const other = join(root, 'Backup')
+    mkdirSync(other)
+    writeFileSync(join(other, 'A.2001.mkv'), 'movie a')
+    db.exec(`INSERT INTO library_folders (id, path, added_at) VALUES (2, 'y', 0)`)
+    await scanFolder(db, folder(), deps())
+    const id = Number(row(join('Library', 'A.2001.mkv'))!['id'])
+    const r = await scanFolder(db, { id: 2, path: other }, deps())
+    expect(r.renamed).toBe(0)
+    expect(r.added).toBe(1)
+    expect({ ...db.prepare('SELECT id, folder_id FROM videos WHERE id = ?').get(id) }).toEqual({ id, folder_id: 1 })
+  })
+
+  it('does not take over the row of a folder on an unplugged drive', async () => {
+    await scanFolder(db, folder(), deps())
+    renameSync(lib, `${lib}-unplugged`)
+    await scanFolder(db, folder(), deps())
+    const other = join(root, 'Other')
+    mkdirSync(other)
+    writeFileSync(join(other, 'A.2001.mkv'), 'movie a')
+    db.exec(`INSERT INTO library_folders (id, path, added_at) VALUES (2, 'y', 0)`)
+    const r = await scanFolder(db, { id: 2, path: other }, deps())
+    expect(r).toMatchObject({ renamed: 0, added: 1 })
+  })
+
+  it('uses the library folder name for a show added directly', async () => {
+    const show = join(root, 'Breaking Bad')
+    mkdirSync(join(show, 'Season 1'), { recursive: true })
+    writeFileSync(join(show, 'Season 1', '01 - Pilot.mkv'), 'pilot')
+    writeFileSync(join(show, 'Season 1', 'S01E02.mkv'), 'two')
+    await scanFolder(db, { id: 1, path: show }, deps())
+    const shows = db.prepare(`SELECT DISTINCT parsed_title, parsed_show FROM videos WHERE kind = 'episode'`).all()
+    expect(shows.map((s) => ({ ...s }))).toEqual([{ parsed_title: 'Breaking Bad', parsed_show: 'breaking bad' }])
+  })
+
+  it('commits rows in batches of 50 while the scan is still running', async () => {
+    for (let i = 0; i < 118; i++) put(`Batch/Film ${i} (2001).mkv`, `film ${i}`)
+    let probed = 0
+    const seen: { rows: number; probed: number }[] = []
+    const probe = vi.fn(async () => {
+      probed++
+      await new Promise((r) => setTimeout(r, 1))
+      return PROBE
+    })
+    await scanFolder(db, folder(), {
+      ...deps({ probe }),
+      limit: createLimiter(2),
+      onFlush: () => seen.push({ rows: Number((db.prepare('SELECT count(*) AS n FROM videos').get() as { n: number }).n), probed })
+    })
+    expect(seen.map((s) => s.rows)).toEqual([50, 100, 120])
+    expect(seen[0]!.probed).toBeLessThan(120)
   })
 
   it('reports progress over the files it found', async () => {

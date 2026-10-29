@@ -19,6 +19,7 @@ type Options = {
 const API = 'https://api.themoviedb.org/3/'
 const IMAGES = 'https://image.tmdb.org/t/p/'
 const MAX_RETRIES = 3
+const TIMEOUT_MS = 15_000 // a hung request must not hold up every queued rescan
 const IGNORED_IN_FIXTURE_NAMES = new Set(['api_key', 'language', 'include_image_language', 'append_to_response'])
 
 // 'search/movie', {query:'The Matrix', year:1999} → 'search_movie__query=the-matrix_year=1999.json'
@@ -54,7 +55,7 @@ export function createTmdbClient(opts: Options): TmdbClient {
     for (let attempt = 0; ; attempt++) {
       let res: Response
       try {
-        res = await fetchImpl(url.toString(), { headers })
+        res = await fetchImpl(url.toString(), { headers, signal: AbortSignal.timeout(TIMEOUT_MS) })
       } catch (e) {
         throwAppError({ code: 'tmdb_unavailable', payload: { cause: e instanceof Error ? e.message : String(e) } })
       }
@@ -84,7 +85,7 @@ export function createTmdbClient(opts: Options): TmdbClient {
       if (opts.mode === 'fixtures') return copyFile(join(opts.fixturesDir, 'image.png'), dest)
       let res: Response
       try {
-        res = await fetchImpl(`${IMAGES}${size}${tmdbPath}`)
+        res = await fetchImpl(`${IMAGES}${size}${tmdbPath}`, { signal: AbortSignal.timeout(TIMEOUT_MS) })
       } catch (e) {
         throwAppError({ code: 'tmdb_unavailable', payload: { cause: e instanceof Error ? e.message : String(e) } })
       }

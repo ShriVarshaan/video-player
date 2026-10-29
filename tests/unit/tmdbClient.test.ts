@@ -55,6 +55,14 @@ describe('live mode', () => {
     expect(sleep).toHaveBeenCalledWith(1000)
   })
 
+  it('gives every request a timeout', async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => json({}))
+    const { client } = live('k', fetch as unknown as typeof globalThis.fetch)
+    await client.get('movie/1')
+    await client.image('w500', '/a.jpg', join(dir, 'a.jpg'))
+    for (const call of fetch.mock.calls) expect(call[1]?.signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('maps network failures to tmdb_unavailable', async () => {
     const fetch = vi.fn(async () => {
       throw new TypeError('fetch failed')

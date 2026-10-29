@@ -4,6 +4,10 @@ import type { Db } from '../db'
 import { posterUrl } from '../images/posterUrl'
 import { isFinished, nextUp, type ProgressEpisode } from './showProgress'
 
+// The URL changes when a title goes from frame artwork to TMDB artwork, so the
+// renderer loads the new image instead of keeping its cached one.
+const artVersion = (tmdbId: number | null) => (tmdbId === null ? 'f' : `t${tmdbId}`)
+
 const byTitle = (a: { title?: string; name?: string }, b: { title?: string; name?: string }) =>
   normalizeTitle(a.title ?? a.name ?? '').localeCompare(normalizeTitle(b.title ?? b.name ?? ''))
 
@@ -61,7 +65,7 @@ export function listLibrary(db: Db): { movies: MovieItem[]; shows: ShowItem[] } 
       videoId: r.id,
       title: r.title ?? r.parsed_title,
       year: r.year ?? r.parsed_year,
-      posterUrl: posterUrl({ type: 'poster', owner: 'video', id: r.id }),
+      posterUrl: posterUrl({ type: 'poster', owner: 'video', id: r.id }, artVersion(r.tmdb_id)),
       matched: r.tmdb_id !== null
     }))
     .sort(byTitle)
@@ -78,8 +82,8 @@ export function listLibrary(db: Db): { movies: MovieItem[]; shows: ShowItem[] } 
         name: first.name ?? first.parsed_title,
         year: first.first_air_year ?? first.parsed_year,
         posterUrl: matched
-          ? posterUrl({ type: 'poster', owner: 'show', id: first.show_tmdb_id! })
-          : posterUrl({ type: 'poster', owner: 'video', id: first.id }),
+          ? posterUrl({ type: 'poster', owner: 'show', id: first.show_tmdb_id! }, artVersion(first.show_tmdb_id))
+          : posterUrl({ type: 'poster', owner: 'video', id: first.id }, artVersion(null)),
         episodeCount: episodes.length,
         matched
       }
@@ -96,7 +100,16 @@ export function getShow(db: Db, key: string): ShowDetail | null {
     m[1] === 'tmdb'
       ? episodeRows(db, 'AND v.show_tmdb_id = ?', Number(m[2]))
       : episodeRows(db, 'AND v.show_tmdb_id IS NULL AND v.parsed_show = ?', m[2]!)
-  if (rows.length === 0) return null
+  if (rows.length === 0) {
+    // A show opened before TMDB matched it: follow its episodes to the match.
+    if (m[1] === 'local') {
+      const matched = db
+        .prepare(`SELECT show_tmdb_id FROM videos WHERE kind = 'episode' AND parsed_show = ? AND show_tmdb_id IS NOT NULL LIMIT 1`)
+        .get(m[2]!) as { show_tmdb_id: number } | undefined
+      if (matched) return getShow(db, `tmdb:${matched.show_tmdb_id}`)
+    }
+    return null
+  }
 
   const episodes = largestPer(rows, (r) => `${r.season}x${r.episode}`).sort(episodeOrder)
   const first = episodes[0]!
@@ -130,7 +143,7 @@ export function getShow(db: Db, key: string): ShowDetail | null {
         episode: r.episode,
         title,
         videoId: r.id,
-        stillUrl: posterUrl({ type: 'still', owner: 'video', id: r.id }),
+        stillUrl: posterUrl({ type: 'still', owner: 'video', id: r.id }, artVersion(showId)),
         positionS: pe.positionS,
         durationS: pe.durationS,
         finished: isFinished(pe)

@@ -17,7 +17,10 @@ type Options = {
   client: TmdbClient
   toWebp: (input: string, output: string, width: number) => Promise<void>
   grabFrame: (input: string, atS: number, output: string, width: number) => Promise<void>
+  // Limits image conversions (ffmpeg).
   limit: <T>(fn: () => Promise<T>) => Promise<T>
+  // Limits TMDB image downloads, shared with the other TMDB requests.
+  downloadLimit: <T>(fn: () => Promise<T>) => Promise<T>
   now: () => number
 }
 
@@ -30,10 +33,11 @@ const SIZES: Record<PosterRef['type'], { size: string; width: number }> = {
 }
 const FRAME_WIDTH = 400
 
-type Source = { kind: 'tmdb'; path: string } | { kind: 'frame'; videoId: number; file: string; durationS: number | null }
+type Source = { kind: 'tmdb'; path: string } | { kind: 'frame'; videoId: number; contentKey: string; file: string; durationS: number | null }
 
 type VideoRow = {
   id: number
+  quick_hash: string | null
   path: string
   duration_s: number | null
   kind: string
@@ -52,7 +56,7 @@ export function createImageCache(opts: Options): ImageCache {
   const inFlight = new Map<string, Promise<string | null>>()
 
   const videoQuery = db.prepare(`
-    SELECT v.id, v.path, v.duration_s, v.kind,
+    SELECT v.id, v.quick_hash, v.path, v.duration_s, v.kind,
            m.poster_path AS m_poster, m.backdrop_path AS m_backdrop, m.logo_path AS m_logo,
            s.poster_path AS s_poster, s.backdrop_path AS s_backdrop, s.logo_path AS s_logo,
            e.still_path AS still
@@ -77,7 +81,8 @@ export function createImageCache(opts: Options): ImageCache {
     }
     const v = videoQuery.get(ref.id) as VideoRow | undefined
     if (!v) return null
-    const frame: Source = { kind: 'frame', videoId: v.id, file: v.path, durationS: v.duration_s }
+    // Frames are keyed by content: video ids get reused, and a changed file needs a new frame.
+    const frame: Source = { kind: 'frame', videoId: v.id, contentKey: v.quick_hash ?? `video-${v.id}`, file: v.path, durationS: v.duration_s }
     const movie = v.kind === 'movie'
     switch (ref.type) {
       case 'poster':
@@ -99,7 +104,7 @@ export function createImageCache(opts: Options): ImageCache {
         const { size, width } = SIZES[type]
         const download = join(opts.dir, `${name}.src${extname(source.path)}`)
         try {
-          await opts.client.image(size, source.path, download)
+          await opts.downloadLimit(() => opts.client.image(size, source.path, download))
           await opts.limit(() => opts.toWebp(download, out, width))
         } finally {
           await rm(download, { force: true })
@@ -120,7 +125,7 @@ export function createImageCache(opts: Options): ImageCache {
   async function resolve(ref: PosterRef): Promise<string | null> {
     const source = sourceFor(ref)
     if (!source) return null
-    const key = source.kind === 'tmdb' ? `tmdb:${SIZES[ref.type].size}${source.path}` : `frame:${source.videoId}`
+    const key = source.kind === 'tmdb' ? `tmdb:${SIZES[ref.type].size}${source.path}` : `frame:${source.contentKey}`
 
     const cached = imageQuery.get(key) as { file: string } | undefined
     if (cached && existsSync(join(opts.dir, cached.file))) return join(opts.dir, cached.file)
