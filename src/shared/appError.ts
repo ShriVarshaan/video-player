@@ -3,13 +3,25 @@
 
 export class AppErrorClass extends Error {}
 
-export type AppErrorCode = 'db_too_new' | 'db_migration_failed' | 'invalid_argument' | 'unknown'
+export type AppErrorCode =
+  | 'db_too_new'
+  | 'db_migration_failed'
+  | 'invalid_argument'
+  | 'tmdb_key_invalid'
+  | 'tmdb_unavailable'
+  | 'tmdb_not_found'
+  | 'tmdb_storage_unavailable'
+  | 'unknown'
 
 export const appErrorMessages: Record<AppErrorCode, string> = {
   db_too_new:
     'The library database was created by a newer version of Video Player. Update the app to open it.',
   db_migration_failed: 'The library database could not be upgraded.',
   invalid_argument: 'An invalid value was passed.',
+  tmdb_key_invalid: 'TMDB did not accept this API key.',
+  tmdb_unavailable: 'TMDB could not be reached. Movie details will be fetched later.',
+  tmdb_not_found: 'TMDB has no record of this title.',
+  tmdb_storage_unavailable: 'Windows could not encrypt the TMDB key, so it was not saved.',
   unknown: 'An unknown error occurred.'
 }
 

@@ -12,6 +12,10 @@ export function createSettings(db: Db): API['settings'] {
     if (typeof key !== 'string' || key === '') {
       throwAppError({ code: 'invalid_argument', message: 'Setting key must be a non-empty string.' })
     }
+    // tmdb.* holds the encrypted TMDB credential; only the metadata service touches it.
+    if (key.startsWith('tmdb.')) {
+      throwAppError({ code: 'invalid_argument', message: `Setting ${key} is not available here.` })
+    }
   }
 
   return {

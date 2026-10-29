@@ -23,6 +23,14 @@ describe('settings', () => {
     expect(await settings.get({ key: 'volume' })).toBe(150)
   })
 
+  it('keeps tmdb.* keys away from the renderer', async () => {
+    const settings = createSettings(openDb(':memory:'))
+    const get = await settings.get({ key: 'tmdb.credential' }).catch((err: unknown) => err)
+    const set = await settings.set({ key: 'tmdb.credential', value: 'x' }).catch((err: unknown) => err)
+    expect(parseAppError(get)?.code).toBe('invalid_argument')
+    expect(parseAppError(set)?.code).toBe('invalid_argument')
+  })
+
   it('rejects an empty key', async () => {
     const settings = createSettings(openDb(':memory:'))
     const e = await settings.set({ key: '', value: 1 }).catch((err: unknown) => err)
