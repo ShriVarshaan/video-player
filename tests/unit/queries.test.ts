@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { openDb, type Db } from '../../src/main/db'
-import { getShow, listFolders, listLibrary } from '../../src/main/library/queries'
+import { getShow, listFolders, listLibrary, listWall } from '../../src/main/library/queries'
+import { wallKey } from '../../src/main/library/scanner'
+import { fnv1a32 } from '@shared/hash'
 
 let db: Db
 
@@ -104,5 +106,101 @@ describe('listFolders', () => {
       { id: 1, path: 'D:/L', online: true, videoCount: 7, lastScanAt: 99 },
       { id: 2, path: 'E:/Gone', online: false, videoCount: 0, lastScanAt: null }
     ])
+  })
+})
+
+describe('listWall', () => {
+  beforeEach(() => {
+    db.exec(`
+      INSERT INTO genres (id, name) VALUES (878, 'Science Fiction'), (18, 'Drama');
+      INSERT INTO tmdb_movie_genres (tmdb_id, genre_id) VALUES (603, 878), (603, 18);
+      INSERT INTO tmdb_show_genres (show_tmdb_id, genre_id) VALUES (1396, 18);
+      UPDATE tmdb_movies SET runtime_min = 136, rating = 8.23, overview = 'Neo.', backdrop_path = '/b.jpg' WHERE tmdb_id = 603;
+      UPDATE tmdb_shows SET rating = 8.9, backdrop_path = '/s.jpg' WHERE tmdb_id = 1396;
+      UPDATE videos SET wall_key = id * 1000003 % 4294967296;
+      UPDATE videos SET duration_s = 5400 WHERE id = 3;
+      INSERT INTO playback_state (video_id, position_s, duration_s, last_played_at) VALUES (2, 600, 8160, 10), (6, 100, 3000, 20);
+    `)
+  })
+
+  const item = (key: string) => listWall(db).find((i) => i.key === key)
+
+  it('returns movies and shows sorted by order', () => {
+    const items = listWall(db)
+    expect(items.map((i) => i.key).sort()).toEqual(['local:my show', 'movie:2', 'movie:3', 'tmdb:1396'])
+    expect(item('movie:2')!.order).toBe(2000006)
+    expect(item('tmdb:1396')!.order).toBe(fnv1a32('tmdb:1396'))
+    const orders = items.map((i) => i.order)
+    expect(orders).toEqual([...orders].sort((a, b) => a - b))
+  })
+
+  it('fills movie fields', () => {
+    expect(item('movie:2')).toEqual({
+      key: 'movie:2',
+      kind: 'movie',
+      order: 2000006,
+      title: 'The Matrix',
+      year: 1999,
+      posterUrl: 'poster://poster/video/2?v=t603',
+      backdropUrl: 'poster://backdrop/video/2?v=t603',
+      matched: true,
+      runtimeMin: 136,
+      seasonCount: null,
+      episodeCount: null,
+      genres: ['Drama', 'Science Fiction'],
+      rating: 8.2,
+      overview: 'Neo.',
+      progress: 600 / 8160,
+      playLabel: 'Continue watching'
+    })
+  })
+
+  it('falls back for unmatched movies', () => {
+    expect(item('movie:3')).toMatchObject({
+      title: 'Some Unknown Home Video',
+      matched: false,
+      backdropUrl: null,
+      rating: null,
+      genres: [],
+      runtimeMin: 90,
+      progress: null,
+      playLabel: 'Play'
+    })
+  })
+
+  it('treats a finished movie as not in progress', () => {
+    db.exec(`UPDATE playback_state SET position_s = 8000 WHERE video_id = 2`)
+    expect(item('movie:2')).toMatchObject({ progress: null, playLabel: 'Play' })
+  })
+
+  it('fills show fields', () => {
+    expect(item('tmdb:1396')).toMatchObject({
+      kind: 'show',
+      title: 'Breaking Bad',
+      year: 2008,
+      seasonCount: 2,
+      episodeCount: 3,
+      runtimeMin: null,
+      genres: ['Drama'],
+      rating: 8.9,
+      overview: 'Walt.',
+      posterUrl: 'poster://poster/show/1396?v=t1396',
+      backdropUrl: 'poster://backdrop/show/1396?v=t1396',
+      progress: null,
+      playLabel: 'Continue watching'
+    })
+  })
+
+  it('labels a show with nothing started Play episode', () => {
+    expect(item('local:my show')).toMatchObject({ playLabel: 'Play episode', backdropUrl: null, matched: false })
+  })
+
+  it('excludes missing files and keeps one item per film', () => {
+    expect(item('movie:4')).toBeUndefined()
+    expect(item('movie:1')).toBeUndefined()
+  })
+
+  it('fnv1a32 matches wallKey', () => {
+    expect(fnv1a32('abc')).toBe(wallKey('abc'))
   })
 })

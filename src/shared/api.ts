@@ -1,7 +1,7 @@
 // The one source of truth for renderer ↔ main IPC. Add a method here and to
 // apiMethods; the compiler then points at the missing handler and bridge.
 
-import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem } from './library'
+import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem, WallItem } from './library'
 
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json }
 
@@ -30,6 +30,8 @@ export type API = {
     rescan: (params: Record<string, never>) => Promise<void>
     list: (params: Record<string, never>) => Promise<{ movies: MovieItem[]; shows: ShowItem[] }>
     getShow: (params: { key: string }) => Promise<ShowDetail | null>
+    // Home wall tiles, already in wall order.
+    wall: (params: Record<string, never>) => Promise<WallItem[]>
   }
   metadata: {
     setTmdbKey: (params: { key: string }) => Promise<void>
@@ -43,7 +45,7 @@ export type Domain = keyof API
 export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
   app: { getInfo: true },
   settings: { get: true, set: true },
-  library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true },
+  library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true },
   metadata: { setTmdbKey: true, status: true }
 }
 

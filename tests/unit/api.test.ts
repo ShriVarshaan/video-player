@@ -11,7 +11,7 @@ describe('apiMethods', () => {
   it('lists every method of each domain', () => {
     expect(Object.keys(apiMethods.settings)).toEqual(['get', 'set'])
     expect(Object.keys(apiMethods.app)).toEqual(['getInfo'])
-    expect(Object.keys(apiMethods.library)).toEqual(['addFolder', 'removeFolder', 'listFolders', 'rescan', 'list', 'getShow'])
+    expect(Object.keys(apiMethods.library)).toEqual(['addFolder', 'removeFolder', 'listFolders', 'rescan', 'list', 'getShow', 'wall'])
     expect(Object.keys(apiMethods.metadata)).toEqual(['setTmdbKey', 'status'])
   })
 })

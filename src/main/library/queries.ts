@@ -1,4 +1,5 @@
-import type { EpisodeItem, LibraryFolder, MovieItem, ShowDetail, ShowItem } from '@shared/library'
+import { fnv1a32 } from '@shared/hash'
+import type { EpisodeItem, LibraryFolder, MovieItem, ShowDetail, ShowItem, WallItem } from '@shared/library'
 import { normalizeTitle } from '@shared/normalize'
 import type { Db } from '../db'
 import { posterUrl } from '../images/posterUrl'
@@ -164,6 +165,120 @@ export function getShow(db: Db, key: string): ShowDetail | null {
     })),
     nextUp: nextUp(progress)
   }
+}
+
+type WallMovieRow = MovieRow & {
+  duration_s: number | null
+  runtime_min: number | null
+  rating: number | null
+  overview: string | null
+  backdrop_path: string | null
+  position_s: number | null
+  pb_duration_s: number | null
+  completed: number | null
+}
+type PlaybackRow = { position_s: number; duration_s: number | null; completed: number; last_played_at: number }
+
+const oneDecimal = (n: number | null) => (n === null ? null : Math.round(n * 10) / 10)
+
+function genresBy(db: Db, table: 'tmdb_movie_genres' | 'tmdb_show_genres', idCol: string): Map<number, string[]> {
+  const rows = db
+    .prepare(`SELECT t.${idCol} AS id, g.name FROM ${table} t JOIN genres g ON g.id = t.genre_id ORDER BY g.name`)
+    .all() as { id: number; name: string }[]
+  const out = new Map<number, string[]>()
+  for (const r of rows) out.set(r.id, [...(out.get(r.id) ?? []), r.name])
+  return out
+}
+
+// Everything the home wall draws, one item per movie and per show, in wall order.
+export function listWall(db: Db): WallItem[] {
+  const movieGenres = genresBy(db, 'tmdb_movie_genres', 'tmdb_id')
+  const showGenres = genresBy(db, 'tmdb_show_genres', 'show_tmdb_id')
+
+  const movieRows = db
+    .prepare(
+      `SELECT v.id, v.parsed_title, v.parsed_year, v.tmdb_id, v.size_bytes, v.duration_s, v.wall_key,
+              m.title, m.year, m.runtime_min, m.rating, m.overview, m.backdrop_path,
+              p.position_s, p.duration_s AS pb_duration_s, p.completed
+       FROM videos v
+       LEFT JOIN tmdb_movies m ON m.tmdb_id = v.tmdb_id
+       LEFT JOIN playback_state p ON p.video_id = v.id
+       WHERE v.kind = 'movie' AND v.missing_since IS NULL`
+    )
+    .all() as (WallMovieRow & { wall_key: number })[]
+  const movies = largestPer(movieRows, (r) => (r.tmdb_id !== null ? `tmdb:${r.tmdb_id}` : `video:${r.id}`)).map(
+    (r): WallItem => {
+      const art = artVersion(r.tmdb_id)
+      const pb = { positionS: r.position_s ?? 0, durationS: r.pb_duration_s ?? r.duration_s, completed: r.completed === 1 }
+      const started = pb.positionS > 0 && pb.durationS !== null && pb.durationS > 0 && !isFinished(pb)
+      return {
+        key: `movie:${r.id}`,
+        kind: 'movie',
+        order: Number(r.wall_key),
+        title: r.title ?? r.parsed_title,
+        year: r.year ?? r.parsed_year,
+        posterUrl: posterUrl({ type: 'poster', owner: 'video', id: r.id }, art),
+        backdropUrl: r.backdrop_path ? posterUrl({ type: 'backdrop', owner: 'video', id: r.id }, art) : null,
+        matched: r.tmdb_id !== null,
+        runtimeMin: r.runtime_min ?? (r.duration_s ? Math.round(r.duration_s / 60) : null),
+        seasonCount: null,
+        episodeCount: null,
+        genres: r.tmdb_id !== null ? (movieGenres.get(r.tmdb_id) ?? []) : [],
+        rating: oneDecimal(r.rating),
+        overview: r.overview,
+        progress: started ? pb.positionS / pb.durationS! : null,
+        playLabel: started ? 'Continue watching' : 'Play'
+      }
+    }
+  )
+
+  const showInfo = db.prepare('SELECT rating, overview, backdrop_path FROM tmdb_shows WHERE tmdb_id = ?')
+  const playback = db.prepare('SELECT position_s, duration_s, completed, last_played_at FROM playback_state WHERE video_id = ?')
+  const groups = new Map<string, EpisodeRow[]>()
+  for (const r of episodeRows(db)) groups.set(showKey(r), [...(groups.get(showKey(r)) ?? []), r])
+  const shows = [...groups.entries()].map(([key, rows]): WallItem => {
+    const episodes = largestPer(rows, (r) => `${r.season}x${r.episode}`).sort(episodeOrder)
+    const first = episodes[0]!
+    const id = first.show_tmdb_id
+    const info = id !== null ? (showInfo.get(id) as { rating: number | null; overview: string | null; backdrop_path: string | null } | undefined) : undefined
+    const up = nextUp(
+      episodes.map((r) => {
+        const p = playback.get(r.id) as PlaybackRow | undefined
+        return {
+          videoId: r.id,
+          season: r.season,
+          episode: r.episode,
+          positionS: p?.position_s ?? 0,
+          durationS: p?.duration_s ?? r.duration_s,
+          completed: p?.completed === 1,
+          lastPlayedAt: p?.last_played_at ?? null
+        }
+      })
+    )
+    return {
+      key,
+      kind: 'show',
+      order: fnv1a32(key),
+      title: first.name ?? first.parsed_title,
+      year: first.first_air_year ?? first.parsed_year,
+      posterUrl:
+        id !== null
+          ? posterUrl({ type: 'poster', owner: 'show', id }, artVersion(id))
+          : posterUrl({ type: 'poster', owner: 'video', id: first.id }, artVersion(null)),
+      backdropUrl: info?.backdrop_path ? posterUrl({ type: 'backdrop', owner: 'show', id: id! }, artVersion(id)) : null,
+      matched: id !== null,
+      runtimeMin: null,
+      seasonCount: new Set(episodes.filter((e) => e.season >= 1).map((e) => e.season)).size,
+      episodeCount: episodes.length,
+      genres: id !== null ? (showGenres.get(id) ?? []) : [],
+      rating: oneDecimal(info?.rating ?? null),
+      overview: info?.overview ?? null,
+      progress: null,
+      playLabel: up?.action === 'continue' ? 'Continue watching' : 'Play episode'
+    }
+  })
+
+  return [...movies, ...shows].sort((a, b) => a.order - b.order || a.key.localeCompare(b.key))
 }
 
 export function listFolders(db: Db, exists: (p: string) => boolean): LibraryFolder[] {

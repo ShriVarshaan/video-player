@@ -3,6 +3,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { basename, join, relative } from 'node:path'
 import { normalizeTitle } from '@shared/normalize'
 import { tx, type Db } from '../db'
+import { fnv1a32 } from '@shared/hash'
 import type { ProbeResult } from '../media/probe'
 import { isVideoFile, parseVideoPath, type ParsedVideo } from './parseName'
 
@@ -49,15 +50,8 @@ type Found = { path: string; parsed: ParsedVideo }
 const SKIPPED_DIRS = new Set(['$recycle.bin', 'system volume information'])
 const BATCH = 50
 
-// FNV-1a, 32-bit. Gives the wall a stable order that survives renames.
-export function wallKey(quickHash: string): number {
-  let h = 0x811c9dc5
-  for (let i = 0; i < quickHash.length; i++) {
-    h ^= quickHash.charCodeAt(i)
-    h = Math.imul(h, 0x01000193) >>> 0
-  }
-  return h
-}
+// Gives the wall a stable order that survives renames.
+export const wallKey = (quickHash: string): number => fnv1a32(quickHash)
 
 function parsedColumns(p: ParsedVideo) {
   return p.kind === 'movie'

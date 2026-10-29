@@ -35,6 +35,26 @@ export type ShowDetail = {
   nextUp: NextUp | null
 }
 
+// One tile on the home wall: a movie or a whole show, ready to draw.
+export type WallItem = {
+  key: string // 'movie:<videoId>', or the show key ('tmdb:<id>' | 'local:<parsed_show>')
+  kind: 'movie' | 'show'
+  order: number // wall position: movies' wall_key, FNV-1a of a show's key
+  title: string
+  year: number | null
+  posterUrl: string
+  backdropUrl: string | null // null when TMDB has none; the wall blurs the poster instead
+  matched: boolean
+  runtimeMin: number | null
+  seasonCount: number | null
+  episodeCount: number | null
+  genres: string[]
+  rating: number | null
+  overview: string | null
+  progress: number | null // 0–1 for a movie started and not finished
+  playLabel: 'Play' | 'Play episode' | 'Continue watching'
+}
+
 export type ScanProgress = { phase: 'scanning' | 'probing' | 'matching' | 'images' | 'idle'; done: number; total: number }
 
 export type MetadataStatus = { hasKey: boolean; pending: number; unmatched: number }
