@@ -14,6 +14,12 @@ export function binaryPath(name: BinaryName | 'sidecar', base: string): string {
   return join(base, ...BINARIES[name])
 }
 
+// Pinned to %APPDATA%\video-player so the library is in the same per-user place
+// however Electron was launched (its default depends on how the app was found).
+export function userDataDir(argv: string[], appData: string): string {
+  return userDataOverride(argv) ?? join(appData, 'video-player')
+}
+
 export function userDataOverride(argv: string[]): string | null {
   const prefix = '--user-data-dir='
   const arg = argv.find((a) => a.startsWith(prefix))

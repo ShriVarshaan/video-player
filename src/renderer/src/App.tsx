@@ -26,7 +26,7 @@ export function App() {
       {info && (
         <dl>
           <dt>Version</dt>
-          <dd>{info.version}</dd>
+          <dd data-testid="version">{info.version}</dd>
           <dt>Library database</dt>
           <dd data-testid="db-path">{info.dbPath}</dd>
           {BINARIES.map((name) => (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { binaryPath, userDataOverride } from '../../src/main/paths'
+import { binaryPath, userDataDir, userDataOverride } from '../../src/main/paths'
 
 describe('binaryPath', () => {
   it('puts mpv under vendor/mpv', () => {
@@ -23,5 +23,17 @@ describe('userDataOverride', () => {
 
   it('returns null when the flag is absent', () => {
     expect(userDataOverride(['electron', '.'])).toBeNull()
+  })
+})
+
+describe('userDataDir', () => {
+  it('is %APPDATA%\\video-player however the app was launched', () => {
+    expect(userDataDir(['electron', 'out/main/index.js'], 'C:\\Users\\a\\AppData\\Roaming')).toBe(
+      'C:\\Users\\a\\AppData\\Roaming\\video-player'
+    )
+  })
+
+  it('prefers --user-data-dir', () => {
+    expect(userDataDir(['electron', '--user-data-dir=D:\\t'], 'C:\\AppData')).toBe('D:\\t')
   })
 })

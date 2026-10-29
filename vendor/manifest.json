@@ -1,0 +1,20 @@
+{
+  "packages": [
+    {
+      "name": "mpv",
+      "version": "20261021-git-e471496c56",
+      "url": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-x86_64-20261021-git-e471496c56.7z",
+      "sha256": "4a355f3e89c83fabc730d33fb4e759dfec747806ed2287b61a90d1681b83e8d3",
+      "from": "",
+      "keep": ["mpv.exe", "*.dll"]
+    },
+    {
+      "name": "ffmpeg",
+      "version": "n9.0.2-37-gae19868753 (autobuild-2026-10-29-19-17)",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-29-19-17/ffmpeg-n9.0.2-37-gae19868753-win64-lgpl-shared-9.0.zip",
+      "sha256": "44280849ca9ad4cffa466e1f244b8eaf3c4f28c3b1bef00801fadba9ec4f676b",
+      "from": "ffmpeg-n9.0.2-37-gae19868753-win64-lgpl-shared-9.0/bin",
+      "keep": ["ffmpeg.exe", "ffprobe.exe", "*.dll"]
+    }
+  ]
+}

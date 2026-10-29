@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
@@ -21,10 +21,18 @@ test('opens the shell and creates the database in userData', async () => {
   const win = await app.firstWindow()
   await expect(win.getByRole('heading', { name: 'Video Player' })).toBeVisible()
   await expect(win.getByTestId('db-path')).toHaveText(join(userData, 'library.db'))
+  const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
+  await expect(win.getByTestId('version')).toHaveText(version)
   expect(existsSync(join(userData, 'library.db'))).toBe(true)
 
-  for (const name of ['mpv', 'ffmpeg', 'ffprobe']) {
-    await expect(win.getByTestId(`bin-${name}`)).toHaveAttribute('data-exists', /^(true|false)$/)
+  // In development the binaries come from <repo>/vendor (npm run fetch-vendor).
+  const vendored = {
+    mpv: join('vendor', 'mpv', 'mpv.exe'),
+    ffmpeg: join('vendor', 'ffmpeg', 'ffmpeg.exe'),
+    ffprobe: join('vendor', 'ffmpeg', 'ffprobe.exe')
+  }
+  for (const [name, file] of Object.entries(vendored)) {
+    await expect(win.getByTestId(`bin-${name}`)).toHaveAttribute('data-exists', String(existsSync(file)))
   }
 })
 

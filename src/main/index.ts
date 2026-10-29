@@ -2,15 +2,15 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { parseAppError } from '@shared/appError'
+import { version } from '../../package.json'
 import { createAppInfo } from './appInfo'
 import { openDb, type Db } from './db'
 import { registerDomain } from './ipc'
-import { binaryPath, userDataOverride } from './paths'
+import { binaryPath, userDataDir } from './paths'
 import { createSettings } from './settings'
 
-// Must run before 'ready' so every later getPath('userData') sees it.
-const userDataDir = userDataOverride(process.argv)
-if (userDataDir) app.setPath('userData', userDataDir)
+// Must run before 'ready' (and the single-instance lock) so everything sees it.
+app.setPath('userData', userDataDir(process.argv, app.getPath('appData')))
 
 let db: Db | null = null
 let mainWindow: BrowserWindow | null = null
@@ -61,13 +61,15 @@ function start(): void {
     return
   }
 
-  // In development getAppPath() is the project root, where vendor/ lives.
-  const binaryBase = app.isPackaged ? process.resourcesPath : app.getAppPath()
+  // In development vendor/ is in the project root, two levels above out/main.
+  // (getAppPath() is out/main when Electron is launched with a file path.)
+  const binaryBase = app.isPackaged ? process.resourcesPath : join(__dirname, '..', '..')
   registerDomain(
     ipcMain,
     'app',
     createAppInfo({
-      version: app.getVersion(),
+      // Not app.getVersion(): that reports Electron's version when launched by file path.
+      version,
       userDataPath,
       dbPath,
       resolve: (name) => binaryPath(name, binaryBase),
