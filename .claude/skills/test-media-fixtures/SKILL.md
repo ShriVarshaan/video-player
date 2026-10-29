@@ -79,6 +79,7 @@ Still to add (milestone 5): a matching `.en.srt` and `.forced.srt` next to one m
 Set `VP_TMDB_MODE=fixtures` (development builds only). The TMDB client then reads `tests/fixtures/tmdb/*.json` instead of the network, and every image download copies the committed `tests/fixtures/tmdb/image.png`. Never call the real TMDB API in tests.
 - **Fixture file names** come from `fixtureName(path, params)` in `src/main/metadata/tmdbClient.ts`: `/` → `_`, then `__` and the sorted params with values normalized and spaces as `-` (`api_key`, `language`, `include_image_language`, `append_to_response` are left out). `search/movie {query: 'The Matrix', year: 1999}` → `search_movie__query=the-matrix_year=1999.json`; `tv/1396/season/1` → `tv_1396_season_1.json`.
 - A missing fixture behaves like TMDB's 404. The key `invalid` behaves like a rejected key.
+- The JSON fixtures are **real TMDB responses**, recorded with `TMDB_TOKEN=<v4 read access token> node scripts/record-tmdb-fixtures.mjs`. The token is read from the environment only; never write it to a file. When the app starts making a new TMDB request for the fixture library, add it to the script's `REQUESTS` list and re-record. Images are not recorded: posters are copyrighted, so tests use `image.png`.
 
 ## Running tests
 ```

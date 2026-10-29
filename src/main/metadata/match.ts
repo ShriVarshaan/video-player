@@ -33,7 +33,12 @@ const DETAIL_PARAMS = { append_to_response: 'credits,images', include_image_lang
 const TOP_CAST = 10
 
 const yearOf = (date?: string) => (date && /^\d{4}/.test(date) ? Number(date.slice(0, 4)) : null)
-const logoOf = (d: Logos) => d.images?.logos?.find((l) => l.iso_639_1 === 'en')?.file_path ?? null
+// English title logo, PNG first: TMDB often lists an SVG first, and ffmpeg
+// rasterizes SVG small and blurry. An SVG is used only when there is no PNG.
+const logoOf = (d: Logos) => {
+  const en = (d.images?.logos ?? []).filter((l) => l.iso_639_1 === 'en')
+  return (en.find((l) => l.file_path.toLowerCase().endsWith('.png')) ?? en[0])?.file_path ?? null
+}
 
 // A search that TMDB answers with "not found" means no candidates. Anything
 // else (offline, bad key, 5xx) is a failure that leaves the item pending.

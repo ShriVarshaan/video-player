@@ -56,7 +56,8 @@ describe('matchPending — movies', () => {
       title: 'The Matrix',
       year: 1999,
       runtime_min: 136,
-      logo_path: '/matrixlogo.png'
+      // TMDB lists an SVG first; PNG is preferred because ffmpeg rasterizes SVG badly.
+      logo_path: '/iWxxHjuJ1vCLQcg3iiOMucvbrF1.png'
     })
     const genres = db.prepare('SELECT g.name FROM tmdb_movie_genres mg JOIN genres g ON g.id = mg.genre_id WHERE tmdb_id = 603 ORDER BY g.name').all()
     expect(genres.map((g) => (g as { name: string }).name)).toEqual(['Action', 'Science Fiction'])
@@ -115,12 +116,20 @@ describe('matchPending — shows', () => {
     expect(db.prepare('SELECT season, name FROM tmdb_seasons ORDER BY season').all().map((s) => ({ ...s }))).toEqual([
       { season: 0, name: 'Specials' },
       { season: 1, name: 'Season 1' },
-      { season: 2, name: 'Season 2' }
+      { season: 2, name: 'Season 2' },
+      { season: 3, name: 'Season 3' },
+      { season: 4, name: 'Season 4' },
+      { season: 5, name: 'Season 5' }
     ])
     expect(db.prepare('SELECT name, still_path FROM tmdb_episodes WHERE season = 1 AND episode = 2').get()).toEqual({
       name: "Cat's in the Bag...",
-      still_path: '/tjDNvbokPLtEnpFyFPyXMOd6Zr1.jpg'
+      still_path: '/AbMoecO0ZZio0LcgeLxlzdyGs6X.jpg'
     })
+    // Only the seasons with local files are fetched.
+    expect(db.prepare('SELECT DISTINCT season FROM tmdb_episodes ORDER BY season').all().map((r) => ({ ...r }))).toEqual([
+      { season: 1 },
+      { season: 2 }
+    ])
     expect(get.mock.calls.map((c) => c[0])).not.toContain('tv/1396/season/0')
     expect(
       db.prepare(`SELECT p.name FROM show_credits c JOIN people p ON p.id = c.person_id WHERE role = 'creator'`).get()
