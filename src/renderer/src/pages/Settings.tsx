@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { AppInfo, BinaryName } from '@shared/api'
 import { catchAppError } from '@shared/appError'
-import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowItem } from '@shared/library'
-import { ShowView } from './ShowView'
+import type { LibraryFolder, MetadataStatus, ScanProgress } from '@shared/library'
 
 const PHASE_LABEL: Record<Exclude<ScanProgress['phase'], 'idle'>, string> = {
   scanning: 'Scanning',
@@ -10,14 +10,14 @@ const PHASE_LABEL: Record<Exclude<ScanProgress['phase'], 'idle'>, string> = {
   images: 'Fetching images'
 }
 
-// Placeholder library screen (milestone 2). The wall replaces it in milestone 3.
-export function Library() {
+const BINARIES: BinaryName[] = ['mpv', 'ffmpeg', 'ffprobe']
+
+// Library folders, the TMDB key and app details. The full settings screen is milestone 9.
+export function Settings() {
   const [folders, setFolders] = useState<LibraryFolder[]>([])
-  const [movies, setMovies] = useState<MovieItem[]>([])
-  const [shows, setShows] = useState<ShowItem[]>([])
   const [status, setStatus] = useState<MetadataStatus | null>(null)
   const [progress, setProgress] = useState<ScanProgress | null>(null)
-  const [openShow, setOpenShow] = useState<string | null>(null)
+  const [info, setInfo] = useState<AppInfo | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<LibraryFolder | null>(null)
   const [key, setKey] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -26,14 +26,8 @@ export function Library() {
 
   const load = useCallback(async () => {
     try {
-      const [f, lib, s] = await Promise.all([
-        window.api.library.listFolders({}),
-        window.api.library.list({}),
-        window.api.metadata.status({})
-      ])
+      const [f, s] = await Promise.all([window.api.library.listFolders({}), window.api.metadata.status({})])
       setFolders(f)
-      setMovies(lib.movies)
-      setShows(lib.shows)
       setStatus(s)
     } catch (e) {
       report(e)
@@ -42,6 +36,7 @@ export function Library() {
 
   useEffect(() => {
     void load()
+    window.api.app.getInfo({}).then(setInfo).catch(report)
     const offChanged = window.api.on('library.changed', () => void load())
     const offProgress = window.api.on('library.progress', setProgress)
     return () => {
@@ -81,28 +76,30 @@ export function Library() {
     }
   }
 
-  if (openShow) return <ShowView showKey={openShow} onBack={() => setOpenShow(null)} />
+  const missing = info ? BINARIES.filter((name) => !info.binaries[name].exists) : []
 
   return (
-    <section className="library">
+    <section className="page settings">
+      <h1>Settings</h1>
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
 
-      <h2>Folders</h2>
+      <h2>Library folders</h2>
       <ul className="folders">
         {folders.map((f) => (
           <li key={f.id} data-testid="folder-row">
             <span className="path">{f.path}</span>
             {!f.online && <span className="badge">Offline</span>}
             <span className="muted">{f.videoCount} videos</span>
-            <button type="button" onClick={() => setConfirmRemove(f)}>
+            <button type="button" className="quiet" onClick={() => setConfirmRemove(f)}>
               Remove
             </button>
           </li>
         ))}
+        {folders.length === 0 && <li className="muted">No folders yet. Add the folders that hold your movies and shows.</li>}
       </ul>
       {confirmRemove && (
         <div role="dialog" aria-labelledby="remove-title" className="confirm">
@@ -110,13 +107,13 @@ export function Library() {
           <button type="button" onClick={() => void removeFolder(confirmRemove)}>
             Remove
           </button>
-          <button type="button" onClick={() => setConfirmRemove(null)}>
+          <button type="button" className="quiet" onClick={() => setConfirmRemove(null)}>
             Cancel
           </button>
         </div>
       )}
       <div className="actions">
-        <button type="button" onClick={() => void addFolder()}>
+        <button type="button" className="primary" onClick={() => void addFolder()}>
           Add folder
         </button>
         <button type="button" onClick={() => void window.api.library.rescan({}).catch(report)}>
@@ -130,6 +127,7 @@ export function Library() {
         )}
       </div>
 
+      <h2>TMDB</h2>
       <form className="tmdb" onSubmit={(e) => void saveKey(e)}>
         <label htmlFor="tmdb-key">TMDB API key or read access token</label>
         <input id="tmdb-key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
@@ -138,35 +136,22 @@ export function Library() {
         <p className="muted small">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
       </form>
 
-      <h2>Movies</h2>
-      <ul className="grid">
-        {movies.map((m) => (
-          <li key={m.videoId} data-testid="movie-item">
-            <Poster src={m.posterUrl} />
-            <span>{m.title}</span>
-            {m.year !== null && <span className="muted"> {m.year}</span>}
-          </li>
-        ))}
-      </ul>
-
-      <h2>Shows</h2>
-      <ul className="grid">
-        {shows.map((s) => (
-          <li key={s.key}>
-            <button type="button" className="tile" data-testid="show-item" onClick={() => setOpenShow(s.key)}>
-              <Poster src={s.posterUrl} />
-              <span>{s.name}</span>
-              <span className="muted"> {s.episodeCount} {s.episodeCount === 1 ? 'episode' : 'episodes'}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <h2>About</h2>
+      {info && (
+        <dl>
+          <dt>Version</dt>
+          <dd data-testid="version">{info.version}</dd>
+          <dt>Library database</dt>
+          <dd data-testid="db-path">{info.dbPath}</dd>
+          {BINARIES.map((name) => (
+            <div key={name} className="row" data-testid={`bin-${name}`} data-exists={String(info.binaries[name].exists)}>
+              <dt>{name}</dt>
+              <dd>{info.binaries[name].exists ? 'found' : 'missing'}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {missing.length > 0 && <p className="muted">Run npm run fetch-vendor to download mpv and ffmpeg.</p>}
     </section>
   )
-}
-
-export function Poster({ src }: { src: string }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) return <div className="poster placeholder" aria-hidden="true" />
-  return <img className="poster" src={src} alt="" onError={() => setFailed(true)} />
 }

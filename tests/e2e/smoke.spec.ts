@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
+import { goTo } from './pages'
 
 let userData: string
 let app: ElectronApplication
@@ -20,7 +21,7 @@ test.afterEach(async () => {
 
 test('opens the shell and creates the database in userData', async () => {
   const win = await app.firstWindow()
-  await expect(win.getByRole('heading', { name: 'Video Player' })).toBeVisible()
+  await goTo(win, 'Settings')
   await expect(win.getByTestId('db-path')).toHaveText(join(userData, 'library.db'))
   const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
   await expect(win.getByTestId('version')).toHaveText(version)
@@ -39,6 +40,7 @@ test('opens the shell and creates the database in userData', async () => {
 
 test('the window cannot be navigated away or open new windows', async () => {
   const win = await app.firstWindow()
+  await goTo(win, 'Settings')
   await expect(win.getByTestId('db-path')).toBeVisible()
   const before = win.url()
 
@@ -59,6 +61,7 @@ test('the window cannot be navigated away or open new windows', async () => {
 
 test('a second instance exits and leaves the first running', async () => {
   const win = await app.firstWindow()
+  await goTo(win, 'Settings')
   await expect(win.getByTestId('db-path')).toBeVisible()
 
   const electronPath = require('electron') as unknown as string
@@ -72,5 +75,5 @@ test('a second instance exits and leaves the first running', async () => {
   })
 
   expect(code).toBe(0)
-  await expect(win.getByTestId('db-path')).toBeVisible()
+  await expect(win.getByRole('heading', { name: 'Settings' })).toBeVisible()
 })
