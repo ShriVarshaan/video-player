@@ -36,16 +36,18 @@ npm run test:e2e              # builds, then Playwright-Electron
 
 ## Codebase map
 
-- `src/shared/` — `api.ts` (the one IPC contract: `API`, `apiMethods`, `ApiEvents`), `appError.ts`, `library.ts` types, `normalize.ts`.
+- `src/shared/` — `api.ts` (the one IPC contract: `API`, `apiMethods`, `ApiEvents`), `appError.ts`, `library.ts` types (incl. `WallItem`), `normalize.ts`, `hash.ts` (FNV-1a).
 - `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg).
 - `src/preload/index.ts` builds `window.api` from `apiMethods`. To add an endpoint: add it to `API` and `apiMethods`, then register a handler with `registerDomain`. Channel names are derived, never hand-written.
-- `src/renderer/src/` — currently a placeholder screen (`App`, `Library`, `ShowView`); the wall replaces it in milestone 3.
+- `src/renderer/src/` — `App` (page state: home / search / settings), `nav/Menu` (top-left drawer), `pages/` (`Settings`, `SearchSoon` until milestone 8), `wall/` (pure `mapping`/`geometry`/`physics`/`camera`, unit-tested in Node; `engine.ts` = imperative tile pool + rAF loop; `Wall.tsx` React shell, `InfoCard`, `Backdrop`).
 
 ## Gotchas learned so far
 
 - Electron launched with a file path (as Playwright does) reports `app.getAppPath()` = `out/main` and Electron's own version. Use `join(__dirname, '..', '..')` for the dev root and `package.json` for the version.
 - Saving TMDB rows uses upsert, never `INSERT OR REPLACE`: REPLACE deletes first and `ON DELETE SET NULL` unlinks matched videos.
 - Git converts files to CRLF on checkout here (`core.autocrlf=true`). Edit with the Edit tool. Shell `sed`/heredoc edits keep mangling backslashes and CRLF text.
+- E2E: reach pages with `goTo(win, 'Settings')` from `tests/e2e/pages.ts`. Fixture TMDB mode serves one placeholder image for every TMDB poster, so blue tiles in screenshots are expected.
+- Wall keys are handled on `window` and ignored inside `nav`/inputs. Anything that leaves focus in the closing drawer swallows the next key, so menu picks move focus out at once.
 - The vendor ffmpeg is an LGPL build: no x264/x265 encoders (fixtures use mpeg4/VP9), but it has libwebp and librsvg. TMDB SVG logos rasterize badly, so PNG logos are preferred.
 
 ## Skill routing

@@ -25,6 +25,7 @@ Electron main process (Node/TS)
  ├─ SubtitleService  – load .srt/.vtt/.ass + extract embedded subs, offset store, export            [subtitle-formats]
  └─ SyncService      – Python sidecar over stdio JSON-lines                                          [subtitle-sync-ml]
 Renderer (React + TS + Vite)
+ ├─ Menu + pages     – top-left drawer: Search · Home (the wall) · Settings (folders, TMDB key, about)
  ├─ InfiniteWall     – virtualized, wrapping 2D grid                                                  [infinite-wall]
  ├─ SearchOverlay    – Netflix-style search                                                           [netflix-search]
  └─ PlayerOverlay    – transparent overlay window: controls, Apple TV subtitles, sync panel
@@ -46,6 +47,9 @@ Python sidecar (PyInstaller onedir)
   - Tile `(col,row)` maps to `movies[mod(row*S + col, n)]`, with the stride `S` chosen so neighbouring tiles differ.
   - A recycled DOM pool is moved by `translate3d` in a requestAnimationFrame loop, with no React re-render per frame.
   - Arrow keys, drag with momentum, wheel input, a focus zoom with an info card, and an idle drift.
+  - Design: `docs/superpowers/specs/2026-10-29-milestone-3-wall-design.md`. Main sends ready-to-draw `WallItem`s (`library.wall`) in a stable order.
+  - The info card is fixed at the bottom left (Apple TV style). Play stays disabled until milestone 4.
+- **Navigation:** a menu button at the top left opens a text-only drawer (Search, Home, Settings). The wall stays mounted and paused on other pages, so it keeps its place.
 - **Netflix-style search:**
   - A full-screen overlay with the query bar, an "Explore titles related to" row of chips, and a grid of 16:9 cards.
   - Fuse.js over title, cast, director, genres and year, with keyboard navigation through the grid.
