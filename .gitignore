@@ -11,7 +11,8 @@ release/
 *.tsbuildinfo
 
 # Bundled third-party binaries (fetched by setup script)
-vendor/
+vendor/*
+!vendor/manifest.json
 
 # Python sidecar
 sidecar/.venv/

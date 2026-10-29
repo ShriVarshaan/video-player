@@ -1,0 +1,37 @@
+{
+  "name": "video-player",
+  "productName": "Video Player",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows desktop player for local movie folders",
+  "main": "out/main/index.js",
+  "author": "Shri Varshaan",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "fetch-vendor": "node scripts/fetch-vendor.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShriVarshaan/video-player.git"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "7zip-bin": "^5.2.0",
+    "electron": "45.1.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
