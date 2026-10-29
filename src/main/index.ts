@@ -13,6 +13,19 @@ const userDataDir = userDataOverride(process.argv)
 if (userDataDir) app.setPath('userData', userDataDir)
 
 let db: Db | null = null
+let mainWindow: BrowserWindow | null = null
+
+// One process per userData dir, so two instances never open the database at once.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  })
+  void app.whenReady().then(start)
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -37,7 +50,7 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-void app.whenReady().then(() => {
+function start(): void {
   const userDataPath = app.getPath('userData')
   const dbPath = join(userDataPath, 'library.db')
   try {
@@ -63,8 +76,11 @@ void app.whenReady().then(() => {
   )
   registerDomain(ipcMain, 'settings', createSettings(db))
 
-  createWindow()
-})
+  mainWindow = createWindow()
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+}
 
 app.on('window-all-closed', () => app.quit())
 
