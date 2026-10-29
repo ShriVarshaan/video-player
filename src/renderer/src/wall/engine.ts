@@ -2,7 +2,7 @@ import { fnv1a32 } from '@shared/hash'
 import type { WallItem } from '@shared/library'
 import { Camera } from './camera'
 import { assignSlots, poolSize, tileSize, visibleRange, type Cell, type Range, type TileSize } from './geometry'
-import { chooseStride, itemIndex } from './mapping'
+import { chooseStride, itemIndex, nearestCell } from './mapping'
 import { VelocityTracker } from './physics'
 
 export type WallCallbacks = {
@@ -100,6 +100,8 @@ export class WallEngine {
   }
 
   setActive(active: boolean): void {
+    // Refetches re-send the same value; re-running would cancel a held key and drift.
+    if (active === this.active) return
     this.active = active
     this.held = null
     if (active) {
@@ -120,9 +122,12 @@ export class WallEngine {
     this.items = items
     this.stride = chooseStride(items.length)
     for (const slot of this.slots) this.fill(slot)
-    if (keep && this.focusedItem()?.key !== keep) {
-      const near = this.nearestCellShowing(keep)
-      if (near) this.setFocus(near)
+    // n changed, so every cell may show something else: follow the focused title.
+    const index = keep ? items.findIndex((i) => i.key === keep) : -1
+    if (index >= 0 && this.focusedItem()?.key !== keep) {
+      const near = nearestCell(index, this.focus, items.length, this.stride)
+      this.setFocus(near)
+      this.follow(near)
     }
     this.markFocus()
     this.cb.onFocus(this.focusedItem())
@@ -133,7 +138,7 @@ export class WallEngine {
   private resize(vw: number, vh: number): void {
     if (vw === 0 || vh === 0) return // hidden while another page is shown
     const first = this.vw === 0
-    const old = this.size
+    const old = { size: this.size, vw: this.vw, vh: this.vh }
     this.vw = vw
     this.vh = vh
     this.size = tileSize(vw)
@@ -144,9 +149,9 @@ export class WallEngine {
       this.camera.x = this.size.w / 2 - vw / 2
       this.camera.y = this.size.h / 2 - vh * 0.38
     } else {
-      // Keep the same part of the world in view.
-      this.camera.x = ((this.camera.x + vw / 2) * this.size.pitchX) / old.pitchX - vw / 2
-      this.camera.y = ((this.camera.y + vh / 2) * this.size.pitchY) / old.pitchY - vh / 2
+      // Keep the old centre of the screen at the new centre, scaled with the tiles.
+      this.camera.x = ((this.camera.x + old.vw / 2) * this.size.pitchX) / old.size.pitchX - vw / 2
+      this.camera.y = ((this.camera.y + old.vh / 2) * this.size.pitchY) / old.size.pitchY - vh / 2
       this.camera.stop()
     }
     const count = poolSize(vw, vh, this.size)
@@ -156,6 +161,7 @@ export class WallEngine {
     for (const slot of this.slots) slot.cell = null
     this.render()
     this.markFocus()
+    if (!first && this.items.length > 0) this.follow(this.focus)
   }
 
   private makeSlot(): Slot {
@@ -199,8 +205,9 @@ export class WallEngine {
     }
   }
 
-  // Shows the cell's title in a slot. A new poster is decoded off-screen first so
-  // the slot never flashes blank; a load that finishes after the slot moved on is dropped.
+  // Shows the cell's title in a slot. Until the new poster has decoded off-screen
+  // the slot shows its title's colour (never another title's poster, never blank);
+  // a load that finishes after the slot moved on is dropped.
   private fill(slot: Slot): void {
     const item = this.itemAt(slot.cell)
     slot.el.hidden = !item
@@ -213,9 +220,11 @@ export class WallEngine {
     slot.poster = item.posterUrl
     slot.el.dataset.key = item.key
     slot.el.dataset.title = item.title
+    slot.el.dataset.poster = item.posterUrl
     slot.el.style.setProperty('--hue', String(fnv1a32(item.key) % 360))
     slot.title.textContent = item.title
     slot.el.classList.remove('generated')
+    slot.el.classList.add('loading')
     const img = new Image()
     img.alt = ''
     img.draggable = false
@@ -225,9 +234,12 @@ export class WallEngine {
         if (slot.token !== token) return
         slot.img.replaceWith(img)
         slot.img = img
+        slot.el.classList.remove('loading')
       },
       () => {
-        if (slot.token === token) slot.el.classList.add('generated')
+        if (slot.token !== token) return
+        slot.el.classList.remove('loading')
+        slot.el.classList.add('generated')
       }
     )
   }
@@ -239,21 +251,6 @@ export class WallEngine {
 
   private focusedItem(): WallItem | null {
     return this.itemAt(this.focus)
-  }
-
-  private nearestCellShowing(key: string): Cell | null {
-    const index = this.items.findIndex((i) => i.key === key)
-    if (index < 0 || !this.range) return null
-    let best: Cell | null = null
-    let bestDist = Infinity
-    for (let row = this.range.r0; row <= this.range.r1; row++) {
-      for (let col = this.range.c0; col <= this.range.c1; col++) {
-        if (itemIndex(col, row, this.items.length, this.stride) !== index) continue
-        const d = Math.hypot(col - this.focus.col, row - this.focus.row)
-        if (d < bestDist) [best, bestDist] = [{ col, row }, d]
-      }
-    }
-    return best
   }
 
   // ---- focus ----

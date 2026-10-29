@@ -89,8 +89,14 @@
   background: linear-gradient(160deg, hsl(var(--hue) 35% 30%), hsl(var(--hue) 40% 12%));
 }
 
-.tile.generated > img {
+.tile.generated > img,
+.tile.loading > img {
   visibility: hidden;
+}
+
+/* While a recycled slot's poster decodes: its own title's colour, not the last title's art. */
+.tile.loading {
+  background: linear-gradient(160deg, hsl(var(--hue) 20% 20%), hsl(var(--hue) 25% 11%));
 }
 
 .tile.generated > .tile-title {

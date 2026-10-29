@@ -24,7 +24,10 @@ export function Backdrop({ url }: { url: string | null }) {
           return { ...l, [back]: url, front: back, shown: true }
         })
       },
-      () => {}
+      // No usable art: fade out rather than leave the previous title's behind.
+      () => {
+        if (!cancelled) setLayers((l) => ({ ...l, shown: false }))
+      }
     )
     return () => {
       cancelled = true

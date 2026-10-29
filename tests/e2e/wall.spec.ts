@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { copyFileSync, cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -138,4 +138,108 @@ test('a single title still fills the wall', async () => {
   await win.keyboard.press('ArrowRight')
   await win.keyboard.press('ArrowDown')
   await expect(win.getByTestId('wall-live')).toHaveText('Lonely Film, 2020')
+})
+
+test.describe('review fixes', () => {
+  test('a recycled tile never shows another title’s poster', async () => {
+    await launch(LIBRARY)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
+    // Sample every frame during fast drags: a tile showing its image must show its own poster.
+    await win.evaluate(() => {
+      const w = window as unknown as { __bad: string[]; __sampling: boolean }
+      w.__bad = []
+      w.__sampling = true
+      const check = () => {
+        for (const t of document.querySelectorAll<HTMLElement>('[data-testid="wall-tile"]:not([hidden])')) {
+          if (t.classList.contains('loading') || t.classList.contains('generated')) continue
+          const src = t.querySelector('img')?.getAttribute('src')
+          if (src !== t.dataset.poster) w.__bad.push(`${t.dataset.title}: ${src} != ${t.dataset.poster}`)
+        }
+        if (w.__sampling) requestAnimationFrame(check)
+      }
+      requestAnimationFrame(check)
+    })
+    for (let i = 0; i < 4; i++) {
+      await win.mouse.move(1100, 600)
+      await win.mouse.down()
+      await win.mouse.move(100, 100, { steps: 6 })
+      await win.mouse.up()
+    }
+    await win.waitForTimeout(800)
+    const bad = await win.evaluate(() => {
+      const w = window as unknown as { __bad: string[]; __sampling: boolean }
+      w.__sampling = false
+      return w.__bad
+    })
+    expect(bad.slice(0, 5)).toEqual([])
+  })
+
+  test('holding an arrow keeps repeating through a library refresh', async () => {
+    await launch(LIBRARY)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
+    const live = win.getByTestId('wall-live')
+    await win.keyboard.down('ArrowRight')
+    await win.waitForTimeout(400)
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('vp:event.library.changed', {}))
+    await win.waitForTimeout(150)
+    // Sample the announced title; a stopped repeat announces only one.
+    const seen = new Set<string | null>()
+    for (let i = 0; i < 8; i++) {
+      seen.add(await live.textContent())
+      await win.waitForTimeout(70)
+    }
+    await win.keyboard.up('ArrowRight')
+    expect(seen.size).toBeGreaterThan(1)
+  })
+
+  test('focus follows its title when the library really changes', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vp-e2e-grow-'))
+    cleanup.push(dir)
+    cpSync(LIBRARY, dir, { recursive: true })
+    await launch(dir)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
+    await openTile(win, 'Inception')
+    copyFileSync(resolve('tests', 'fixtures', 'media', 'h264_like.mp4'), join(dir, 'Lonely Film (2020).mp4'))
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toContain('Lonely Film')
+    const focused = win.locator('[data-testid="wall-tile"][data-focused="true"]')
+    await expect(focused).toHaveAttribute('data-title', 'Inception')
+    await expect(win.getByTestId('wall-live')).toHaveText(/^Inception/)
+    // The camera follows it on screen.
+    await expect
+      .poll(() => focused.evaluate((t) => { const r = t.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight }))
+      .toBe(true)
+  })
+
+  test('resizing the window keeps the focused tile where it was', async () => {
+    await launch(LIBRARY)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
+    const centreOffset = () =>
+      win.locator('[data-testid="wall-tile"][data-focused="true"]').evaluate((t) => {
+        const r = t.getBoundingClientRect()
+        return { x: r.left + r.width / 2 - innerWidth / 2, y: r.top + r.height / 2 - innerHeight / 2, w: (t as HTMLElement).offsetWidth }
+      })
+    const before = await centreOffset()
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1920, 1080))
+    await expect.poll(async () => (await centreOffset()).w).not.toBe(before.w)
+    await win.waitForTimeout(300)
+    const after = await centreOffset()
+    const ratio = after.w / before.w
+    expect(Math.abs(after.x - before.x * ratio)).toBeLessThan(40)
+    expect(Math.abs(after.y - before.y * ratio)).toBeLessThan(40)
+  })
+
+  test('the backdrop clears when the next title has no usable art', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vp-e2e-noart-'))
+    cleanup.push(dir)
+    copyFileSync(join(LIBRARY, 'The.Matrix.1999.1080p.BluRay.x264.mkv'), join(dir, 'The.Matrix.1999.1080p.BluRay.x264.mkv'))
+    copyFileSync(resolve('tests', 'fixtures', 'media', 'truncated.mp4'), join(dir, 'Broken Film (2001).mp4'))
+    await launch(dir)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(['Broken Film', 'The Matrix'].sort())
+    await openTile(win, 'The Matrix')
+    await expect(win.locator('.backdrop-layer.shown')).toHaveCount(1, { timeout: 3000 })
+    await openTile(win, 'Broken Film')
+    await expect(win.getByTestId('info-card')).toContainText('Broken Film')
+    await win.waitForTimeout(1500)
+    await expect(win.locator('.backdrop-layer.shown')).toHaveCount(0)
+  })
 })

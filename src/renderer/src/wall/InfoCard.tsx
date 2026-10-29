@@ -1,10 +1,8 @@
 import type { WallItem } from '@shared/library'
+import { firstSentence } from './text'
 
 const runtime = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`)
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
-
-// First sentence only: the card is a glance, not a synopsis.
-const firstSentence = (text: string) => /^.+?[.!?](?=\s|$)/.exec(text)?.[0] ?? text
 
 export function metaLine(item: WallItem): string {
   const parts: string[] = []

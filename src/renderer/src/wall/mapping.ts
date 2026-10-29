@@ -17,3 +17,21 @@ export function chooseStride(n: number): number {
 }
 
 export const itemIndex = (col: number, row: number, n: number, stride: number): number => mod(row * stride + col, n)
+
+// The cell nearest `from` that shows item `index`. Row r shows it in columns
+// c ≡ index − r·S (mod n), so each row has one nearest candidate on either side;
+// rows are scanned outward until they can't beat the best distance found.
+export function nearestCell(index: number, from: { col: number; row: number }, n: number, stride: number): { col: number; row: number } {
+  let best = { col: from.col, row: from.row }
+  let bestDist = Infinity
+  for (let dr = 0; dr < bestDist; dr++) {
+    for (const row of dr === 0 ? [from.row] : [from.row - dr, from.row + dr]) {
+      const d = mod(index - row * stride - from.col, n)
+      for (const dc of [d, d - n]) {
+        const dist = Math.hypot(dc, dr)
+        if (dist < bestDist) [best, bestDist] = [{ col: from.col + dc, row }, dist]
+      }
+    }
+  }
+  return best
+}
