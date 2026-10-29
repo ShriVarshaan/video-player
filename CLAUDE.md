@@ -16,7 +16,7 @@ The full plan, with architecture, milestones and verification, is in [`docs/PROJ
 
 - **Where we are:** the milestone table in `docs/PROJECT_PLAN.md` has a Status column. ✅ = merged into `main` and pushed. Start the next milestone without a ✅.
 - **Each milestone** has a design doc (`docs/superpowers/specs/<date>-milestone-N-*-design.md`) and a plan (`docs/superpowers/plans/…`). Read the previous milestone's design doc before starting the next one; it records decisions and deferred items.
-- **Flow per milestone:** `brainstorming` → design doc approved by the user → `writing-plans` → `executing-plans` on a `milestone-N-<name>` branch, test-first → a fresh reviewer on the whole branch → fix Critical/Important findings with a failing test first → full verification → fast-forward merge into `main` → push.
+- **Flow per milestone:** `brainstorming` → design doc approved by the user → `writing-plans` → `executing-plans` on a `milestone-N-<name>` branch, test-first → a fresh reviewer on the whole branch → fix Critical/Important findings with a failing test first → full verification → update `CLAUDE.md` (commands, codebase map, gotchas) and the plan's Status column → fast-forward merge into `main` → push. Keep `CLAUDE.md` short: anything only one area needs goes in that area's skill or design doc.
 - **Pushing:** the user has given standing permission to push `main` when a milestone is finished, fully tested, review-fixed and working as intended. Never push mid-milestone; never tag or publish releases without asking.
 
 ## Setup and commands (Windows, Node 24)
