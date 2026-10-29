@@ -35,3 +35,7 @@ playwright-report/
 Thumbs.db
 .vscode/
 .idea/
+
+# Generated test media (see test-media-fixtures skill)
+tests/fixtures/media/
+tests/fixtures/library/
