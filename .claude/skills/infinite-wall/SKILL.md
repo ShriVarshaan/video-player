@@ -36,7 +36,8 @@ Edge cases:
 - No layout reads inside the rAF loop. Measure the viewport with `ResizeObserver`.
 
 ## Posters
-- The main process provides a downscaled cache, about 400 px wide WebP, through a custom protocol (`poster://<movieId>`). Never load full-size TMDB images into the wall.
+- The main process provides a downscaled cache, 400 px wide WebP, through a custom protocol. Use the `posterUrl` that `library.list` returns: `poster://poster/video/<videoId>` for a movie, `poster://poster/show/<tmdbId>` for a show (`poster://poster/video/<firstEpisodeId>` for a show TMDB couldn't match). Backdrops are `poster://backdrop/...` at 1280 px. Never load full-size TMDB images into the wall.
+- **Tiles are movies and shows**: one tile per movie and one per show (not per episode). `n` counts both. Order by `wall_key` (movies) and the show's TMDB id hash, so nothing reshuffles when a title is added.
 - When a slot's content changes, load the new image off-screen and `await img.decode()` before swapping, so there's no blank flash. Keep the old image until then.
 - No poster: draw a generated tile (blurred ffmpeg frame + title in the app typeface). Never show a broken-image icon.
 

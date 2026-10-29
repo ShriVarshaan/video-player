@@ -3,8 +3,9 @@
 An endless poster wall, Apple TV-style subtitles, Netflix-style search, ML subtitle sync and volume boost.
 
 ## Context
-A desktop player (Windows 11) for movies stored on this laptop:
-- You pick a folder, and its movies appear on an endless 2D poster wall that pans up, down, left and right. When there are fewer movies than the screen can hold, the tiles repeat.
+A desktop player (Windows 11) for movies and TV shows stored on this laptop:
+- You pick a folder, and its movies and shows appear on an endless 2D poster wall that pans up, down, left and right. When there are fewer titles than the screen can hold, the tiles repeat.
+- A show opens a page to pick a season and episode. Its main button reads **Play episode**, or **Continue watching** plus **Restart episode** when you're partway through (rules in `src/main/library/showProgress.ts`).
 - It must play every popular format (mp4, mkv, avi, mov, webm, HEVC, AV1 and more).
 - Subtitles are styled like Apple TV.
 - Search works like Netflix.
@@ -18,8 +19,8 @@ Detailed specs for each area are in the project skills in `.claude/skills/`. The
 ## Architecture
 ```
 Electron main process (Node/TS)
- ├─ LibraryService   – folder scan, chokidar watch, ffprobe, filename parse, SQLite (built-in node:sqlite)
- ├─ MetadataService  – TMDB lookup + poster/backdrop cache (userData/cache), ffmpeg frame fallback
+ ├─ LibraryService   – folder scan, fs.watch, ffprobe, movie/episode name parse, SQLite (built-in node:sqlite)
+ ├─ MetadataService  – TMDB movie + TV lookup, WebP image cache behind poster://, ffmpeg frame fallback
  ├─ PlayerService    – spawns mpv.exe with --wid=<player window HWND>, JSON IPC over a named pipe   [mpv-ipc]
  ├─ SubtitleService  – load .srt/.vtt/.ass + extract embedded subs, offset store, export            [subtitle-formats]
  └─ SyncService      – Python sidecar over stdio JSON-lines                                          [subtitle-sync-ml]
@@ -48,10 +49,12 @@ Python sidecar (PyInstaller onedir)
 - **Netflix-style search:**
   - A full-screen overlay with the query bar, an "Explore titles related to" row of chips, and a grid of 16:9 cards.
   - Fuse.js over title, cast, director, genres and year, with keyboard navigation through the grid.
-- **Library and metadata:**
-  - Folder scan plus ffprobe, and `parse-torrent-title` to clean filenames.
-  - TMDB results are cached in SQLite and on disk. A user-supplied API key is set in Settings.
-  - Unmatched or offline files get an ffmpeg frame thumbnail.
+- **Library and metadata** (design: `docs/superpowers/specs/2026-10-29-milestone-2-library-design.md`):
+  - Folder scan plus ffprobe, and `parse-torrent-title` plus our own rules to tell movies from episodes (`S01E02`, `1x02`, `Show/Season 1/02 - Title`).
+  - Episodes group into shows → seasons → episodes. One TMDB search per show.
+  - TMDB results are cached in SQLite; artwork as WebP in `userData/cache/images`, served as `poster://<poster|backdrop|logo|still>/<video|show>/<id>`.
+  - The user's TMDB key is encrypted with Windows DPAPI (`safeStorage`) and never reaches the renderer.
+  - Unmatched or offline files get an ffmpeg frame thumbnail. Renamed files keep their progress (quick hash); unplugged drives keep everything.
 - **Database:**
   - Built-in `node:sqlite` (Electron 45 ships Node 24), so there is no native module to rebuild.
   - One database per Windows user at `%APPDATA%\video-player\library.db`. Nothing is stored in movie folders.
@@ -86,9 +89,9 @@ video-player/
 | # | Milestone | Main skills | Status |
 |---|---|---|---|
 | 1 | **Scaffold:** electron-vite + React + TS, `fetch-vendor` script, SQLite schema, type-safe IPC | `electron`, `electron-skills`, `vite`, `release-windows` (vendor) | ✅ done |
-| 2 | **Library:** folder picker, scan and watch, ffprobe, filename parse, TMDB + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` | |
+| 2 | **Library:** folder picker, scan and watch, ffprobe, movie and TV filename parse, TMDB movies + shows + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` | ✅ done |
 | 3 | **Infinite wall** | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | |
-| 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume | `mpv-ipc`, `apple-design`, `emil-design-eng` | |
+| 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | |
 | 5 | **Subtitles:** parse and extract, auto-match, Apple TV renderer, style settings | `subtitle-formats`, `apple-design` | |
 | 6 | **Manual sync:** hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |
 | 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |

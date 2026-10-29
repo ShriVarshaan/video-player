@@ -101,7 +101,7 @@ new BrowserWindow({ parent: playerWin, transparent: true, frame: false, hasShado
 - One mpv process per player window. When the window closes, send `quit`, then kill the process if it hasn't exited within 1 s.
 - **Unexpected exit:** log the stderr tail and respawn once. Then `loadfile`, `seek` to the last `time-pos`, and restore `aid`, `sid` and volume. If it dies again, show an error screen.
 - `end-file` with `reason: "error"`: show "Can't play this file". Include the codec from ffprobe if one is known.
-- Save the resume position every 10 s and on close (SQLite `playback_state`).
+- Save the resume position every 10 s and on close (SQLite `playback_state`, one row per `video_id` — movies and episodes alike). Also write `duration_s` and `last_played_at`. Set `completed = 1` at end of file or once position ≥ 95 % of duration; the show page's Play/Continue logic (`src/main/library/showProgress.ts`) reads these.
 
 ## Debugging
 

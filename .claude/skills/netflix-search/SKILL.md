@@ -38,7 +38,8 @@ new Fuse(docs, {
   threshold: 0.35, ignoreLocation: true, minMatchCharLength: 2, includeScore: true,
 });
 ```
-- Search documents are built from SQLite, with accents folded (`normalize('NFKD')` + strip marks) on both the documents and the query.
+- Search documents are built from SQLite, with accents folded on both the documents and the query. Use `normalizeTitle` from `src/shared/normalize.ts`.
+- **Shows are documents too:** `title` = show name, `originalTitle` = original name, `cast` = top-billed `show_credits` cast, `directors` = the show's creators (`role = 'creator'`), `genres` from `tmdb_show_genres`, `year` = first-air year. Selecting a show result opens its show page.
 - **4-digit year in the query** (`1999`): filter to that year, and fuzzy-match the rest of the query.
 - **Field-scoped queries** come from chip clicks: `genre:Comedy`, `cast:"Tom Hanks"`, `director:Nolan`. These use an exact filter, not fuzzy matching.
 - Within a score band of ±0.02, rank titles that start with the query first.

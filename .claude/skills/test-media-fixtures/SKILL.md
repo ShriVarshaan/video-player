@@ -63,16 +63,22 @@ Variants, made by applying a transform to `speech.srt`. Reuse the TS or Python S
 - `overlapping.srt`
 
 ## Fake library (`tests/fixtures/library/`, generated)
-Copy or hard-link the clips under realistic names:
+`scripts/make-fixtures.mjs` remuxes the clips under realistic names, each with its own title tag so no two share a quick hash:
 - `The.Matrix.1999.1080p.BluRay.x264.mkv`
 - `Amélie (2001).mp4`
 - `inception_2010_720p.webm`
 - `Some Unknown Home Video.avi`, which must fall back to a frame thumbnail
+- `Breaking Bad/Season 1/Breaking.Bad.S01E01.mkv`, `…S01E02.mkv`, `Breaking Bad/Season 2/Breaking.Bad.S02E01.mkv`
+- `The.Matrix.1999.sample.mkv`, which the scanner must skip
 
-Also add a matching `.en.srt` and `.forced.srt` next to one movie, and a `Subs/` folder next to another.
+The current clips are `h264_like.mp4` (mpeg4 + aac; the vendor LGPL ffmpeg has no x264), `webm_vp9_opus.webm`, `xvid_mp3.avi` and `truncated.mp4`.
+
+Still to add (milestone 5): a matching `.en.srt` and `.forced.srt` next to one movie, and a `Subs/` folder next to another.
 
 ## TMDB in tests
-Set `VP_TMDB_MODE=fixtures`. MetadataService then reads `tests/fixtures/tmdb/*.json` instead of the network. Never call the real TMDB API in tests.
+Set `VP_TMDB_MODE=fixtures` (development builds only). The TMDB client then reads `tests/fixtures/tmdb/*.json` instead of the network, and every image download copies the committed `tests/fixtures/tmdb/image.png`. Never call the real TMDB API in tests.
+- **Fixture file names** come from `fixtureName(path, params)` in `src/main/metadata/tmdbClient.ts`: `/` → `_`, then `__` and the sorted params with values normalized and spaces as `-` (`api_key`, `language`, `include_image_language`, `append_to_response` are left out). `search/movie {query: 'The Matrix', year: 1999}` → `search_movie__query=the-matrix_year=1999.json`; `tv/1396/season/1` → `tv_1396_season_1.json`.
+- A missing fixture behaves like TMDB's 404. The key `invalid` behaves like a rejected key.
 
 ## Running tests
 ```
