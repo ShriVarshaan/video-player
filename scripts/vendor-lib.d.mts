@@ -14,6 +14,10 @@ export type InstallDeps = {
   tmpRoot: string
   download: (url: string, dest: string) => Promise<void>
   extract: (archive: string, outDir: string) => Promise<void>
+  /** Defaults to fs.renameSync; injectable for tests. */
+  rename?: (from: string, to: string) => void
+  /** Wait between rename retries, default 300 ms. */
+  retryDelayMs?: number
 }
 
 export function sha256File(path: string): Promise<string>

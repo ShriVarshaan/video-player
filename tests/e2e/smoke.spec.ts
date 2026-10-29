@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import { spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -34,6 +35,26 @@ test('opens the shell and creates the database in userData', async () => {
   for (const [name, file] of Object.entries(vendored)) {
     await expect(win.getByTestId(`bin-${name}`)).toHaveAttribute('data-exists', String(existsSync(file)))
   }
+})
+
+test('the window cannot be navigated away or open new windows', async () => {
+  const win = await app.firstWindow()
+  await expect(win.getByTestId('db-path')).toBeVisible()
+  const before = win.url()
+
+  // What dropping a file onto the window, or following a link, would do.
+  await win.evaluate(() => {
+    window.location.href = 'file:///C:/Windows/win.ini'
+  })
+  await win.waitForTimeout(500)
+  expect(win.url()).toBe(before)
+  // Read the DOM directly: Playwright's locators wait forever on a cancelled navigation.
+  expect(
+    await win.evaluate(() => document.querySelector('[data-testid="db-path"]')?.textContent)
+  ).toBe(join(userData, 'library.db'))
+
+  expect(await win.evaluate(() => window.open('https://example.com') === null)).toBe(true)
+  expect(app.windows()).toHaveLength(1)
 })
 
 test('a second instance exits and leaves the first running', async () => {

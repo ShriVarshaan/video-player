@@ -37,30 +37,21 @@ export function throwAppError(
   throw new AppErrorClass(JSON.stringify({ message, code, payload }))
 }
 
-// Internal: Electron prepends text to the message, so read the JSON object at its end.
+// Internal: Electron prepends text to the message, so the JSON object runs from
+// some '{' to the end. Try each '{' from the left; braces inside JSON strings
+// make counting them unreliable.
 export const parseAppError = (error: unknown): AppError | null => {
   if (!(error instanceof Error)) return null
   const message = error.message.trim()
-  let depth = 0
-  let start = -1
-  for (let i = message.length - 1; i >= 0; i--) {
-    if (message[i] === '}') depth++
-    else if (message[i] === '{') {
-      depth--
-      if (depth === 0) {
-        start = i
-        break
+  for (let i = message.indexOf('{'); i !== -1; i = message.indexOf('{', i + 1)) {
+    try {
+      const parsed: unknown = JSON.parse(message.substring(i))
+      if (parsed && typeof parsed === 'object' && typeof (parsed as AppError).code === 'string') {
+        return parsed as AppError
       }
+    } catch {
+      // Not the start of the object; keep looking.
     }
-  }
-  if (start === -1) return null
-  try {
-    const parsed: unknown = JSON.parse(message.substring(start))
-    if (parsed && typeof parsed === 'object' && typeof (parsed as AppError).code === 'string') {
-      return parsed as AppError
-    }
-  } catch {
-    return null
   }
   return null
 }

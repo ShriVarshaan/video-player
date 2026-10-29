@@ -1,13 +1,13 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import { parseAppError } from '@shared/appError'
 import { version } from '../../package.json'
 import { createAppInfo } from './appInfo'
 import { openDb, type Db } from './db'
 import { registerDomain } from './ipc'
 import { binaryPath, userDataDir } from './paths'
 import { createSettings } from './settings'
+import { startOrQuit } from './startup'
 
 // Must run before 'ready' (and the single-instance lock) so everything sees it.
 app.setPath('userData', userDataDir(process.argv, app.getPath('appData')))
@@ -24,7 +24,12 @@ if (!app.requestSingleInstanceLock()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   })
-  void app.whenReady().then(start)
+  void app.whenReady().then(() =>
+    startOrQuit(start, {
+      report: (message) => dialog.showErrorBox('Video Player', message),
+      quit: () => app.quit()
+    })
+  )
 }
 
 function createWindow(): BrowserWindow {
@@ -42,8 +47,15 @@ function createWindow(): BrowserWindow {
   })
   win.once('ready-to-show', () => win.show())
 
-  if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
-    void win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  // Stay on the app page: a dropped file or a link must not replace the UI
+  // (the preload, and so window.api, would run on whatever loaded instead).
+  win.webContents.on('will-navigate', (event) => event.preventDefault())
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault())
+
+  const devUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  if (devUrl) {
+    void win.loadURL(devUrl)
   } else {
     void win.loadFile(join(__dirname, '../renderer/index.html'))
   }
@@ -53,13 +65,7 @@ function createWindow(): BrowserWindow {
 function start(): void {
   const userDataPath = app.getPath('userData')
   const dbPath = join(userDataPath, 'library.db')
-  try {
-    db = openDb(dbPath)
-  } catch (e) {
-    dialog.showErrorBox('Video Player', parseAppError(e)?.message ?? String(e))
-    app.quit()
-    return
-  }
+  db = openDb(dbPath)
 
   // In development vendor/ is in the project root, two levels above out/main.
   // (getAppPath() is out/main when Electron is launched with a file path.)

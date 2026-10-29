@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -89,6 +89,37 @@ describe('installPackage', () => {
     await expect(installPackage(update, deps())).rejects.toThrow(/SHA-256 mismatch/)
     expect(readFileSync(join(vendorDir, 'mpv', 'mpv.exe'), 'utf8')).toBe('mpv.exe')
     expect(readInstalled(vendorDir)).toEqual({ mpv: SHA })
+  })
+
+  it('keeps the old install when the new one cannot be moved into place', async () => {
+    await installPackage(pkg(), deps())
+    const rename = vi.fn((from: string, to: string) => {
+      if (from.endsWith('mpv.tmp')) throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+      renameSync(from, to)
+    })
+    await expect(installPackage(pkg(), { ...deps(), rename, retryDelayMs: 1 })).rejects.toThrow('EPERM')
+    expect(readFileSync(join(vendorDir, 'mpv', 'mpv.exe'), 'utf8')).toBe('mpv.exe')
+    expect(existsSync(join(vendorDir, 'mpv.old'))).toBe(false)
+  })
+
+  it('retries a rename that Windows briefly refuses', async () => {
+    let failures = 2
+    const rename = vi.fn((from: string, to: string) => {
+      if (from.endsWith('mpv.tmp') && failures-- > 0) {
+        throw Object.assign(new Error('EBUSY'), { code: 'EBUSY' })
+      }
+      renameSync(from, to)
+    })
+    await installPackage(pkg(), { ...deps(), rename, retryDelayMs: 1 })
+    expect(readdirSync(join(vendorDir, 'mpv')).sort()).toEqual(['libmpv-2.dll', 'mpv.exe'])
+  })
+
+  it('treats an unreadable .installed.json as nothing installed', async () => {
+    writeFileSync(join(vendorDir, '.installed.json'), '{"mpv": "abc')
+    expect(readInstalled(vendorDir)).toEqual({})
+    await installPackage(pkg(), deps())
+    expect(readInstalled(vendorDir)).toEqual({ mpv: SHA })
+    expect(readdirSync(vendorDir).sort()).toEqual(['.installed.json', 'mpv'])
   })
 
   it('removes its temp directories whether it succeeds or fails', async () => {

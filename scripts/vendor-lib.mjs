@@ -16,9 +16,32 @@ export function sha256File(path) {
   })
 }
 
+// A missing or damaged record means "nothing installed", so the next run reinstalls.
 export function readInstalled(vendorDir) {
+  try {
+    return JSON.parse(readFileSync(join(vendorDir, INSTALLED), 'utf8'))
+  } catch {
+    return {}
+  }
+}
+
+function writeInstalled(vendorDir, installed) {
   const file = join(vendorDir, INSTALLED)
-  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
+  writeFileSync(`${file}.tmp`, JSON.stringify(installed, null, 2) + '\n')
+  renameSync(`${file}.tmp`, file)
+}
+
+// Windows briefly refuses renames of freshly written .exe/.dll files while
+// antivirus scans them, so retry EPERM/EBUSY/EACCES for a few seconds.
+async function renameWithRetry(rename, from, to, delayMs) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return rename(from, to)
+    } catch (e) {
+      if (attempt >= 10 || !['EPERM', 'EBUSY', 'EACCES'].includes(e?.code)) throw e
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
 }
 
 export function needsInstall(pkg, installed, vendorDir) {
@@ -28,9 +51,13 @@ export function needsInstall(pkg, installed, vendorDir) {
 const globToRegExp = (glob) =>
   new RegExp('^' + glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i')
 
-export async function installPackage(pkg, { vendorDir, download, extract, tmpRoot }) {
+export async function installPackage(
+  pkg,
+  { vendorDir, download, extract, tmpRoot, rename = renameSync, retryDelayMs = 300 }
+) {
   const work = mkdtempSync(join(tmpRoot, `vp-${pkg.name}-`))
   const staging = join(vendorDir, `${pkg.name}.tmp`)
+  const old = join(vendorDir, `${pkg.name}.old`)
   try {
     const archive = join(work, 'archive')
     await download(pkg.url, archive)
@@ -58,13 +85,21 @@ export async function installPackage(pkg, { vendorDir, download, extract, tmpRoo
     mkdirSync(staging)
     for (const f of files) copyFileSync(join(source, f), join(staging, f))
 
+    // Swap through <name>.old so a failed move puts the previous install back.
     const target = join(vendorDir, pkg.name)
-    rmSync(target, { recursive: true, force: true })
-    renameSync(staging, target)
+    rmSync(old, { recursive: true, force: true })
+    const hadOld = existsSync(target)
+    if (hadOld) await renameWithRetry(rename, target, old, retryDelayMs)
+    try {
+      await renameWithRetry(rename, staging, target, retryDelayMs)
+    } catch (e) {
+      if (hadOld) await renameWithRetry(rename, old, target, retryDelayMs)
+      throw e
+    }
+    rmSync(old, { recursive: true, force: true })
 
     // Written last, so an interrupted run is retried next time.
-    const installed = { ...readInstalled(vendorDir), [pkg.name]: pkg.sha256 }
-    writeFileSync(join(vendorDir, INSTALLED), JSON.stringify(installed, null, 2) + '\n')
+    writeInstalled(vendorDir, { ...readInstalled(vendorDir), [pkg.name]: pkg.sha256 })
   } finally {
     rmSync(work, { recursive: true, force: true })
     rmSync(staging, { recursive: true, force: true })

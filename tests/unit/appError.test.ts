@@ -45,6 +45,14 @@ describe('parseAppError', () => {
     expect(parseAppError(e)).toEqual(body)
   })
 
+  it('keeps the code when the payload contains braces', () => {
+    const e = caught(() =>
+      throwAppError({ code: 'db_migration_failed', payload: { cause: 'near "}": syntax error' } })
+    )
+    const wrapped = new Error(`Error invoking remote method 'x': ${(e as Error).message}`)
+    expect(parseAppError(wrapped)?.code).toBe('db_migration_failed')
+  })
+
   it('returns null for an ordinary error', () => {
     expect(parseAppError(new Error('plain'))).toBeNull()
   })
