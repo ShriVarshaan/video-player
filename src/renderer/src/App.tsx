@@ -14,12 +14,15 @@ export function App() {
   return (
     <>
       <Menu page={page} open={menuOpen} onOpenChange={setMenuOpen} onNavigate={setPage} />
-      {/* The wall stays mounted on other pages so it keeps its place. */}
-      <div className="home" hidden={page !== 'home'} data-testid="wall-home">
-        <Wall active={page === 'home' && !menuOpen} onSearch={() => setPage('search')} onSettings={() => setPage('settings')} />
+      {/* The page behind the open drawer is dimmed and out of the tab order. */}
+      <div className="pages" inert={menuOpen}>
+        {/* The wall stays mounted on other pages so it keeps its place. */}
+        <div className="home" hidden={page !== 'home'} data-testid="wall-home">
+          <Wall active={page === 'home' && !menuOpen} onSearch={() => setPage('search')} onSettings={() => setPage('settings')} />
+        </div>
+        {page === 'search' && <SearchSoon />}
+        {page === 'settings' && <Settings />}
       </div>
-      {page === 'search' && <SearchSoon />}
-      {page === 'settings' && <Settings />}
     </>
   )
 }

@@ -339,3 +339,7 @@ input {
 .drawer:focus {
   outline: none;
 }
+
+.pages {
+  height: 100%;
+}

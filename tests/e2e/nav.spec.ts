@@ -80,3 +80,17 @@ test('clicking outside the drawer closes it', async () => {
   await win.mouse.click(900, 400)
   await expect(win.getByRole('navigation', { name: 'Main' })).toBeHidden()
 })
+
+test('Tab stays out of the dimmed page while the drawer is open', async () => {
+  await goTo(win, 'Settings')
+  await win.getByRole('button', { name: 'Menu' }).focus()
+  await win.keyboard.press('Enter')
+  for (let i = 0; i < 6; i++) {
+    await win.keyboard.press('Tab')
+    const inside = await win.evaluate(() => {
+      const a = document.activeElement
+      return !!a && (a === document.body || !!a.closest('nav') || a.getAttribute('aria-label') === 'Menu')
+    })
+    expect(inside).toBe(true)
+  }
+})

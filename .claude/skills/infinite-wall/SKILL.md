@@ -39,7 +39,7 @@ Edge cases:
 - The main process provides a downscaled cache, 400 px wide WebP, through a custom protocol. Use the `posterUrl` that `library.list` returns: `poster://poster/video/<videoId>` for a movie, `poster://poster/show/<tmdbId>` for a show (`poster://poster/video/<firstEpisodeId>` for a show TMDB couldn't match). Backdrops are `poster://backdrop/...` at 1280 px. Never load full-size TMDB images into the wall.
 - **Tiles are movies and shows**: one tile per movie and one per show (not per episode). `n` counts both. Order by `wall_key` (movies) and the FNV-1a hash of the show key, so nothing reshuffles when a title is added.
 - **Data:** `library.wall({})` returns `WallItem[]` (`src/shared/library.ts`) already in wall order. Each item carries the poster and backdrop URLs, card details, `progress` and `playLabel`. The renderer refetches on `library.changed`, keeps the camera, and keeps focus on the same `key` (the nearest visible cell showing it).
-- When a slot's content changes, load the new image off-screen and `await img.decode()` before swapping, so there's no blank flash. Keep the old image until then.
+- When a slot's content changes, load the new image off-screen and `await img.decode()` before swapping, so there's no blank flash. Until then, show the slot's own title colour (class `loading`), never the previous title's poster. A per-slot token drops decodes that finish after the slot has moved on.
 - No poster: draw a generated tile (blurred ffmpeg frame + title in the app typeface). Never show a broken-image icon.
 
 ## Input
