@@ -86,6 +86,13 @@ af add @dialogue:lavfi=[dynaudnorm=f=150:g=15]     af remove @dialogue
 - **Dialogue boost** is a separate user toggle (`@dialogue`).
 - **Image subtitles** (PGS/VobSub): select the `sid` and set `sub-visibility yes`. mpv draws these itself; our overlay draws nothing for them.
 
+### Subtitle text for the overlay (spike, mpv v0.41.0-1227, 2026-10-30)
+- `sub-text` and `sub-text/ass` keep updating with `sub-visibility=no`, so text tracks are hidden that way and the overlay draws them. `sub-text-ass` is a deprecated alias (prints a warning); use `sub-text/ass`.
+- Change notifications arrive within a few ms of the cue start. A seek while paused fires `undefined` then the line at the new position (~50 ms), so a paused seek into a cue shows it.
+- Between files and with no track, the properties go `undefined`; with a track but no line, `""`. Treat both as "no line".
+- `sub-add <path> <select|auto> <title> <lang>` works; the track shows `external: true` and `external-filename` (absolute path) in `track-list`.
+- **`sub-codepage=auto` does not decode legacy encodings** in this build: cp1252 "Café señor" came out as "CafÚ se˝or", cp1256 Arabic as wrong letters. So the app decodes external files itself and hands mpv a UTF-8 copy (`subtitles/decode.ts`, see subtitle-formats).
+
 ## Overlay window (controls and subtitles)
 
 HTML can't be layered over mpv's surface inside the same window, so the controls and subtitles live in a second window:
