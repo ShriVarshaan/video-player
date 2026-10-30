@@ -343,3 +343,11 @@ input {
 .pages {
   height: 100%;
 }
+
+/* mpv draws the video over the window while playing; nothing shows through before its first frame. */
+.player-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #000;
+}

@@ -1,4 +1,5 @@
 import type { WallItem } from '@shared/library'
+import { catchAppError } from '@shared/appError'
 import { firstSentence } from './text'
 
 const runtime = (min: number) => (min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`)
@@ -15,6 +16,12 @@ export function metaLine(item: WallItem): string {
   return parts.join(' · ')
 }
 
+// Plays what the title page's main button would: resume, next episode, or from the start.
+const play = (key: string) =>
+  window.api.player
+    .play({ key })
+    .catch((err: unknown) => catchAppError(err, { DEFAULT: ({ message }) => console.error(message) }))
+
 // Details for the focused title, fixed at the bottom left of the wall.
 export function InfoCard({ item }: { item: WallItem | null }) {
   return (
@@ -25,10 +32,9 @@ export function InfoCard({ item }: { item: WallItem | null }) {
           <p className="card-meta">{metaLine(item)}</p>
           {item.overview && <p className="card-synopsis">{firstSentence(item.overview)}</p>}
           <div className="card-actions">
-            <button type="button" className="primary" disabled>
+            <button type="button" className="primary" onClick={() => play(item.key)}>
               {item.playLabel}
             </button>
-            <span className="card-hint">Playback arrives in a later update</span>
           </div>
         </>
       )}

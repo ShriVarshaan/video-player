@@ -10,17 +10,20 @@ const CARD_DELAY = 400 // ms focus must rest before the card and backdrop change
 
 type Props = {
   active: boolean // false while the menu is open or another page is shown
+  onOpen: (key: string) => void // Enter / click: the title page
   onSearch: () => void
   onSettings: () => void
 }
 
 // The home screen. WallEngine moves the tiles; React only hears about focus changes.
-export function Wall({ active, onSearch, onSettings }: Props) {
+export function Wall({ active, onOpen, onSearch, onSettings }: Props) {
   const root = useRef<HTMLDivElement>(null)
   const plane = useRef<HTMLDivElement>(null)
   const engine = useRef<WallEngine | null>(null)
   const search = useRef(onSearch)
   search.current = onSearch
+  const open = useRef(onOpen)
+  open.current = onOpen
   const [items, setItems] = useState<WallItem[] | null>(null)
   const [focused, setFocused] = useState<WallItem | null>(null)
   const [card, setCard] = useState<WallItem | null>(null)
@@ -29,6 +32,7 @@ export function Wall({ active, onSearch, onSettings }: Props) {
     const e = new WallEngine(root.current!, plane.current!, {
       onFocus: setFocused,
       onActivate: setCard,
+      onOpen: (item) => open.current(item.key),
       onSearch: () => search.current()
     })
     engine.current = e

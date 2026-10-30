@@ -7,7 +7,8 @@ import { VelocityTracker } from './physics'
 
 export type WallCallbacks = {
   onFocus: (item: WallItem | null) => void
-  onActivate: (item: WallItem) => void
+  onActivate: (item: WallItem) => void // Space / i: show the info card now
+  onOpen: (item: WallItem) => void // Enter / click: open the title page
   onSearch: () => void
 }
 
@@ -387,7 +388,8 @@ export class WallEngine {
       const item = this.focusedItem()
       if (item) {
         e.preventDefault()
-        this.cb.onActivate(item)
+        if (e.key === 'Enter') this.cb.onOpen(item)
+        else this.cb.onActivate(item)
       }
       return
     }
@@ -404,6 +406,8 @@ export class WallEngine {
 
   private onPointerDown = (e: PointerEvent): void => {
     if (!this.active || e.button !== 0) return
+    // The info card's buttons sit over the tiles; their clicks are theirs alone.
+    if ((e.target as Element | null)?.closest?.('button, a, input')) return
     this.input()
     this.root.focus({ preventScroll: true })
     this.root.setPointerCapture(e.pointerId)
@@ -452,7 +456,7 @@ export class WallEngine {
     if (!cell) return
     this.setFocus(cell)
     const item = this.focusedItem()
-    if (item) this.cb.onActivate(item)
+    if (item) this.cb.onOpen(item)
   }
 
   private onWheel = (e: WheelEvent): void => {

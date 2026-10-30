@@ -3,7 +3,7 @@ import { copyFileSync, cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { clickAnyTile, goTo, openTile, wallTitles } from './pages'
+import { clickAnyTile, focusTile, goTo, wallTitles } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 const ALL_TITLES = ['Amélie', 'Breaking Bad', 'Inception', 'Some Unknown Home Video', 'The Matrix']
@@ -82,19 +82,19 @@ test.describe('with the fixture library', () => {
     await expect(live).toHaveText(before!)
   })
 
-  test('clicking a tile focuses it and opens its card', async () => {
+  test('clicking a tile focuses it and opens its title page', async () => {
     const title = await clickAnyTile(win)
     await expect(win.getByTestId('wall-live')).toHaveText(new RegExp(`^${title}`))
-    await expect(win.getByTestId('info-card')).toContainText(title)
+    await expect(win.getByTestId('title-heading')).toHaveText(title)
   })
 
-  test("a show's card counts seasons and episodes, with Play disabled until playback exists", async () => {
-    await openTile(win, 'Breaking Bad')
+  test("a show's card counts seasons and episodes, and Space shows it at once", async () => {
+    await focusTile(win, 'Breaking Bad')
+    await win.keyboard.press(' ')
     const card = win.getByTestId('info-card')
     await expect(card).toContainText('Breaking Bad')
     await expect(card).toContainText('2 seasons · 3 episodes')
-    await expect(card.getByRole('button', { name: 'Play episode' })).toBeDisabled()
-    await expect(card).toContainText('Playback arrives in a later update')
+    await expect(card.getByRole('button', { name: 'Play episode' })).toBeEnabled()
   })
 
   test('typing a letter opens Search', async () => {
@@ -103,7 +103,7 @@ test.describe('with the fixture library', () => {
   })
 
   test('keeps focus on the same title when the library changes', async () => {
-    await openTile(win, 'The Matrix')
+    await focusTile(win, 'The Matrix')
     await expect(win.getByTestId('wall-live')).toHaveText(/^The Matrix/)
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.webContents.send('vp:event.library.changed', {}))
     await win.waitForTimeout(500)
@@ -198,7 +198,7 @@ test.describe('review fixes', () => {
     cpSync(LIBRARY, dir, { recursive: true })
     await launch(dir)
     await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
-    await openTile(win, 'Inception')
+    await focusTile(win, 'Inception')
     copyFileSync(resolve('tests', 'fixtures', 'media', 'h264_like.mp4'), join(dir, 'Lonely Film (2020).mp4'))
     await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toContain('Lonely Film')
     const focused = win.locator('[data-testid="wall-tile"][data-focused="true"]')
@@ -235,9 +235,9 @@ test.describe('review fixes', () => {
     copyFileSync(resolve('tests', 'fixtures', 'media', 'truncated.mp4'), join(dir, 'Broken Film (2001).mp4'))
     await launch(dir)
     await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(['Broken Film', 'The Matrix'].sort())
-    await openTile(win, 'The Matrix')
+    await focusTile(win, 'The Matrix')
     await expect(win.locator('.backdrop-layer.shown')).toHaveCount(1, { timeout: 3000 })
-    await openTile(win, 'Broken Film')
+    await focusTile(win, 'Broken Film')
     await expect(win.getByTestId('info-card')).toContainText('Broken Film')
     await win.waitForTimeout(1500)
     await expect(win.locator('.backdrop-layer.shown')).toHaveCount(0)

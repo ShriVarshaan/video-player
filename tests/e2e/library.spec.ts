@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { goTo, openTile, wallTitles } from './pages'
+import { focusTile, goTo, wallTitles } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 let userData: string
@@ -68,9 +68,9 @@ test("a matched movie's card shows its TMDB details", async () => {
   await addLibrary()
   await goTo(win, 'Home')
   await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toContain('The Matrix')
-  await openTile(win, 'The Matrix')
+  await focusTile(win, 'The Matrix')
   await expect(win.getByTestId('info-card')).toContainText('1999')
-  await expect(win.getByTestId('info-card').getByRole('button', { name: 'Play' })).toBeDisabled()
+  await expect(win.getByTestId('info-card').getByRole('button', { name: 'Play' })).toBeEnabled()
 })
 
 test('removing the folder asks first, then empties the wall', async () => {
