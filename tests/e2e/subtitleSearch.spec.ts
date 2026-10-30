@@ -42,6 +42,40 @@ test('without an account, searching online says to add one', async () => {
   await expect(overlay.getByTestId('search-panel')).toContainText('Add your OpenSubtitles account in Settings')
 })
 
+test('the language list is drawn by the app and works with the mouse and keys', async () => {
+  await win.evaluate(() => window.api.subtitles.setAccount({ apiKey: 'k', username: 'u', password: 'p' }))
+  const overlay = await openSearch()
+  const panel = overlay.getByTestId('search-panel')
+  const picker = panel.getByRole('combobox', { name: 'Language' })
+  await expect(picker).toHaveText('English')
+  await expect(panel.getByTestId('search-result')).toHaveCount(3)
+
+  await picker.click()
+  const list = panel.getByRole('listbox', { name: 'Language' })
+  await expect(list).toBeVisible()
+  await expect(list.getByRole('option', { name: 'English' })).toHaveAttribute('aria-selected', 'true')
+  await list.getByRole('option', { name: 'French' }).click()
+  await expect(list).toHaveCount(0)
+  await expect(picker).toHaveText('French')
+  await expect(panel.getByTestId('search-result')).toHaveCount(1)
+
+  // Keys: ↓ opens, typing jumps, Enter picks; Escape closes only the list.
+  await picker.focus()
+  await overlay.keyboard.press('ArrowDown')
+  await expect(list).toBeVisible()
+  await overlay.keyboard.type('eng')
+  await overlay.keyboard.press('Enter')
+  await expect(picker).toHaveText('English')
+  await expect(panel.getByTestId('search-result')).toHaveCount(3)
+  await picker.focus()
+  await overlay.keyboard.press('Enter')
+  await expect(list).toBeVisible()
+  await overlay.keyboard.press('Escape')
+  await expect(list).toHaveCount(0)
+  await expect(panel).toBeVisible()
+  await expect(picker).toBeFocused()
+})
+
 test('a downloaded subtitle shows at once and is saved next to the film without touching the old one', async () => {
   const original = readFileSync(join(dir, `${MATRIX}.en.srt`))
   await win.evaluate(() => window.api.subtitles.setAccount({ apiKey: 'k', username: 'u', password: 'p' }))

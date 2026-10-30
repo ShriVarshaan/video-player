@@ -101,6 +101,16 @@ test('a Settings change reaches a title except for what was changed for it, and 
   expect(await fontFamily(overlay)).toContain('Georgia')
 })
 
+test('the subtitle language in Settings is picked from the app-drawn list and saved', async () => {
+  await goTo(win, 'Settings')
+  const picker = win.getByRole('combobox', { name: 'Subtitle language' })
+  await expect(picker).toHaveText('English')
+  await picker.click()
+  await win.getByRole('listbox', { name: 'Subtitle language' }).getByRole('option', { name: 'Spanish' }).click()
+  await expect(picker).toHaveText('Spanish')
+  await expect.poll(() => win.evaluate(() => window.api.subtitles.getSettings({}).then((s) => s.language))).toBe('spa')
+})
+
 test('the position slider moves subtitles up, and low ones sit above the controls', async () => {
   const overlay = await play('The Matrix')
   const h = await overlay.evaluate(() => innerHeight)

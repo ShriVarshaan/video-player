@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SubtitleSettings as Settings } from '@shared/api'
-import { LANGUAGES } from '@shared/lang'
 import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
 import { SubtitleView } from '../../overlay/SubtitleView'
+import { LANGUAGE_OPTIONS } from '../components/languageOptions'
+import { Select } from '../components/Select'
 import { SubtitleStyleControls } from '../components/SubtitleStyleControls'
 
 const SAMPLE = 'The quick brown fox jumps over the lazy dog.'
@@ -53,13 +54,13 @@ export function SubtitleSettings({ onError }: { onError: (e: unknown) => void })
     <div className="subtitle-settings">
       <div className="subtitle-prefs">
         <label htmlFor="sub-language">Subtitle language</label>
-        <select id="sub-language" value={settings?.language ?? ''} onChange={(e) => changeSettings({ language: e.target.value })}>
-          {LANGUAGES.map((l) => (
-            <option key={l.code2} value={l.code2}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+        <Select
+          id="sub-language"
+          label="Subtitle language"
+          value={settings?.language ?? null}
+          options={LANGUAGE_OPTIONS}
+          onChange={(language) => changeSettings({ language })}
+        />
         <label className="check">
           <input type="checkbox" checked={settings?.preferSdh ?? false} onChange={(e) => changeSettings({ preferSdh: e.target.checked })} />
           Prefer subtitles for the deaf and hard of hearing (SDH)

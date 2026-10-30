@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { catchAppError } from '@shared/appError'
-import { LANGUAGES, languageName } from '@shared/lang'
+import { languageName } from '@shared/lang'
 import type { SubtitleResult } from '@shared/subtitleSearch'
+import { LANGUAGE_OPTIONS } from '../src/components/languageOptions'
+import { Select } from '../src/components/Select'
 
 type Status = { kind: 'searching' } | { kind: 'results' } | { kind: 'downloading'; fileId: number } | { kind: 'error'; message: string }
 
@@ -81,18 +83,7 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
     <aside ref={root} className="style-panel search-panel" data-testid="search-panel" aria-label="Search subtitles online" onKeyDown={onKeyDown}>
       <h2>Search online</h2>
       <div className="search-bar">
-        <select
-          aria-label="Language"
-          value={language ?? ''}
-          disabled={busy}
-          onChange={(e) => setLanguage(e.target.value)}
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.code2} value={l.code2}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+        <Select label="Language" value={language} options={LANGUAGE_OPTIONS} disabled={busy} onChange={setLanguage} />
         {remaining !== null && <span className="search-left">{remaining} downloads left today</span>}
       </div>
 

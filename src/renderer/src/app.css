@@ -353,15 +353,6 @@ input {
 }
 
 /* Settings → Subtitles: language, then a live preview over the style rows. */
-select {
-  font: inherit;
-  color: var(--fg);
-  background: var(--surface);
-  border: 1px solid #36363d;
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
 .subtitle-prefs {
   display: grid;
   grid-template-columns: max-content minmax(200px, 280px);

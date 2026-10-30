@@ -1,0 +1,56 @@
+{
+  "total_pages": 1,
+  "total_count": 1,
+  "per_page": 60,
+  "page": 1,
+  "data": [
+    {
+      "id": "9001201",
+      "type": "subtitle",
+      "attributes": {
+        "subtitle_id": "9001201",
+        "language": "fr",
+        "download_count": 40213,
+        "new_download_count": 4021,
+        "hearing_impaired": false,
+        "hd": true,
+        "fps": 23.976,
+        "votes": 1,
+        "ratings": 5.0,
+        "from_trusted": true,
+        "foreign_parts_only": false,
+        "upload_date": "2020-06-11T08:12:44Z",
+        "ai_translated": false,
+        "machine_translated": false,
+        "release": "The.Matrix.1999.1080p.BluRay.x264.FRENCH",
+        "comments": "",
+        "legacy_subtitle_id": 1201,
+        "uploader": {
+          "uploader_id": 1,
+          "name": "uploader",
+          "rank": "trusted"
+        },
+        "feature_details": {
+          "feature_id": 1,
+          "feature_type": "Movie",
+          "year": 1999,
+          "title": "The Matrix",
+          "movie_name": "1999 - The Matrix",
+          "imdb_id": 133093,
+          "tmdb_id": 603
+        },
+        "url": "https://www.opensubtitles.com/fr/subtitles/fixture-1201",
+        "related_links": [],
+        "files": [
+          {
+            "file_id": 1201,
+            "cd_number": 1,
+            "file_name": "The.Matrix.1999.1080p.BluRay.x264.FRENCH.srt"
+          }
+        ],
+        "moviehash_match": false,
+        "format": "srt"
+      }
+    }
+  ]
+}
