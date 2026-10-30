@@ -12,6 +12,11 @@ export type AppErrorCode =
   | 'tmdb_not_found'
   | 'tmdb_storage_unavailable'
   | 'mpv'
+  | 'opensubtitles_not_set_up'
+  | 'opensubtitles_login'
+  | 'opensubtitles_unavailable'
+  | 'opensubtitles_quota'
+  | 'opensubtitles_storage_unavailable'
   | 'unknown'
 
 export const appErrorMessages: Record<AppErrorCode, string> = {
@@ -24,6 +29,11 @@ export const appErrorMessages: Record<AppErrorCode, string> = {
   tmdb_not_found: 'TMDB has no record of this title.',
   tmdb_storage_unavailable: 'Windows could not encrypt the TMDB key, so it was not saved.',
   mpv: 'The video player stopped responding.',
+  opensubtitles_not_set_up: 'Add your OpenSubtitles account in Settings to search for subtitles online.',
+  opensubtitles_login: 'OpenSubtitles did not accept this username, password or API key.',
+  opensubtitles_unavailable: 'OpenSubtitles could not be reached. Try again in a moment.',
+  opensubtitles_quota: "You've used all of today's OpenSubtitles downloads.",
+  opensubtitles_storage_unavailable: 'Windows could not encrypt the OpenSubtitles login, so it was not saved.',
   unknown: 'An unknown error occurred.'
 }
 

@@ -113,7 +113,7 @@ function start(): void {
   mainWindow = main
   const playback = setupPlayer({ db, binaryBase, userDataPath, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences })
   player = playback.player
-  setupSubtitles(playback)
+  setupSubtitles({ db, ...playback, userDataPath, devRoot: app.isPackaged ? null : join(__dirname, '..', '..'), version })
   // Closing the window mid-film saves the position and stops mpv first.
   let saved = false
   main.on('close', (event) => {

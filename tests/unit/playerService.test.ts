@@ -38,7 +38,13 @@ function fakeMpv(): Fake {
         added.push({ id: 3 + added.length, type: 'sub', external: true, 'external-filename': args[1], title: args[3], lang: args[4] || undefined, codec: 'subrip' })
       }
       if (args[0] === 'loadfile') added.length = 0
-      return args[0] === 'get_property' && args[1] === 'track-list' ? [...trackList, ...added] : null
+      if (args[0] === 'get_property' && args[1] === 'track-list') {
+        // mpv answers with the tracks as they were when the request arrived.
+        const now = [...trackList, ...added]
+        if (trackGate) await trackGate
+        return now
+      }
+      return null
     },
     observe: async (name, cb) => void observers.set(name, cb),
     on: (event, cb) => {
@@ -65,6 +71,7 @@ function fakeMpv(): Fake {
 
 let db: Db
 let trackList: Record<string, unknown>[]
+let trackGate: Promise<void> | null
 let externals: ExternalSub[]
 let fakes: Fake[]
 let events: { event: keyof ApiEvents; payload: unknown }[]
@@ -113,6 +120,7 @@ beforeEach(() => {
     add.run(id, `D:/L/bb${id}.mkv`, 'Breaking Bad', null, 'episode', 'breaking bad', 1396, s, e, 3000)
   }
   trackList = TRACKS
+  trackGate = null
   externals = []
   fakes = []
   events = []
@@ -591,5 +599,29 @@ describe('subtitles (milestone 5)', () => {
     await player.addSubtitle({ path: 'D:/L/matrix.en.srt', lang: 'eng', kind: 'sdh', format: 'srt' })
     expect(mpv().commands).toContainEqual(['sub-add', 'D:/L/matrix.en.srt', 'select', 'matrix.en.srt', 'eng'])
     expect(getPrefs(db, 'movie:2').subtitle).toEqual({ lang: 'eng', kind: 'sdh', title: 'matrix.en.srt' })
+  })
+
+  it('a subtitle downloaded while the file is still being set up is not replaced by the automatic pick', async () => {
+    // The order the e2e run showed: the file's own subtitle is added and the track
+    // list requested; the download is added before that list comes back.
+    externals = [srt('eng')]
+    let release!: () => void
+    trackGate = new Promise<void>((r) => (release = r))
+    await player.play({ key: 'movie:2' })
+    mpv().fire('file-loaded')
+    await flush()
+    expect(sent('sub-add')).toHaveLength(1)
+    const adding = player.addSubtitle({ path: 'D:/L/matrix.en.2.srt', lang: 'eng', kind: 'plain', format: 'srt' })
+    await flush()
+    release()
+    trackGate = null
+    await adding
+    await flush()
+    const lastSid = sent('set_property').filter((c) => c[1] === 'sid').at(-1)
+    const downloaded = (emitted('player.state').at(-1) as { subtitles: { id: number; fileName: string | null }[] }).subtitles.find(
+      (t) => t.fileName === 'matrix.en.2.srt'
+    )
+    expect(downloaded).toBeTruthy()
+    expect(lastSid).toEqual(['set_property', 'sid', downloaded!.id])
   })
 })

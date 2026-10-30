@@ -60,12 +60,12 @@ export const overlayVisible = (app: ElectronApplication) =>
 export const position = (overlay: Page) =>
   overlay.getByTestId('player-time').evaluate((el) => Number((el as HTMLElement).dataset['position']))
 
-// Launches the app on a fresh (or given) user-data dir, in TMDB fixture mode, and
+// Launches the app on a fresh (or given) user-data dir, in TMDB and OpenSubtitles fixture mode, and
 // adds the folder through Settings when one is given.
 export async function launchApp(folder: string | null, userData = mkdtempSync(join(tmpdir(), 'vp-e2e-'))) {
   const app = await electron.launch({
     args: ['out/main/index.js', `--user-data-dir=${userData}`],
-    env: { ...process.env, VP_TMDB_MODE: 'fixtures' }
+    env: { ...process.env, VP_TMDB_MODE: 'fixtures', VP_OPENSUBS_MODE: 'fixtures' }
   })
   const win = await app.firstWindow()
   if (folder) {

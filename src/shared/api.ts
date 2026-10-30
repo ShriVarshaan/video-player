@@ -3,6 +3,7 @@
 
 import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from './player'
+import type { SubtitleResult } from './subtitleSearch'
 import type { SubtitleStyle } from './subtitleStyle'
 
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json }
@@ -61,6 +62,14 @@ export type API = {
     resetTitle: (params: { key: string }) => Promise<void>
     getSettings: (params: Record<string, never>) => Promise<SubtitleSettings>
     setSettings: (params: Partial<SubtitleSettings>) => Promise<void>
+    // OpenSubtitles, for the playing video only; nothing is sent until the user asks.
+    search: (params: { language?: string }) => Promise<{ results: SubtitleResult[]; remaining: number | null }>
+    // Downloads a result, saves it next to the video and shows it.
+    download: (params: { fileId: number }) => Promise<{ remaining: number | null }>
+    // Never returns the API key or password.
+    accountStatus: (params: Record<string, never>) => Promise<{ configured: boolean; username: string | null }>
+    setAccount: (params: { apiKey: string; username: string; password: string }) => Promise<void>
+    testAccount: (params: Record<string, never>) => Promise<{ username: string; remaining: number }>
   }
 }
 
@@ -83,7 +92,12 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
     useForAll: true,
     resetTitle: true,
     getSettings: true,
-    setSettings: true
+    setSettings: true,
+    search: true,
+    download: true,
+    accountStatus: true,
+    setAccount: true,
+    testAccount: true
   }
 }
 

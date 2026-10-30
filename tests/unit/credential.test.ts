@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseAppError } from '@shared/appError'
 import { openDb } from '../../src/main/db'
-import { createCredentialStore, type SafeStorageLike } from '../../src/main/metadata/credential'
+import { createCredentialStore, createSecretStore, type SafeStorageLike } from '../../src/main/metadata/credential'
 
 const reversing = (available = true): SafeStorageLike => ({
   isEncryptionAvailable: () => available,
@@ -32,5 +32,28 @@ describe('credential store', () => {
     }
     expect(parseAppError(error)?.code).toBe('tmdb_storage_unavailable')
     expect(store.has()).toBe(false)
+  })
+})
+
+describe('secret store', () => {
+  it('keeps any named secret encrypted, apart from the TMDB key', () => {
+    const db = openDb(':memory:')
+    const os = createSecretStore(db, reversing(), 'opensubtitles.account', 'opensubtitles_storage_unavailable')
+    os.set('{"apiKey":"abc"}')
+    expect(os.get()).toBe('{"apiKey":"abc"}')
+    expect(createCredentialStore(db, reversing()).has()).toBe(false)
+    const raw = (db.prepare(`SELECT value FROM settings WHERE key = 'opensubtitles.account'`).get() as { value: string }).value
+    expect(raw).not.toContain('abc')
+  })
+
+  it('refuses with its own error when Windows cannot encrypt', () => {
+    const os = createSecretStore(openDb(':memory:'), reversing(false), 'opensubtitles.account', 'opensubtitles_storage_unavailable')
+    let error: unknown
+    try {
+      os.set('x')
+    } catch (e) {
+      error = e
+    }
+    expect(parseAppError(error)?.code).toBe('opensubtitles_storage_unavailable')
   })
 })

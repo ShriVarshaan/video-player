@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SubtitleSettings as Settings } from '@shared/api'
 import { LANGUAGES } from '@shared/lang'
 import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
@@ -76,6 +76,72 @@ export function SubtitleSettings({ onError }: { onError: (e: unknown) => void })
         </div>
         <SubtitleStyleControls style={style} onChange={change} />
       </div>
+      <OpenSubtitlesAccount onError={onError} />
     </div>
+  )
+}
+
+// The OpenSubtitles login used by "Search online…". Saved encrypted; the key and
+// password never come back to this page.
+function OpenSubtitlesAccount({ onError }: { onError: (e: unknown) => void }) {
+  const [status, setStatus] = useState<{ configured: boolean; username: string | null } | null>(null)
+  const [form, setForm] = useState({ apiKey: '', username: '', password: '' })
+  const [test, setTest] = useState<string | null>(null)
+
+  const load = useCallback(() => window.api.subtitles.accountStatus({}).then(setStatus).catch(onError), [onError])
+  useEffect(() => void load(), [load])
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault()
+    setTest(null)
+    try {
+      await window.api.subtitles.setAccount(form)
+      setForm({ apiKey: '', username: '', password: '' })
+      await load()
+    } catch (err) {
+      onError(err)
+    }
+  }
+
+  async function check() {
+    setTest('Checking…')
+    try {
+      const a = await window.api.subtitles.testAccount({})
+      setTest(`Signed in as ${a.username} · ${a.remaining} downloads left today`)
+    } catch (err) {
+      setTest(null)
+      onError(err)
+    }
+  }
+
+  const field = (key: keyof typeof form, label: string, type: 'text' | 'password') => (
+    <>
+      <label htmlFor={`os-${key}`}>{label}</label>
+      <input id={`os-${key}`} type={type} autoComplete="off" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
+    </>
+  )
+
+  return (
+    <form className="opensubtitles" onSubmit={(e) => void save(e)}>
+      <h3>OpenSubtitles</h3>
+      <p className="muted small">
+        Used only when you choose Search online… in the player. Needs a free account at opensubtitles.com and an API key from
+        its API consumers page.
+      </p>
+      {field('apiKey', 'API key', 'password')}
+      {field('username', 'Username', 'text')}
+      {field('password', 'Password', 'password')}
+      <div className="actions">
+        <button type="submit">Save account</button>
+        {status?.configured && (
+          <button type="button" onClick={() => void check()}>
+            Test
+          </button>
+        )}
+        <span className="muted" aria-live="polite">
+          {test ?? (status?.configured ? `Saved for ${status.username}` : 'Not set up')}
+        </span>
+      </div>
+    </form>
   )
 }

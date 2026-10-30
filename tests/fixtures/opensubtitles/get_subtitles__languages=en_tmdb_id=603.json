@@ -1,0 +1,152 @@
+{
+  "total_pages": 1,
+  "total_count": 3,
+  "per_page": 60,
+  "page": 1,
+  "data": [
+    {
+      "id": "9001101",
+      "type": "subtitle",
+      "attributes": {
+        "subtitle_id": "9001101",
+        "language": "en",
+        "download_count": 152031,
+        "new_download_count": 15203,
+        "hearing_impaired": false,
+        "hd": true,
+        "fps": 23.976,
+        "votes": 3,
+        "ratings": 6.0,
+        "from_trusted": true,
+        "foreign_parts_only": false,
+        "upload_date": "2021-03-02T10:41:03Z",
+        "ai_translated": false,
+        "machine_translated": false,
+        "release": "The.Matrix.1999.1080p.BluRay.x264-AMIABLE",
+        "comments": "",
+        "legacy_subtitle_id": 1101,
+        "uploader": {
+          "uploader_id": 1,
+          "name": "uploader",
+          "rank": "trusted"
+        },
+        "feature_details": {
+          "feature_id": 1,
+          "feature_type": "Movie",
+          "year": 1999,
+          "title": "The Matrix",
+          "movie_name": "1999 - The Matrix",
+          "imdb_id": 133093,
+          "tmdb_id": 603
+        },
+        "url": "https://www.opensubtitles.com/en/subtitles/fixture-1101",
+        "related_links": [],
+        "files": [
+          {
+            "file_id": 1101,
+            "cd_number": 1,
+            "file_name": "The.Matrix.1999.1080p.BluRay.x264-AMIABLE.srt"
+          }
+        ],
+        "moviehash_match": false,
+        "format": "srt"
+      }
+    },
+    {
+      "id": "9001102",
+      "type": "subtitle",
+      "attributes": {
+        "subtitle_id": "9001102",
+        "language": "en",
+        "download_count": 48210,
+        "new_download_count": 4821,
+        "hearing_impaired": true,
+        "hd": true,
+        "fps": 23.976,
+        "votes": 3,
+        "ratings": 6.0,
+        "from_trusted": true,
+        "foreign_parts_only": false,
+        "upload_date": "2021-03-02T10:41:03Z",
+        "ai_translated": false,
+        "machine_translated": false,
+        "release": "The.Matrix.1999.REMASTERED.1080p.BluRay.x264",
+        "comments": "",
+        "legacy_subtitle_id": 1102,
+        "uploader": {
+          "uploader_id": 1,
+          "name": "uploader",
+          "rank": "trusted"
+        },
+        "feature_details": {
+          "feature_id": 1,
+          "feature_type": "Movie",
+          "year": 1999,
+          "title": "The Matrix",
+          "movie_name": "1999 - The Matrix",
+          "imdb_id": 133093,
+          "tmdb_id": 603
+        },
+        "url": "https://www.opensubtitles.com/en/subtitles/fixture-1102",
+        "related_links": [],
+        "files": [
+          {
+            "file_id": 1102,
+            "cd_number": 1,
+            "file_name": "The.Matrix.1999.REMASTERED.1080p.BluRay.x264.srt"
+          }
+        ],
+        "moviehash_match": false,
+        "format": "srt"
+      }
+    },
+    {
+      "id": "9001103",
+      "type": "subtitle",
+      "attributes": {
+        "subtitle_id": "9001103",
+        "language": "en",
+        "download_count": 1203,
+        "new_download_count": 120,
+        "hearing_impaired": false,
+        "hd": true,
+        "fps": 23.976,
+        "votes": 3,
+        "ratings": 6.0,
+        "from_trusted": true,
+        "foreign_parts_only": false,
+        "upload_date": "2021-03-02T10:41:03Z",
+        "ai_translated": false,
+        "machine_translated": false,
+        "release": "The.Matrix.1999.1080p.BluRay.x264",
+        "comments": "",
+        "legacy_subtitle_id": 1103,
+        "uploader": {
+          "uploader_id": 1,
+          "name": "uploader",
+          "rank": "trusted"
+        },
+        "feature_details": {
+          "feature_id": 1,
+          "feature_type": "Movie",
+          "year": 1999,
+          "title": "The Matrix",
+          "movie_name": "1999 - The Matrix",
+          "imdb_id": 133093,
+          "tmdb_id": 603
+        },
+        "url": "https://www.opensubtitles.com/en/subtitles/fixture-1103",
+        "related_links": [],
+        "files": [
+          {
+            "file_id": 1103,
+            "cd_number": 1,
+            "file_name": "The.Matrix.1999.1080p.BluRay.x264.srt"
+          }
+        ],
+        "moviehash_match": true,
+        "format": "srt"
+      }
+    }
+  ]
+}

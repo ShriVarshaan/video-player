@@ -3,8 +3,8 @@ import type { PlayerCommand, PlayerState, Track } from '@shared/player'
 import { formatTime } from '@shared/time'
 import { TrackMenu, type MenuItem } from './TrackMenu'
 
-// The open menu or panel; panels ('style') open from the Subtitles menu.
-export type Menu = 'audio' | 'subtitles' | 'style' | null
+// The open menu or panel; panels ('style', 'search') open from the Subtitles menu.
+export type Menu = 'audio' | 'subtitles' | 'style' | 'search' | null
 
 const send = (c: PlayerCommand) => void window.api.player.command(c)
 
@@ -199,7 +199,10 @@ export function ControlBar({
                 onMenu(null)
               }}
               onClose={() => onMenu(null)}
-              actions={[{ label: 'Style…', onPick: () => onMenu('style') }]}
+              actions={[
+                { label: 'Search online…', onPick: () => onMenu('search') },
+                { label: 'Style…', onPick: () => onMenu('style') }
+              ]}
             />
           )}
         </div>

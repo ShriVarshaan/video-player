@@ -56,6 +56,8 @@ type Current = {
   ready: boolean
   seeking: 'no' | 'sent' | 'started'
   ended: boolean
+  // Running once mpv has opened the file: externals, tracks, the subtitle pick.
+  setup: Promise<void> | null
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -201,10 +203,18 @@ export function createPlayerService(deps: {
     }
   }
 
+  // Tracks and the subtitle pick for a file mpv has opened. A download that lands
+  // meanwhile waits for this, so the automatic pick can't replace it.
   async function onLoaded() {
     if (!cur) return
-    const mine = cur
     cur.loaded = true
+    cur.setup = setUp()
+    await cur.setup
+  }
+
+  async function setUp() {
+    if (!cur) return
+    const mine = cur
     const prefs = getPrefs(db, cur.title.key)
     const target = restore ?? { positionS: cur.startAt, aid: null, sid: null }
     if (target.positionS > 0) {
@@ -373,7 +383,8 @@ export function createPlayerService(deps: {
       loaded: false,
       ready: false,
       seeking: 'no',
-      ended: false
+      ended: false,
+      setup: null
     }
     cur = mine
     crashes = 0
@@ -463,6 +474,7 @@ export function createPlayerService(deps: {
   async function addSubtitle(sub: ExternalSub) {
     if (!proc || !cur?.loaded) return
     const mine = cur
+    await mine.setup?.catch(() => {})
     const path = await deps.subtitles.load(sub)
     if (cur !== mine) return
     st.externals.push({ ...sub, path })
@@ -471,7 +483,7 @@ export function createPlayerService(deps: {
     st.tracks = toTracks(await cmd('get_property', 'track-list'), st.externals)
     const added = st.tracks.filter((t) => t.type === 'sub' && t.external).at(-1)
     if (added) {
-      await cmd('set_property', 'sub-visibility', false)
+      await selectSubtitle(added.id)
       savePrefs(db, mine.title.key, { subtitle: refOf(added) }, deps.now())
     }
     emitState(true)

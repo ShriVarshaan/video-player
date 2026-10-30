@@ -410,3 +410,27 @@ select {
   inset: 0;
   background: linear-gradient(transparent 55%, rgba(0, 0, 0, 0.35));
 }
+
+.opensubtitles {
+  display: grid;
+  grid-template-columns: 7em minmax(200px, 320px);
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 28px;
+}
+
+.opensubtitles h3,
+.opensubtitles p,
+.opensubtitles .actions {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.opensubtitles h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.opensubtitles input {
+  min-width: 0;
+}

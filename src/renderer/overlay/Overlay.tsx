@@ -4,6 +4,7 @@ import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
 import { formatTime } from '@shared/time'
 import { ControlBar, type Menu } from './ControlBar'
 import { NextCard } from './NextCard'
+import { SearchPanel } from './SearchPanel'
 import { StylePanel } from './StylePanel'
 import { SubtitleView } from './SubtitleView'
 
@@ -200,6 +201,7 @@ export function Overlay() {
         {state && <ControlBar state={state} timeRef={timeRef} fillRef={fillRef} menu={menu} onMenu={setMenu} />}
       </div>
       {state && menu === 'style' && <StylePanel titleKey={state.titleKey} style={subStyle} onClose={() => setMenu(null)} />}
+      {state && menu === 'search' && <SearchPanel key={state.videoId} onClose={() => setMenu(null)} />}
       {error && (
         <p className="player-error" data-testid="player-error" role="alert">
           {error}
