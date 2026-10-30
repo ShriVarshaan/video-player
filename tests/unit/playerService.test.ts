@@ -61,6 +61,14 @@ let events: { event: keyof ApiEvents; payload: unknown }[]
 let overlay: { show: ReturnType<typeof vi.fn<() => void>>; hide: ReturnType<typeof vi.fn<() => void>> }
 let win: { full: boolean; setFullScreen: (on: boolean) => void; isFullScreen: () => boolean }
 let player: PlayerService
+let gate: Promise<void> | null
+let failLaunch: boolean
+
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((r) => (resolve = r))
+  return { promise, resolve }
+}
 
 const flush = async () => {
   for (let i = 0; i < 30; i++) await Promise.resolve()
@@ -106,9 +114,13 @@ beforeEach(() => {
       return this.full
     }
   }
+  gate = null
+  failLaunch = false
   player = createPlayerService({
     db,
     launch: async () => {
+      if (gate) await gate
+      if (failLaunch) throw new Error('mpv would not start')
       const f = fakeMpv()
       fakes.push(f)
       return f.proc
@@ -354,5 +366,103 @@ describe('crashes and stopping', () => {
     await player.shutdown()
     expect(pb(2)['position_s']).toBe(77)
     expect(mpv().quit).toHaveBeenCalled()
+  })
+})
+
+describe('overlapping calls (mid-branch review)', () => {
+  it('stop while mpv is launching quits it and stays closed', async () => {
+    const g = deferred()
+    gate = g.promise
+    const playing = player.play({ key: 'movie:2' }).catch(() => {})
+    await flush()
+    await player.stop({})
+    g.resolve()
+    await playing
+    await flush()
+    expect(fakes).toHaveLength(1)
+    expect(mpv().quit).toHaveBeenCalled()
+    expect(overlay.show).not.toHaveBeenCalled()
+    expect(sent('loadfile')).toEqual([])
+  })
+
+  it('two plays at once start one mpv and play the later file', async () => {
+    const g = deferred()
+    gate = g.promise
+    const a = player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    const b = player.play({ key: 'tmdb:1396', videoId: 6, from: 'start' })
+    g.resolve()
+    await Promise.all([a, b])
+    expect(fakes).toHaveLength(1)
+    expect(sent('loadfile').at(-1)).toEqual(['loadfile', 'D:/L/bb6.mkv', 'replace'])
+  })
+
+  it('play during a closing stop keeps the new session', async () => {
+    await player.play({ key: 'movie:2', from: 'start' })
+    await loaded()
+    const slow = deferred()
+    mpv().quit.mockImplementation(() => slow.promise)
+    const stopping = player.stop({})
+    const playing = player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    slow.resolve()
+    await Promise.all([stopping, playing])
+    expect(emitted('player.closed')).toEqual([{ titleKey: 'movie:2' }])
+    expect(overlay.show.mock.invocationCallOrder.at(-1)!).toBeGreaterThan(overlay.hide.mock.invocationCallOrder.at(-1)!)
+    await player.stop({})
+    expect(emitted('player.closed')).toEqual([{ titleKey: 'movie:2' }, { titleKey: 'tmdb:1396' }])
+  })
+
+  it('unpauses when the next file starts', async () => {
+    await player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    await loaded(3000)
+    mpv().set('pause', true)
+    await player.play({ key: 'tmdb:1396', videoId: 6, from: 'start' })
+    expect(mpv().commands.at(-1)).toEqual(['set_property', 'pause', false])
+  })
+})
+
+describe('resume point safety (mid-branch review)', () => {
+  it('does not save over a resume point before the resume seek lands', async () => {
+    db.exec(`INSERT INTO playback_state (video_id, position_s, duration_s, last_played_at) VALUES (2, 600, 8160, 1)`)
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    mpv().set('time-pos', 0)
+    mpv().fire('playback-restart')
+    mpv().set('pause', true)
+    expect(pb(2)['position_s']).toBe(600)
+    mpv().set('pause', false)
+    mpv().fire('seek')
+    mpv().set('time-pos', 600.5)
+    mpv().fire('playback-restart')
+    expect(pb(2)['position_s']).toBe(600.5)
+  })
+
+  it('a stop before the seek lands keeps the resume point', async () => {
+    db.exec(`INSERT INTO playback_state (video_id, position_s, duration_s, last_played_at) VALUES (2, 600, 8160, 1)`)
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    mpv().set('time-pos', 0)
+    await player.stop({})
+    expect(pb(2)['position_s']).toBe(600)
+  })
+})
+
+describe('failures and library refresh (mid-branch review)', () => {
+  it("reports Can't play this file when the respawn cannot start mpv", async () => {
+    await player.play({ key: 'movie:2', from: 'start' })
+    await loaded()
+    failLaunch = true
+    mpv().crash()
+    await flush()
+    expect(emitted('player.error')).toEqual([{ message: "Can't play this file" }])
+  })
+
+  it('tells the library after saving on stop and at the end of a file', async () => {
+    await player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    await loaded(3000)
+    mpv().set('eof-reached', true)
+    await flush()
+    expect(emitted('library.changed')).toHaveLength(1)
+    await player.stop({})
+    expect(emitted('library.changed')).toHaveLength(2)
   })
 })

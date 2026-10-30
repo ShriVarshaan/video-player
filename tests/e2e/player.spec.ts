@@ -4,8 +4,8 @@ import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { goTo, overlayPage } from './pages'
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { closeApp, keyOf, launchApp, overlayPage, overlayVisible, position } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 let userData: string
@@ -14,61 +14,27 @@ let win: Page
 const cleanup: string[] = []
 
 async function launch(folder: string | null, keepUserData = false) {
-  if (!keepUserData) userData = mkdtempSync(join(tmpdir(), 'vp-e2e-player-'))
-  app = await electron.launch({
-    args: ['out/main/index.js', `--user-data-dir=${userData}`],
-    env: { ...process.env, VP_TMDB_MODE: 'fixtures' }
-  })
-  win = await app.firstWindow()
-  if (!folder) return
-  await app.evaluate(({ dialog }, path) => {
-    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog
-  }, folder)
-  await goTo(win, 'Settings')
-  await win.getByLabel('TMDB API key or read access token').fill('test-key')
-  await win.getByRole('button', { name: 'Save key' }).click()
-  await win.getByRole('button', { name: 'Add folder' }).click()
-  await expect(win.getByTestId('folder-row')).toHaveCount(1)
-  await goTo(win, 'Home')
-}
-
-// The wall key of a title, once the library has it.
-async function keyOf(title: string): Promise<string> {
-  let key: string | undefined
-  await expect
-    .poll(async () => {
-      key = await win.evaluate(async (t) => (await window.api.library.wall({})).find((i) => i.title === t)?.key, title)
-      return key
-    })
-    .toBeTruthy()
-  return key!
+  ;({ app, win, userData } = await launchApp(folder, keepUserData ? userData : undefined))
 }
 
 const play = (key: string) => win.evaluate((k) => window.api.player.play({ key: k }), key)
-const position = (overlay: Page) => overlay.getByTestId('player-time').evaluate((el) => Number((el as HTMLElement).dataset['position']))
 const mpvCount = () => (execFileSync('tasklist', ['/FI', 'IMAGENAME eq mpv.exe', '/NH'], { encoding: 'utf8' }).match(/mpv\.exe/g) ?? []).length
-const overlayVisible = () =>
-  app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.webContents.getURL().endsWith('overlay.html') && w.isVisible()))
-
-// Close the window the way a user does (✕ / Alt+F4). Playwright's app.close() detaches
-// its debugger mid-shutdown, which stalls the main process while mpv is quitting.
-async function closeApp() {
-  const closed = app.waitForEvent('close', { timeout: 15_000 }).catch(() => null)
-  await app
-    .evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))?.close())
-    .catch(() => {})
-  if (!(await closed)) await app.close().catch(() => {})
-}
+const resizeMain = (fn: 'small' | 'max') =>
+  app.evaluate(({ BrowserWindow }, how) => {
+    const main = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!
+    if (how === 'max') main.maximize()
+    else main.setSize(1100, 700)
+  }, fn)
 
 test.afterEach(async () => {
-  await closeApp()
+  await closeApp(app)
   rmSync(userData, { recursive: true, force: true })
   for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
 test('plays inside the app window', async () => {
   await launch(LIBRARY)
-  await play(await keyOf('The Matrix'))
+  await play(await keyOf(win, 'The Matrix'))
   const overlay = await overlayPage(app)
   await expect(overlay.getByTestId('player-heading')).toHaveText('The Matrix')
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(2)
@@ -77,7 +43,7 @@ test('plays inside the app window', async () => {
 
 test('keeps the overlay over the content area', async () => {
   await launch(LIBRARY)
-  await play(await keyOf('The Matrix'))
+  await play(await keyOf(win, 'The Matrix'))
   await overlayPage(app)
   const aligned = () =>
     app.evaluate(({ BrowserWindow }) => {
@@ -89,20 +55,20 @@ test('keeps the overlay over the content area', async () => {
       // At 125 % scaling Windows rounds the two by up to a pixel apart.
       return [a.x - b.x, a.y - b.y, a.width - b.width, a.height - b.height].every((d) => Math.abs(d) <= 1)
     })
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.setSize(1100, 700))
+  await resizeMain('small')
   await expect.poll(aligned).toBe(true)
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.maximize())
+  await resizeMain('max')
   await expect.poll(aligned).toBe(true)
 })
 
 test('closes to the title and saves the position', async () => {
   await launch(LIBRARY)
-  const key = await keyOf('The Matrix')
+  const key = await keyOf(win, 'The Matrix')
   await play(key)
   const overlay = await overlayPage(app)
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(3)
   await overlay.getByTestId('player-close').click()
-  await expect.poll(overlayVisible).toBe(false)
+  await expect.poll(() => overlayVisible(app)).toBe(false)
   const title = await win.evaluate((k) => window.api.library.getTitle({ key: k }), key)
   expect(title!.main.label).toBe('Continue watching')
 })
@@ -110,11 +76,11 @@ test('closes to the title and saves the position', async () => {
 test('saves the position when the app is closed during playback', async () => {
   const before = mpvCount()
   await launch(LIBRARY)
-  const key = await keyOf('The Matrix')
+  const key = await keyOf(win, 'The Matrix')
   await play(key)
   const overlay = await overlayPage(app)
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(3)
-  await closeApp()
+  await closeApp(app)
   await expect.poll(mpvCount).toBe(before)
   await launch(null, true)
   const title = await win.evaluate((k) => window.api.library.getTitle({ key: k }), key)
@@ -126,9 +92,26 @@ test("shows Can't play this file for a broken file", async () => {
   cleanup.push(dir)
   copyFileSync(resolve('tests', 'fixtures', 'media', 'truncated.mp4'), join(dir, 'Broken Film (2001).mp4'))
   await launch(dir)
-  await play(await keyOf('Broken Film'))
+  await play(await keyOf(win, 'Broken Film'))
   const overlay = await overlayPage(app)
   await expect(overlay.getByTestId('player-error')).toHaveText("Can't play this file")
   await overlay.getByTestId('player-close').click()
-  await expect.poll(overlayVisible).toBe(false)
+  await expect.poll(() => overlayVisible(app)).toBe(false)
+})
+
+test('Alt+F4 on the controls closes the app and keeps the place', async () => {
+  const before = mpvCount()
+  await launch(LIBRARY)
+  const key = await keyOf(win, 'The Matrix')
+  await play(key)
+  const overlay = await overlayPage(app)
+  await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(3)
+  // The controls window has keyboard focus, so Alt+F4 closes it.
+  const closed = app.waitForEvent('close', { timeout: 15_000 })
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().endsWith('overlay.html'))!.close())
+  await closed
+  await expect.poll(mpvCount).toBe(before)
+  await launch(null, true)
+  const title = await win.evaluate((k) => window.api.library.getTitle({ key: k }), key)
+  expect(title!.main.label).toBe('Continue watching')
 })

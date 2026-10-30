@@ -27,12 +27,19 @@ export function createOverlay(
 
   let shown = false
   const follow = () => {
-    if (shown && !main.isMinimized()) w.setBounds(main.getContentBounds())
+    if (shown && !w.isDestroyed() && !main.isMinimized()) w.setBounds(main.getContentBounds())
   }
   for (const event of FOLLOW) main.on(event as 'move', follow)
   // Alt+Tab or the taskbar focuses the main window; keys belong to the overlay while playing.
   main.on('focus', () => {
-    if (shown) w.focus()
+    if (shown && !w.isDestroyed()) w.focus()
+  })
+  // The overlay has keyboard focus while playing, so Alt+F4 lands here: close the
+  // app (which saves the position), never just the controls.
+  w.on('close', (event) => {
+    if (main.isDestroyed()) return
+    event.preventDefault()
+    main.close()
   })
   main.on('closed', () => {
     if (!w.isDestroyed()) w.destroy()

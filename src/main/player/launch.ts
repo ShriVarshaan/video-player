@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { connectMpv } from './mpvIpc'
+import { connectMpv, type MpvClient } from './mpvIpc'
 import type { MpvProcess } from './service'
 
 // mpv flags from the mpv-ipc skill. --sub-visibility=yes: mpv draws text
@@ -61,12 +61,28 @@ async function raiseMpvWindow(parent: bigint, timeoutMs = 3000): Promise<boolean
   return false
 }
 
-export async function launchMpv(opts: { mpvPath: string; hwnd: bigint }): Promise<MpvProcess> {
+// Every mpv still running, so none can outlive the app (see killAllMpv).
+const running = new Set<{ kill(): boolean }>()
+
+export function killAllMpv(): void {
+  for (const child of running) child.kill()
+  running.clear()
+}
+
+type Deps = {
+  spawn: typeof spawn
+  connect: (pipe: string) => Promise<MpvClient>
+  raise: (hwnd: bigint) => Promise<boolean>
+}
+const realDeps: Deps = { spawn, connect: (pipe) => connectMpv(pipe), raise: (hwnd) => raiseMpvWindow(hwnd) }
+
+export async function launchMpv(opts: { mpvPath: string; hwnd: bigint }, deps: Deps = realDeps): Promise<MpvProcess> {
   const pipe = `\\\\.\\pipe\\vp-mpv-${process.pid}-${++launches}`
-  const child = spawn(opts.mpvPath, [`--wid=${opts.hwnd}`, `--input-ipc-server=${pipe}`, ...FLAGS], {
+  const child = deps.spawn(opts.mpvPath, [`--wid=${opts.hwnd}`, `--input-ipc-server=${pipe}`, ...FLAGS], {
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true
   })
+  running.add(child)
   let stderr = ''
   child.stderr?.on('data', (d: Buffer) => (stderr = (stderr + d.toString()).slice(-4000)))
 
@@ -74,21 +90,22 @@ export async function launchMpv(opts: { mpvPath: string; hwnd: bigint }): Promis
   const exitCallbacks: ((expected: boolean) => void)[] = []
   const exited = new Promise<void>((resolve) => {
     child.once('exit', (code) => {
+      running.delete(child)
       if (!quitting) console.error(`mpv exited unexpectedly (code ${code}):\n${stderr}`)
       for (const cb of exitCallbacks) cb(quitting)
       resolve()
     })
   })
 
-  let client
+  let client: MpvClient
   try {
-    client = await connectMpv(pipe)
+    client = await deps.connect(pipe)
+    if (!(await deps.raise(opts.hwnd))) console.warn('mpv window not found; the picture may be hidden')
   } catch (e) {
     quitting = true
     child.kill()
     throw e
   }
-  if (!(await raiseMpvWindow(opts.hwnd))) console.warn('mpv window not found; the picture may be hidden')
 
   return {
     client,

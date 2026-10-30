@@ -7,6 +7,7 @@ import { openDb, type Db } from './db'
 import { registerDomain } from './ipc'
 import { registerPosterScheme, setupLibrary } from './library/setup'
 import type { LibraryService } from './library/service'
+import { killAllMpv } from './player/launch'
 import { setupPlayer } from './player/setup'
 import type { PlayerService } from './player/service'
 import { binaryPath, userDataDir } from './paths'
@@ -133,6 +134,9 @@ function start(): void {
 }
 
 app.on('window-all-closed', () => app.quit())
+
+// Last resort: if the main process goes down any other way, take mpv with it.
+process.on('exit', killAllMpv)
 
 app.on('will-quit', () => {
   library?.stopWatching()

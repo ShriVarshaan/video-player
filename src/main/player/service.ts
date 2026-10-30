@@ -29,6 +29,10 @@ type Current = {
   heading: string
   startAt: number
   loaded: boolean
+  // Positions are saved only once the resume seek has landed, so mpv's first
+  // time-pos (0) never overwrites a good resume point.
+  ready: boolean
+  seeking: 'no' | 'sent' | 'started'
   ended: boolean
 }
 
@@ -52,6 +56,7 @@ export function createPlayerService(deps: {
 }): PlayerService {
   const { db } = deps
   let proc: MpvProcess | null = null
+  let launching: Promise<MpvProcess> | null = null
   let cur: Current | null = null
   let closing: Promise<void> | null = null
   let limiterOn = false
@@ -110,7 +115,7 @@ export function createPlayerService(deps: {
   }
 
   function save(ended = false) {
-    if (!cur?.loaded) return
+    if (!cur?.ready) return
     savePosition(db, { videoId: cur.videoId, positionS: st.positionS, durationS: st.durationS, ended }, deps.now())
     lastSave = deps.now()
   }
@@ -140,7 +145,18 @@ export function createPlayerService(deps: {
     cur.loaded = true
     const prefs = getPrefs(db, cur.title.key)
     const target = restore ?? { positionS: cur.startAt, aid: null, sid: null }
-    if (target.positionS > 0) await cmd('seek', target.positionS, 'absolute')
+    if (target.positionS > 0) {
+      const mine = cur
+      mine.seeking = 'sent'
+      const ok = await proc!.client.command('seek', target.positionS, 'absolute').then(
+        () => true,
+        () => false
+      )
+      // A seek mpv refused leaves playback where it is; that is now the truth.
+      if (!ok && mine.seeking === 'sent') Object.assign(mine, { seeking: 'no', ready: true })
+    } else {
+      cur.ready = true
+    }
     await applyVolume(prefs.volume)
     st.tracks = toTracks(await cmd('get_property', 'track-list'))
     const audio = st.tracks.filter((t) => t.type === 'audio')
@@ -163,6 +179,7 @@ export function createPlayerService(deps: {
     if (!cur || cur.ended || !cur.loaded) return
     cur.ended = true
     save(true)
+    deps.emit('library.changed', {})
     const title = cur.title
     if (title.kind === 'show') {
       const episodes = title.seasons.flatMap((s) => s.episodes)
@@ -186,7 +203,7 @@ export function createPlayerService(deps: {
     limiterOn = false
     void c.observe('time-pos', (v) => {
       const t = num(v)
-      if (t === null) return
+      if (t === null || !(cur?.ready || cur?.seeking === 'started')) return
       st.positionS = t
       if (!st.paused && deps.now() - lastSave >= SAVE_EVERY_MS) save()
       emitState()
@@ -208,7 +225,11 @@ export function createPlayerService(deps: {
       if (v === true) void onEof()
     })
     c.on('file-loaded', () => void onLoaded())
+    c.on('seek', () => {
+      if (cur?.seeking === 'sent') cur.seeking = 'started'
+    })
     c.on('playback-restart', () => {
+      if (cur?.seeking === 'started') Object.assign(cur, { seeking: 'no', ready: true })
       save()
       emitState(true)
     })
@@ -218,12 +239,26 @@ export function createPlayerService(deps: {
     p.onExit((expected) => void onExit(p, expected))
   }
 
-  async function ensureProcess(): Promise<MpvProcess> {
-    if (proc) return proc
-    const p = await deps.launch()
-    proc = p
-    attach(p)
-    return p
+  // One launch at a time: overlapping plays (or a play during a respawn) share it.
+  function ensureProcess(): Promise<MpvProcess> {
+    if (proc) return Promise.resolve(proc)
+    launching ??= deps
+      .launch()
+      .then((p) => {
+        proc = p
+        attach(p)
+        return p
+      })
+      .finally(() => (launching = null))
+    return launching
+  }
+
+  // Nothing is playing any more (stopped while mpv was starting): don't leave it running.
+  async function quitIfIdle() {
+    if (cur || !proc) return
+    const p = proc
+    proc = null
+    await p.quit().catch(() => {})
   }
 
   // mpv died on its own: respawn once where it was, then give up.
@@ -234,9 +269,14 @@ export function createPlayerService(deps: {
     save()
     if (++crashes > 1) return fail()
     restore = { positionS: st.positionS, aid: st.aid, sid: st.sid }
-    cur.loaded = false
-    const next = await ensureProcess()
-    await next.client.command('loadfile', cur.path, 'replace').catch(() => fail())
+    Object.assign(cur, { loaded: false, ready: false, seeking: 'no' })
+    try {
+      const next = await ensureProcess()
+      if (!cur) return quitIfIdle()
+      await next.client.command('loadfile', cur.path, 'replace')
+    } catch {
+      fail()
+    }
   }
 
   async function play(p: { key: string; videoId?: number; from?: 'resume' | 'start' }) {
@@ -247,25 +287,34 @@ export function createPlayerService(deps: {
     const row = db.prepare('SELECT path FROM videos WHERE id = ?').get(videoId) as { path: string } | undefined
     if (!row) throwAppError({ code: 'invalid_argument', message: 'That file is no longer in the library.' })
 
+    // Let a stop that is still closing finish first, so it can't close this session.
+    if (closing) await closing.catch(() => {})
     if (cur && cur.videoId !== videoId) save()
-    cur = {
+    const mine: Current = {
       title,
       videoId,
       path: row.path,
       heading: headingFor(title, videoId),
       startAt: from === 'resume' ? resumePoint(videoId) : 0,
       loaded: false,
+      ready: false,
+      seeking: 'no',
       ended: false
     }
+    cur = mine
     crashes = 0
     restore = null
     lastSave = deps.now()
-    Object.assign(st, { paused: false, positionS: cur.startAt, durationS: null, tracks: [], aid: null, sid: null })
+    Object.assign(st, { paused: false, positionS: mine.startAt, durationS: null, tracks: [], aid: null, sid: null })
     st.volume = getPrefs(db, title.key).volume
 
     const p2 = await ensureProcess()
+    // Stopped, or replaced by a newer play, while mpv was starting.
+    if (cur !== mine) return quitIfIdle()
     deps.overlay.show()
     await p2.client.command('loadfile', row.path, 'replace')
+    // --keep-open leaves mpv paused at the end of the last file.
+    await cmd('set_property', 'pause', false)
     emitState(true)
   }
 
@@ -274,6 +323,7 @@ export function createPlayerService(deps: {
     if (!cur) return
     closing = (async () => {
       save()
+      deps.emit('library.changed', {})
       const p = proc
       proc = null
       if (p) await p.quit().catch(() => {})
