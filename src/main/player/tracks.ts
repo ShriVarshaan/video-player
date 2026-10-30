@@ -1,18 +1,10 @@
+import { languageName } from '@shared/lang'
 import type { Track, TrackKind, TrackRef } from '@shared/player'
+
+export { languageName }
 
 const IMAGE_CODECS = new Set(['hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle'])
 const KIND_SUFFIX: Record<TrackKind, string> = { plain: '', forced: ' (Forced)', sdh: ' (SDH)', commentary: ' (Commentary)' }
-const names = new Intl.DisplayNames(['en'], { type: 'language' })
-
-export function languageName(code: string): string {
-  try {
-    const name = names.of(code)
-    if (name && name.toLowerCase() !== code.toLowerCase()) return name
-  } catch {
-    // Not a language code Intl knows.
-  }
-  return code.toUpperCase()
-}
 
 const channels = (n: unknown) => (n === 6 ? ' 5.1' : n === 8 ? ' 7.1' : '')
 
