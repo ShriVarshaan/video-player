@@ -1,8 +1,9 @@
+import type { SubtitleSettings } from '@shared/api'
 import { normalizeLang } from '@shared/lang'
 import { effectiveStyle, sanitizePatch, sanitizeStyle, type SubtitleStyle } from '@shared/subtitleStyle'
 import type { Db } from '../db'
 
-export type SubtitleSettings = { language: string; preferSdh: boolean }
+export type { SubtitleSettings }
 
 const STYLE = 'subtitle.style'
 const LANGUAGE = 'subtitle.language'

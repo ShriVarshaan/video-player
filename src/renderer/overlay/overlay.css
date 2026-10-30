@@ -315,6 +315,22 @@ button.text {
   content: '✓';
 }
 
+.menu-separator {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Commands have no check mark column. */
+.track-menu .menu-action::before {
+  display: none;
+}
+
+.track-menu .menu-action {
+  padding-left: 32px;
+}
+
 .track-menu .detail {
   margin-left: auto;
   padding-left: 16px;
@@ -422,6 +438,67 @@ button.text {
   }
   .track-menu,
   .next-card {
+    animation: none;
+  }
+}
+
+/* Subtitle style panel: a sheet on the right; the film keeps playing beside it. */
+.style-panel {
+  position: absolute;
+  top: 72px;
+  right: 20px;
+  bottom: 132px;
+  width: min(400px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  padding: 18px 12px 14px;
+  border-radius: 18px;
+  background: rgba(30, 30, 34, 0.86);
+  backdrop-filter: blur(28px) saturate(1.4);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  animation: panel-in 220ms var(--ease-out);
+}
+
+.style-panel h2 {
+  margin: 0 12px 2px;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.style-scope {
+  margin: 0 12px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.style-actions {
+  display: grid;
+  gap: 8px;
+  margin: 14px 6px 0;
+}
+
+.style-actions button {
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.style-actions button:not(.primary) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .style-panel {
     animation: none;
   }
 }

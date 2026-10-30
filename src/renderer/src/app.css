@@ -351,3 +351,62 @@ input {
   z-index: 40;
   background: #000;
 }
+
+/* Settings → Subtitles: language, then a live preview over the style rows. */
+select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid #36363d;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.subtitle-prefs {
+  display: grid;
+  grid-template-columns: max-content minmax(200px, 280px);
+  align-items: center;
+  gap: 10px 16px;
+  margin: 12px 0 18px;
+}
+
+.subtitle-prefs .check {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subtitle-prefs .check input {
+  min-width: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--fg);
+}
+
+.subtitle-style {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.subtitle-preview {
+  position: relative;
+  width: min(100%, 520px);
+  justify-self: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #222 center / cover no-repeat;
+}
+
+/* Darken the picture slightly, as a film frame under subtitles reads. */
+.subtitle-preview::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 55%, rgba(0, 0, 0, 0.35));
+}

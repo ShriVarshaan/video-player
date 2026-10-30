@@ -18,8 +18,22 @@ function useWindowHeight(): number {
 
 // The subtitle line, Apple TV style: drawn as text over the video, in the user's
 // style, at their height, lifted above the controls while they show.
-export function SubtitleView({ cue, style, controlsTop, sample }: { cue: Cue | null; style: SubtitleStyle; controlsTop: number | null; sample?: string | null }) {
-  const windowH = useWindowHeight()
+// height: the box it is drawn in, when that isn't the window (the Settings preview).
+export function SubtitleView({
+  cue,
+  style,
+  controlsTop,
+  sample,
+  height
+}: {
+  cue: Cue | null
+  style: SubtitleStyle
+  controlsTop: number | null
+  sample?: string | null
+  height?: number
+}) {
+  const windowHeight = useWindowHeight()
+  const windowH = height ?? windowHeight
   const block = useRef<HTMLDivElement>(null)
   const [blockH, setBlockH] = useState(0)
   const showing: Cue | null = cue ?? (sample ? { top: false, lines: [[{ text: sample, italic: false, bold: false }]] } : null)

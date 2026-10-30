@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 
 // detail: a quieter second label ("External", or the file name when two look alike).
 export type MenuItem = { id: number | null; label: string; detail?: string | null }
+// Commands listed below the tracks ("Style…", "Search online…").
+export type MenuAction = { label: string; onPick: () => void }
 
 // The Audio or Subtitles menu: a list of radio items above its button.
 // ↑/↓ move, Enter picks, Esc closes just the menu.
@@ -10,23 +12,25 @@ export function TrackMenu({
   items,
   selected,
   onPick,
-  onClose
+  onClose,
+  actions = []
 }: {
   label: string
   items: MenuItem[]
   selected: number | null
   onPick: (id: number | null) => void
   onClose: () => void
+  actions?: MenuAction[]
 }) {
   const root = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const checked = root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? root.current?.querySelector<HTMLElement>('[role="menuitemradio"]')
+    const checked = root.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? root.current?.querySelector<HTMLElement>('[role^="menuitem"]')
     checked?.focus()
   }, [])
 
   function onKeyDown(e: React.KeyboardEvent) {
-    const all = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? [])]
+    const all = [...(root.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])]
     const i = all.indexOf(document.activeElement as HTMLElement)
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       all[(i + (e.key === 'ArrowDown' ? 1 : -1) + all.length) % all.length]?.focus()
@@ -52,6 +56,12 @@ export function TrackMenu({
         >
           {it.label}
           {it.detail && <span className="detail">{it.detail}</span>}
+        </button>
+      ))}
+      {actions.length > 0 && <hr className="menu-separator" />}
+      {actions.map((a) => (
+        <button key={a.label} type="button" role="menuitem" className="menu-action" onClick={a.onPick}>
+          {a.label}
         </button>
       ))}
     </div>

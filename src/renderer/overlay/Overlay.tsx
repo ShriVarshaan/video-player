@@ -4,6 +4,7 @@ import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
 import { formatTime } from '@shared/time'
 import { ControlBar, type Menu } from './ControlBar'
 import { NextCard } from './NextCard'
+import { StylePanel } from './StylePanel'
 import { SubtitleView } from './SubtitleView'
 
 const HIDE_AFTER_MS = 2500
@@ -176,13 +177,15 @@ export function Overlay() {
       onPointerMove={wake}
       onPointerDown={(e) => {
         wake()
-        if (menu && !(e.target as Element).closest('.menu-anchor')) setMenu(null)
+        if (menu && !(e.target as Element).closest('.menu-anchor, .style-panel')) setMenu(null)
       }}
       onDoubleClick={(e) => {
         if (state && e.target === e.currentTarget) send({ type: 'fullScreen', on: !state.fullScreen })
       }}
     >
-      {state && <SubtitleView cue={cue} style={subStyle} controlsTop={controlsTop} />}
+      {state && (
+        <SubtitleView cue={cue} style={subStyle} controlsTop={controlsTop} sample={menu === 'style' ? 'The quick brown fox jumps over the lazy dog.' : null} />
+      )}
       <div className="controls" data-testid="controls" data-hidden={hidden}>
         <div className="player-top">
           <button type="button" className="player-close" data-testid="player-close" aria-label="Close player" onClick={close}>
@@ -196,6 +199,7 @@ export function Overlay() {
         </div>
         {state && <ControlBar state={state} timeRef={timeRef} fillRef={fillRef} menu={menu} onMenu={setMenu} />}
       </div>
+      {state && menu === 'style' && <StylePanel titleKey={state.titleKey} style={subStyle} onClose={() => setMenu(null)} />}
       {error && (
         <p className="player-error" data-testid="player-error" role="alert">
           {error}

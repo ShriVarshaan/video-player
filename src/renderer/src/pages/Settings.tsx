@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppInfo, BinaryName } from '@shared/api'
 import { catchAppError } from '@shared/appError'
 import type { LibraryFolder, MetadataStatus, ScanProgress } from '@shared/library'
+import { SubtitleSettings } from './SubtitleSettings'
 
 const PHASE_LABEL: Record<Exclude<ScanProgress['phase'], 'idle'>, string> = {
   scanning: 'Scanning',
@@ -22,7 +23,7 @@ export function Settings() {
   const [key, setKey] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const report = (e: unknown) => catchAppError(e, { DEFAULT: ({ message }) => setError(message) })
+  const report = useCallback((e: unknown) => catchAppError(e, { DEFAULT: ({ message }) => setError(message) }), [])
 
   const load = useCallback(async () => {
     try {
@@ -135,6 +136,9 @@ export function Settings() {
         {status?.hasKey && <span className="muted">TMDB key saved</span>}
         <p className="muted small">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
       </form>
+
+      <h2>Subtitles</h2>
+      <SubtitleSettings onError={report} />
 
       <h2>About</h2>
       {info && (

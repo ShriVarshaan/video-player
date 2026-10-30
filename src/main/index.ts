@@ -9,6 +9,7 @@ import { registerPosterScheme, setupLibrary } from './library/setup'
 import type { LibraryService } from './library/service'
 import { killAllMpv } from './player/launch'
 import { setupPlayer } from './player/setup'
+import { setupSubtitles } from './subtitles/setup'
 import type { PlayerService } from './player/service'
 import { binaryPath, userDataDir } from './paths'
 import { createSettings } from './settings'
@@ -110,7 +111,9 @@ function start(): void {
 
   const main = createWindow()
   mainWindow = main
-  ;({ player } = setupPlayer({ db, binaryBase, userDataPath, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences }))
+  const playback = setupPlayer({ db, binaryBase, userDataPath, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences })
+  player = playback.player
+  setupSubtitles(playback)
   // Closing the window mid-film saves the position and stops mpv first.
   let saved = false
   main.on('close', (event) => {

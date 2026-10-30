@@ -48,7 +48,24 @@ export type API = {
     stop: (params: Record<string, never>) => Promise<void>
     command: (params: PlayerCommand) => Promise<void>
   }
+  subtitles: {
+    // The global style, and a title's own changes when key is given.
+    getStyle: (params: { key?: string }) => Promise<{ global: SubtitleStyle; overrides: Partial<SubtitleStyle> }>
+    // From Settings: always global.
+    setGlobalStyle: (params: { style: SubtitleStyle }) => Promise<void>
+    // From the player: only this title (movie or whole show).
+    setTitleStyle: (params: { key: string; patch: Partial<SubtitleStyle> }) => Promise<void>
+    // "Use for all movies and shows": the title's look becomes global.
+    useForAll: (params: { key: string }) => Promise<void>
+    // "Reset to my global style".
+    resetTitle: (params: { key: string }) => Promise<void>
+    getSettings: (params: Record<string, never>) => Promise<SubtitleSettings>
+    setSettings: (params: Partial<SubtitleSettings>) => Promise<void>
+  }
 }
+
+// Subtitle language (ISO 639-2/B, as mpv names it) and whether SDH is preferred.
+export type SubtitleSettings = { language: string; preferSdh: boolean }
 
 export type Domain = keyof API
 
@@ -58,7 +75,16 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
   settings: { get: true, set: true },
   library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true, getTitle: true },
   metadata: { setTmdbKey: true, status: true },
-  player: { play: true, stop: true, command: true }
+  player: { play: true, stop: true, command: true },
+  subtitles: {
+    getStyle: true,
+    setGlobalStyle: true,
+    setTitleStyle: true,
+    useForAll: true,
+    resetTitle: true,
+    getSettings: true,
+    setSettings: true
+  }
 }
 
 export const channelFor = (domain: string, method: string): string => `vp:${domain}.${method}`

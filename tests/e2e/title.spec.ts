@@ -102,6 +102,8 @@ test('back from the player, focus is on the main button and the season follows w
   await win.getByTestId('episode-card').nth(1).click()
   overlay = await overlayPage(app)
   await expect(overlay.getByTestId('player-heading')).toContainText('S1 E2')
+  // Seek only once the file is playing: a seek sent while mpv is still opening it is dropped.
+  await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(0.5)
   await win.evaluate(() => window.api.player.command({ type: 'seek', toS: 18.5 }))
   await overlay.getByTestId('next-play').click({ timeout: 10_000 })
   await expect(overlay.getByTestId('player-heading')).toContainText('S2 E1')
