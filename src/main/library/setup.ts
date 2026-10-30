@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { dialog, ipcMain, net, protocol, safeStorage, type BrowserWindow } from 'electron'
-import { eventChannel, type ApiEvents } from '@shared/api'
+import { broadcast } from '../broadcast'
 import type { Db } from '../db'
 import { createImageCache } from '../images/cache'
 import { parsePosterUrl } from '../images/posterUrl'
@@ -55,9 +55,7 @@ export function setupLibrary(opts: {
     now: Date.now
   })
 
-  const emit = <K extends keyof ApiEvents>(event: K, payload: ApiEvents[K]) => {
-    opts.getWindow()?.webContents.send(eventChannel(event), payload)
-  }
+  const emit = broadcast
 
   const library = createLibraryService({
     db,

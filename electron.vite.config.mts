@@ -8,7 +8,7 @@ export default defineConfig({
   main: {
     resolve: { alias },
     build: {
-      rolldownOptions: { external: ['node:sqlite'] }
+      rolldownOptions: { external: ['node:sqlite', 'koffi'] }
     }
   },
   preload: {
@@ -20,6 +20,15 @@ export default defineConfig({
   },
   renderer: {
     resolve: { alias },
-    plugins: [react()]
+    plugins: [react()],
+    build: {
+      // The app window and the player's overlay window.
+      rolldownOptions: {
+        input: {
+          index: resolve(import.meta.dirname, 'src/renderer/index.html'),
+          overlay: resolve(import.meta.dirname, 'src/renderer/overlay.html')
+        }
+      }
+    }
   }
 })

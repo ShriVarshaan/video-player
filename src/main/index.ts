@@ -7,6 +7,8 @@ import { openDb, type Db } from './db'
 import { registerDomain } from './ipc'
 import { registerPosterScheme, setupLibrary } from './library/setup'
 import type { LibraryService } from './library/service'
+import { setupPlayer } from './player/setup'
+import type { PlayerService } from './player/service'
 import { binaryPath, userDataDir } from './paths'
 import { createSettings } from './settings'
 import { startOrQuit } from './startup'
@@ -18,6 +20,7 @@ registerPosterScheme()
 let db: Db | null = null
 let library: LibraryService | null = null
 let mainWindow: BrowserWindow | null = null
+let player: PlayerService | null = null
 
 // One process per userData dir, so two instances never open the database at once.
 if (!app.requestSingleInstanceLock()) {
@@ -36,33 +39,42 @@ if (!app.requestSingleInstanceLock()) {
   )
 }
 
+const webPreferences: Electron.WebPreferences = {
+  preload: join(__dirname, '../preload/index.js'),
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true
+}
+
+// Stay on the app page: a dropped file or a link must not replace the UI
+// (the preload, and so window.api, would run on whatever loaded instead).
+function guard(win: BrowserWindow): void {
+  win.webContents.on('will-navigate', (event) => event.preventDefault())
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault())
+}
+
+// page is 'index' (the app) or 'overlay' (the player controls).
+function loadPage(win: BrowserWindow, page: 'index' | 'overlay'): void {
+  guard(win)
+  const devUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  if (devUrl) {
+    void win.loadURL(page === 'index' ? devUrl : `${devUrl}/overlay.html`)
+  } else {
+    void win.loadFile(join(__dirname, `../renderer/${page}.html`))
+  }
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
     backgroundColor: '#0b0b0c',
     show: false,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences
   })
   win.once('ready-to-show', () => win.show())
-
-  // Stay on the app page: a dropped file or a link must not replace the UI
-  // (the preload, and so window.api, would run on whatever loaded instead).
-  win.webContents.on('will-navigate', (event) => event.preventDefault())
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  win.webContents.on('will-attach-webview', (event) => event.preventDefault())
-
-  const devUrl = !app.isPackaged ? process.env['ELECTRON_RENDERER_URL'] : undefined
-  if (devUrl) {
-    void win.loadURL(devUrl)
-  } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadPage(win, 'index')
   return win
 }
 
@@ -95,8 +107,23 @@ function start(): void {
     getWindow: () => mainWindow
   })
 
-  mainWindow = createWindow()
-  mainWindow.on('closed', () => {
+  const main = createWindow()
+  mainWindow = main
+  player = setupPlayer({ db, binaryBase, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences })
+  // Closing the window mid-film saves the position and stops mpv first.
+  let saved = false
+  main.on('close', (event) => {
+    if (saved || !player) return
+    event.preventDefault()
+    void player
+      .shutdown()
+      .catch((e: unknown) => console.error('Saving playback failed:', e))
+      .finally(() => {
+        saved = true
+        main.close()
+      })
+  })
+  main.on('closed', () => {
     mainWindow = null
   })
 

@@ -56,7 +56,8 @@ test('the window cannot be navigated away or open new windows', async () => {
   ).toBe(join(userData, 'library.db'))
 
   expect(await win.evaluate(() => window.open('https://example.com') === null)).toBe(true)
-  expect(app.windows()).toHaveLength(1)
+  // The player's overlay window exists, hidden, from startup; nothing else may open.
+  expect(app.windows().filter((w) => !w.url().endsWith('overlay.html'))).toHaveLength(1)
 })
 
 test('a second instance exits and leaves the first running', async () => {

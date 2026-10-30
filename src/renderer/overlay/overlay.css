@@ -1,0 +1,75 @@
+:root {
+  --fg: #f4f4f6;
+  --muted: #a1a1aa;
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  color: var(--fg);
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+}
+
+.player-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px 40px;
+  background: linear-gradient(rgba(0, 0, 0, 0.6), transparent);
+}
+
+.player-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--fg);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.player-heading {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.player-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.player-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 40px 24px 20px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+}
+
+.player-time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #d4d4d8;
+}

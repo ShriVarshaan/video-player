@@ -105,7 +105,7 @@ test.describe('with the fixture library', () => {
   test('keeps focus on the same title when the library changes', async () => {
     await openTile(win, 'The Matrix')
     await expect(win.getByTestId('wall-live')).toHaveText(/^The Matrix/)
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('vp:event.library.changed', {}))
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.webContents.send('vp:event.library.changed', {}))
     await win.waitForTimeout(500)
     await expect(win.locator('[data-testid="wall-tile"][data-focused="true"]')).toHaveAttribute('data-title', 'The Matrix')
   })
@@ -180,7 +180,7 @@ test.describe('review fixes', () => {
     const live = win.getByTestId('wall-live')
     await win.keyboard.down('ArrowRight')
     await win.waitForTimeout(400)
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('vp:event.library.changed', {}))
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.webContents.send('vp:event.library.changed', {}))
     await win.waitForTimeout(150)
     // Sample the announced title; a stopped repeat announces only one.
     const seen = new Set<string | null>()
@@ -219,7 +219,7 @@ test.describe('review fixes', () => {
         return { x: r.left + r.width / 2 - innerWidth / 2, y: r.top + r.height / 2 - innerHeight / 2, w: (t as HTMLElement).offsetWidth }
       })
     const before = await centreOffset()
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1920, 1080))
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.setContentSize(1920, 1080))
     await expect.poll(async () => (await centreOffset()).w).not.toBe(before.w)
     await win.waitForTimeout(300)
     const after = await centreOffset()

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
 
 // Opens the top-left menu and picks a page: 'Search' | 'Home' | 'Settings'.
 export async function goTo(win: Page, name: 'Search' | 'Home' | 'Settings') {
@@ -32,4 +32,12 @@ export async function openTile(win: Page, title: string) {
   for (let i = 0; i < 12 && !(await live.textContent())?.startsWith(title); i++) await win.keyboard.press('ArrowRight')
   if (!(await live.textContent())?.startsWith(title)) throw new Error(`could not focus ${title}`)
   await win.keyboard.press('Enter')
+}
+
+// The player's overlay window (controls), once it has opened.
+export async function overlayPage(app: ElectronApplication): Promise<Page> {
+  const find = () => app.windows().find((w) => w.url().endsWith('overlay.html'))
+  const existing = find()
+  if (existing) return existing
+  return app.waitForEvent('window', { predicate: (w) => w.url().endsWith('overlay.html') })
 }
