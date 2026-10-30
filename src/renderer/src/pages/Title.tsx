@@ -54,7 +54,14 @@ export function TitlePage({ titleKey, active, onBack }: { titleKey: string; acti
         .then((d) => live && setT(d))
         .catch((err: unknown) => catchAppError(err, { DEFAULT: ({ message }) => console.error(message) }))
     void load()
-    const offs = [window.api.on('library.changed', () => void load()), window.api.on('player.closed', () => void load())]
+    const offs = [
+      window.api.on('library.changed', () => void load()),
+      // Back from the player: open the season that played and focus the main button again.
+      window.api.on('player.closed', () => {
+        focusedFor.current = null
+        void load()
+      })
+    ]
     return () => {
       live = false
       offs.forEach((off) => off())
@@ -72,13 +79,18 @@ export function TitlePage({ titleKey, active, onBack }: { titleKey: string; acti
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
+      // A held Enter that opened this page must not go on to press Play.
+      if (e.key === 'Enter' && e.repeat) {
+        e.preventDefault()
+        return
+      }
       if (e.key === 'Escape' && !(e.target as Element | null)?.closest?.('input, nav')) {
         e.preventDefault()
         onBack()
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   }, [active, onBack])
 
   if (!t) return <div className="title-page" data-testid="title-page" />

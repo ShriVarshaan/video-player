@@ -125,6 +125,8 @@ export function ControlBar({
               data-boost={boost}
               style={{ '--fill': volumeFill } as React.CSSProperties}
               onChange={(e) => send({ type: 'volume', value: Number(e.currentTarget.value) })}
+              // After a drag, hand the keys back to the player (Space, arrows, M, F).
+              onPointerUp={(e) => e.currentTarget.blur()}
             />
             <span className="volume-tick" aria-hidden="true" />
           </span>

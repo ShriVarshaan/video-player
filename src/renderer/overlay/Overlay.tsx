@@ -29,8 +29,11 @@ export function Overlay() {
         const prev = stateRef.current
         stateRef.current = s
         setState(s)
-        setError(null)
-        if (prev?.videoId !== s.videoId) setNext(null)
+        // A new file clears the card and any error; updates for the same file keep them.
+        if (prev?.videoId !== s.videoId) {
+          setNext(null)
+          setError(null)
+        }
         clock.current = { pos: s.positionS, at: performance.now(), paused: s.paused, duration: s.durationS ?? 0 }
         const v = volume.current
         if (v.sent === null || v.sent === s.volume) volume.current = { value: s.volume, sent: null }
@@ -99,7 +102,9 @@ export function Overlay() {
         else close()
         return
       }
-      if (!s || (e.target as Element | null)?.closest?.('input')) return
+      if (!s) return
+      // A keyboard-focused volume slider keeps its own arrows; every other key stays the player's.
+      if ((e.target as Element | null)?.closest?.('input') && e.key.startsWith('Arrow')) return
       const step = (by: number) => {
         const v = volume.current
         const value = Math.min(200, Math.max(0, v.value + by))

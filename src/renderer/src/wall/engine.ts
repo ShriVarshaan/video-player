@@ -385,6 +385,7 @@ export class WallEngine {
       return
     }
     if ((e.key === 'Enter' || e.key === ' ' || e.key === 'i') && !onOtherButton) {
+      if (e.repeat) return e.preventDefault()
       const item = this.focusedItem()
       if (item) {
         e.preventDefault()

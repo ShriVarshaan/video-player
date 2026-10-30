@@ -87,3 +87,36 @@ test("the info card's button plays straight from the wall", async () => {
   await expect(overlay.getByTestId('player-heading')).toHaveText('The Matrix')
   await expect(win.getByTestId('title-page')).toHaveCount(0)
 })
+
+test('back from the player, focus is on the main button and the season follows what played', async () => {
+  await openTile(win, 'Breaking Bad')
+  await expect(win.getByTestId('title-main')).toBeFocused()
+  await win.keyboard.press('Enter') // Play S1 E1 from the focused main button
+  let overlay = await overlayPage(app)
+  await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(1)
+  await overlay.keyboard.press('Escape')
+  await expect.poll(() => overlayVisible(app)).toBe(false)
+  await expect(win.getByTestId('title-main')).toBeFocused()
+
+  // Play S1 E2, then let it move on to S2 E1 and close there.
+  await win.getByTestId('episode-card').nth(1).click()
+  overlay = await overlayPage(app)
+  await expect(overlay.getByTestId('player-heading')).toContainText('S1 E2')
+  await win.evaluate(() => window.api.player.command({ type: 'seek', toS: 18.5 }))
+  await overlay.getByTestId('next-play').click({ timeout: 10_000 })
+  await expect(overlay.getByTestId('player-heading')).toContainText('S2 E1')
+  await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(1)
+  await overlay.keyboard.press('Escape')
+  await expect.poll(() => overlayVisible(app)).toBe(false)
+  await expect(win.getByTestId('season-tab').filter({ hasText: 'Season 2' })).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('holding Enter on the wall opens the page but does not start playback', async () => {
+  await focusTile(win, 'The Matrix')
+  await win.keyboard.down('Enter')
+  await expect(win.getByTestId('title-main')).toBeFocused()
+  for (let i = 0; i < 5; i++) await win.keyboard.down('Enter') // auto-repeat
+  await win.keyboard.up('Enter')
+  await win.waitForTimeout(800)
+  expect(await overlayVisible(app)).toBe(false)
+})
