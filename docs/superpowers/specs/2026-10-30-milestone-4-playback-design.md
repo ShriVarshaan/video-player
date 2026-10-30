@@ -143,3 +143,28 @@ Controls appear on mouse move or any key and fade after 2.5 s of no input while 
 - Whether mpv stays alive idle between plays or is respawned per play.
 - How the title page's episode strip scrolls with the keyboard.
 - Throttling and interpolation details of `player.state`.
+
+## As built (2026-10-30)
+
+Decisions made during the build:
+- **mpv's window must be raised.** Inside the app window mpv's child window sits below Chromium's own surfaces, so the picture was hidden. One Win32 call (`SetWindowPos` via koffi) lifts it; it holds through resize, maximize, full screen and refocus. A separate player window or `BaseWindow` has the same problem, so approach B would not have helped.
+- mpv is spawned per play session and quit on close; the next episode reuses it. End of file is read from `eof-reached` (with `--keep-open`, mpv sends no `end-file` at EOF).
+- Resume points are saved only after the resume seek lands, so a first `time-pos` of 0 never overwrites them.
+- The overlay window exists hidden from startup; closing it (Alt+F4) closes the app, which saves first.
+- Enter/click open the title page; Space/`i` still open the info card; the card's button plays directly.
+- A remembered subtitle track missing from a file turns subtitles off (no fallback to SDH or mpv's default).
+- Faded controls take no clicks; the first pointer movement brings them back.
+
+Deferred (small, for later milestones):
+- Controls may trail the video by a frame while the window is dragged (needs a manual check; fix would hide them during a drag).
+- A hung mpv delays app close ~6 s (the kill timer starts after the quit command returns).
+- After Cancel on the countdown and seeking back, a second end of file is ignored.
+- No numeric validation of player IPC params (NaN volume/seek).
+- Untagged tracks match by title only, not title + kind.
+- Two crashes hours apart show the error instead of respawning.
+- The volume key value isn't reset between titles; a crash respawn doesn't restore mute.
+- A failed mpv launch or failed autoplay is only logged, with no message.
+- Accessibility: seek bar not focusable, countdown not announced, focus not moved to Play now or back to the Audio/Subtitles button, TrackMenu traps Tab.
+- The countdown keeps running while a track menu is open.
+- No e2e for double Esc or held keys in the player; the main window re-renders on every `player.state`.
+- Packaging: koffi's `.node` must be unpacked from the asar (milestone 9, `release-windows`).
