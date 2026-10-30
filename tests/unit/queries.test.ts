@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { openDb, type Db } from '../../src/main/db'
-import { getShow, listFolders, listLibrary, listWall } from '../../src/main/library/queries'
+import { getShow, getTitle, listFolders, listLibrary, listWall } from '../../src/main/library/queries'
 import { wallKey } from '../../src/main/library/scanner'
 import { fnv1a32 } from '@shared/hash'
 
@@ -202,5 +202,97 @@ describe('listWall', () => {
 
   it('fnv1a32 matches wallKey', () => {
     expect(fnv1a32('abc')).toBe(wallKey('abc'))
+  })
+})
+
+describe('getTitle', () => {
+  beforeEach(() => {
+    db.exec(`
+      INSERT INTO genres (id, name) VALUES (878, 'Science Fiction'), (18, 'Drama');
+      INSERT INTO tmdb_movie_genres (tmdb_id, genre_id) VALUES (603, 878), (603, 18);
+      UPDATE tmdb_movies SET runtime_min = 136, rating = 8.23, backdrop_path = '/b.jpg',
+        overview = 'Neo is a hacker. He learns the truth. The end.' WHERE tmdb_id = 603;
+      UPDATE tmdb_shows SET rating = 8.9 WHERE tmdb_id = 1396;
+    `)
+  })
+  const play = (id: number, pos: number, dur: number, completed = 0, at = 10) =>
+    db.prepare('INSERT INTO playback_state (video_id, position_s, duration_s, completed, last_played_at) VALUES (?, ?, ?, ?, ?)').run(id, pos, dur, completed, at)
+
+  it('describes a movie not started', () => {
+    expect(getTitle(db, 'movie:2')).toEqual({
+      key: 'movie:2',
+      kind: 'movie',
+      title: 'The Matrix',
+      year: 1999,
+      runtimeMin: 136,
+      seasonCount: null,
+      episodeCount: null,
+      genres: ['Drama', 'Science Fiction'],
+      rating: 8.2,
+      overview: 'Neo is a hacker. He learns the truth. The end.',
+      posterUrl: 'poster://poster/video/2?v=t603',
+      backdropUrl: 'poster://backdrop/video/2?v=t603',
+      matched: true,
+      watched: false,
+      main: { label: 'Play', videoId: 2, from: 'start' },
+      restart: null,
+      remainingS: null,
+      progress: null,
+      seasons: [],
+      openSeason: null
+    })
+  })
+
+  it('offers Continue watching and Restart for a movie partway through', () => {
+    play(2, 600, 8160)
+    const t = getTitle(db, 'movie:2')!
+    expect(t.main).toEqual({ label: 'Continue watching', videoId: 2, from: 'resume' })
+    expect(t.restart).toEqual({ label: 'Restart', videoId: 2, from: 'start' })
+    expect(t.remainingS).toBe(7560)
+    expect(t.progress).toBeCloseTo(600 / 8160)
+  })
+
+  it('offers Play from the start for a finished movie and marks it watched', () => {
+    play(2, 8000, 8160, 1)
+    const t = getTitle(db, 'movie:2')!
+    expect(t.main).toEqual({ label: 'Play', videoId: 2, from: 'start' })
+    expect(t.restart).toBeNull()
+    expect(t.watched).toBe(true)
+    expect(t.remainingS).toBeNull()
+  })
+
+  it('leaves out what an unmatched movie lacks', () => {
+    expect(getTitle(db, 'movie:3')).toMatchObject({ title: 'Some Unknown Home Video', overview: null, rating: null, matched: false, genres: [] })
+  })
+
+  it('describes a show with nothing watched', () => {
+    const t = getTitle(db, 'tmdb:1396')!
+    expect(t).toMatchObject({ kind: 'show', title: 'Breaking Bad', seasonCount: 2, episodeCount: 3, rating: 8.9, overview: 'Walt.' })
+    expect(t.main).toEqual({ label: 'Play S1 E1', videoId: 5, from: 'start' })
+    expect(t.restart).toBeNull()
+    expect(t.seasons.map((s) => s.season)).toEqual([1, 2])
+    expect(t.openSeason).toBe(1)
+  })
+
+  it('continues a show partway through an episode', () => {
+    play(6, 1000, 3000)
+    const t = getTitle(db, 'tmdb:1396')!
+    expect(t.main).toEqual({ label: 'Continue S1 E2', videoId: 6, from: 'resume' })
+    expect(t.restart).toEqual({ label: 'Restart episode', videoId: 6, from: 'start' })
+    expect(t.remainingS).toBe(2000)
+  })
+
+  it('opens the season of the next episode', () => {
+    play(6, 3000, 3000, 1)
+    const t = getTitle(db, 'tmdb:1396')!
+    expect(t.main).toEqual({ label: 'Play S2 E1', videoId: 7, from: 'start' })
+    expect(t.openSeason).toBe(2)
+  })
+
+  it('follows a local show key to its match, and returns null for unknown keys', () => {
+    expect(getTitle(db, 'local:breaking bad')?.key).toBe('tmdb:1396')
+    expect(getTitle(db, 'local:my show')).toMatchObject({ title: 'My Show', matched: false })
+    expect(getTitle(db, 'movie:999')).toBeNull()
+    expect(getTitle(db, 'nonsense')).toBeNull()
   })
 })

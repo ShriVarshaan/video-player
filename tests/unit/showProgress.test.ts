@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isFinished, nextUp, type ProgressEpisode } from '../../src/main/library/showProgress'
+import { isFinished, nextEpisode, nextUp, type ProgressEpisode } from '../../src/main/library/showProgress'
 
 let id = 0
 const ep = (season: number, episode: number, over: Partial<ProgressEpisode> = {}): ProgressEpisode => ({
@@ -66,5 +66,25 @@ describe('nextUp', () => {
 
   it('is null for a show with no episodes', () => {
     expect(nextUp([])).toBeNull()
+  })
+})
+
+describe('nextEpisode', () => {
+  const s1e1 = ep(1, 1)
+  const s1e3 = ep(1, 3)
+  const s2e1 = ep(2, 1)
+  const special = ep(0, 1)
+  const all = [s2e1, special, s1e3, s1e1]
+
+  it('plays the next local episode in the season, skipping missing numbers', () => {
+    expect(nextEpisode(all, s1e1.videoId)).toBe(s1e3)
+  })
+  it('moves on to the first episode of the next season', () => {
+    expect(nextEpisode(all, s1e3.videoId)).toBe(s2e1)
+  })
+  it('is null after the last episode, after a special, and for an unknown id', () => {
+    expect(nextEpisode(all, s2e1.videoId)).toBeNull()
+    expect(nextEpisode(all, special.videoId)).toBeNull()
+    expect(nextEpisode(all, -1)).toBeNull()
   })
 })

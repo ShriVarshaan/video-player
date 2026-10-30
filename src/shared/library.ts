@@ -58,3 +58,30 @@ export type WallItem = {
 export type ScanProgress = { phase: 'scanning' | 'probing' | 'matching' | 'images' | 'idle'; done: number; total: number }
 
 export type MetadataStatus = { hasKey: boolean; pending: number; unmatched: number }
+
+// A play button on the title page: which file, and whether to resume it.
+export type TitleButton = { label: string; videoId: number; from: 'resume' | 'start' }
+
+// Everything the title page shows, for a movie or a show.
+export type TitleDetail = {
+  key: string
+  kind: 'movie' | 'show'
+  title: string
+  year: number | null
+  runtimeMin: number | null
+  seasonCount: number | null
+  episodeCount: number | null
+  genres: string[]
+  rating: number | null
+  overview: string | null // full TMDB overview, not cut to a sentence
+  posterUrl: string
+  backdropUrl: string | null
+  matched: boolean
+  watched: boolean // a movie finished (completed or past 95 %)
+  main: TitleButton
+  restart: TitleButton | null
+  remainingS: number | null // when the main button continues
+  progress: number | null
+  seasons: ShowDetail['seasons'] // [] for movies
+  openSeason: number | null // the season holding the next-up episode
+}

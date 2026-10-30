@@ -40,3 +40,14 @@ export function nextUp(episodes: ProgressEpisode[]): NextUp | null {
   const i = regular.findIndex((e) => e.videoId === last.videoId)
   return play(regular[i + 1] ?? first)
 }
+
+// The episode that autoplays after this one: next in its season, then the next
+// season's first. null after the last episode or after a Special.
+export function nextEpisode(episodes: ProgressEpisode[], currentVideoId: number): ProgressEpisode | null {
+  const current = episodes.find((e) => e.videoId === currentVideoId)
+  if (!current || current.season === 0) return null
+  const after = episodes
+    .filter((e) => e.season >= 1 && (e.season > current.season || (e.season === current.season && e.episode > current.episode)))
+    .sort((a, b) => a.season - b.season || a.episode - b.episode)
+  return after[0] ?? null
+}

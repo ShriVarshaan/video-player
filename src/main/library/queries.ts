@@ -1,5 +1,5 @@
 import { fnv1a32 } from '@shared/hash'
-import type { EpisodeItem, LibraryFolder, MovieItem, ShowDetail, ShowItem, WallItem } from '@shared/library'
+import type { EpisodeItem, LibraryFolder, MovieItem, ShowDetail, ShowItem, TitleDetail, WallItem } from '@shared/library'
 import { normalizeTitle } from '@shared/normalize'
 import type { Db } from '../db'
 import { posterUrl } from '../images/posterUrl'
@@ -290,4 +290,59 @@ export function listFolders(db: Db, exists: (p: string) => boolean): LibraryFold
     )
     .all() as { id: number; path: string; last_scan_at: number | null; n: number }[]
   return rows.map((r) => ({ id: r.id, path: r.path, online: exists(r.path), videoCount: Number(r.n), lastScanAt: r.last_scan_at }))
+}
+
+// Everything the title page shows, for a movie ('movie:<videoId>') or a show key.
+export function getTitle(db: Db, key: string): TitleDetail | null {
+  if (key.startsWith('movie:')) return movieTitle(db, key)
+  const show = getShow(db, key)
+  if (!show) return null
+  const item = listWall(db).find((i) => i.key === show.key)
+  if (!item) return null
+  const episodes = show.seasons.flatMap((s) => s.episodes)
+  const up = show.nextUp!
+  const ep = episodes.find((e) => e.videoId === up.videoId)!
+  const continuing = up.action === 'continue'
+  const sxe = `S${up.season} E${up.episode}`
+  return {
+    ...common(item),
+    watched: false,
+    main: { label: continuing ? `Continue ${sxe}` : `Play ${sxe}`, videoId: up.videoId, from: continuing ? 'resume' : 'start' },
+    restart: continuing ? { label: 'Restart episode', videoId: up.videoId, from: 'start' } : null,
+    ...remaining(continuing, up.positionS, ep.durationS),
+    seasons: show.seasons,
+    openSeason: up.season
+  }
+}
+
+function movieTitle(db: Db, key: string): TitleDetail | null {
+  const item = listWall(db).find((i) => i.key === key)
+  if (!item) return null
+  const videoId = Number(key.slice('movie:'.length))
+  const v = db.prepare('SELECT duration_s FROM videos WHERE id = ?').get(videoId) as { duration_s: number | null }
+  const p = db.prepare('SELECT position_s, duration_s, completed FROM playback_state WHERE video_id = ?').get(videoId) as
+    | { position_s: number; duration_s: number | null; completed: number }
+    | undefined
+  const pb = { positionS: p?.position_s ?? 0, durationS: p?.duration_s ?? v.duration_s, completed: p?.completed === 1 }
+  const watched = p !== undefined && isFinished(pb)
+  const continuing = !watched && pb.positionS > 0
+  return {
+    ...common(item),
+    watched,
+    main: { label: continuing ? 'Continue watching' : 'Play', videoId, from: continuing ? 'resume' : 'start' },
+    restart: continuing ? { label: 'Restart', videoId, from: 'start' } : null,
+    ...remaining(continuing, pb.positionS, pb.durationS),
+    seasons: [],
+    openSeason: null
+  }
+}
+
+function common(item: WallItem) {
+  const { key, kind, title, year, runtimeMin, seasonCount, episodeCount, genres, rating, overview, posterUrl, backdropUrl, matched } = item
+  return { key, kind, title, year, runtimeMin, seasonCount, episodeCount, genres, rating, overview, posterUrl, backdropUrl, matched }
+}
+
+function remaining(continuing: boolean, positionS: number, durationS: number | null) {
+  if (!continuing || durationS === null || durationS <= 0) return { remainingS: null, progress: null }
+  return { remainingS: Math.max(0, durationS - positionS), progress: positionS / durationS }
 }

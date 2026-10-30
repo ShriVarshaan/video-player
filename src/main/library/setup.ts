@@ -13,7 +13,7 @@ import { quickHash } from '../media/quickHash'
 import { createCredentialStore } from '../metadata/credential'
 import { createTmdbClient } from '../metadata/tmdbClient'
 import { binaryPath } from '../paths'
-import { getShow, listFolders, listLibrary, listWall } from './queries'
+import { getShow, getTitle, listFolders, listLibrary, listWall } from './queries'
 import { createLimiter } from './queue'
 import { createLibraryService, type LibraryService } from './service'
 
@@ -87,6 +87,7 @@ export function setupLibrary(opts: {
     rescan: () => library.rescan(),
     list: async () => listLibrary(db),
     getShow: async ({ key }) => getShow(db, key),
+    getTitle: async ({ key }) => getTitle(db, key),
     wall: async () => listWall(db)
   })
   registerDomain(ipcMain, 'metadata', {
