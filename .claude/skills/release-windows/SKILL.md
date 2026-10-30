@@ -79,3 +79,7 @@ This is engineering guidance, not legal advice. Flag to the user before any publ
 - [ ] Fast sync on `speech.shift+3.2.srt` works. Deep sync downloads its model with a consent prompt and handles `speech.cut45.srt`.
 - [ ] Search (`/`, chips, keyboard) works.
 - [ ] Uninstall removes the app and keeps user data unless the user chose otherwise.
+
+## koffi (milestone 4)
+
+- `koffi` (MIT, prebuilt N-API binaries) makes the one Win32 call that raises mpv's window (`src/main/player/launch.ts`). It is external in the main build (`electron.vite.config.mts`); when packaging, unpack its `.node` binary from the asar (`asarUnpack: ["**/node_modules/koffi/**"]`) and list it in the third-party notices.

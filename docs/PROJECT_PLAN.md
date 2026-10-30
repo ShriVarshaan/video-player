@@ -21,22 +21,26 @@ Detailed specs for each area are in the project skills in `.claude/skills/`. The
 Electron main process (Node/TS)
  ├─ LibraryService   – folder scan, fs.watch, ffprobe, movie/episode name parse, SQLite (built-in node:sqlite)
  ├─ MetadataService  – TMDB movie + TV lookup, WebP image cache behind poster://, ffmpeg frame fallback
- ├─ PlayerService    – spawns mpv.exe with --wid=<player window HWND>, JSON IPC over a named pipe   [mpv-ipc]
+ ├─ PlayerService    – spawns mpv.exe with --wid=<main window HWND>, JSON IPC over a named pipe     [mpv-ipc]
  ├─ SubtitleService  – load .srt/.vtt/.ass + extract embedded subs, offset store, export            [subtitle-formats]
  └─ SyncService      – Python sidecar over stdio JSON-lines                                          [subtitle-sync-ml]
 Renderer (React + TS + Vite)
- ├─ Menu + pages     – top-left drawer: Search · Home (the wall) · Settings (folders, TMDB key, about)
+ ├─ Menu + pages     – top-left drawer: Search · Home (the wall, title pages) · Settings (folders, TMDB key, about)
  ├─ InfiniteWall     – virtualized, wrapping 2D grid                                                  [infinite-wall]
  ├─ SearchOverlay    – Netflix-style search                                                           [netflix-search]
- └─ PlayerOverlay    – transparent overlay window: controls, Apple TV subtitles, sync panel
+ └─ Overlay window   – transparent window over the app window: controls, track menus, next episode; later subtitles, sync panel
 Python sidecar (PyInstaller onedir)
  └─ ffsubsync (VAD) + faster-whisper (deep sync)
 ```
 
 ### Key technical choices
-- **Playback:** mpv runs as a child process embedded with `--wid` and is controlled over a named pipe.
+- **Playback** (design: `docs/superpowers/specs/2026-10-30-milestone-4-playback-design.md`): mpv runs as a child process embedded with `--wid` **in the app window itself** and is controlled over a named pipe.
   - mpv uses FFmpeg internally, so it plays essentially every container and codec.
-  - Controls and subtitles live in a **transparent child BrowserWindow** that tracks the player window's bounds, because HTML can't be layered over mpv's surface in the same window.
+  - Chromium's own child windows sit above mpv's, so mpv's window is raised with one Win32 call (`SetWindowPos`, via koffi).
+  - Controls live in a **transparent owned BrowserWindow** that tracks the app window's content bounds, because HTML can't be layered over mpv's surface in the same window. Layout: one control bar along the bottom (seek, play/skip, volume 0–200 %, time, Audio, Subtitles, full screen).
+  - Esc/✕ saves the position and goes to the title's page. Episodes autoplay after a 10 s "Next episode" card.
+  - Volume, audio and subtitle choices are remembered **per movie or show** (`title_prefs`), never app-wide.
+- **Title pages:** Enter/click on a wall tile opens a page for the movie or show: full-bleed backdrop, details on the left (TMDB synopsis and rating), Play / Continue watching + Restart; shows add a season row and an episode strip. The wall's info card button plays directly.
 - **Apple TV-style subtitles are drawn in HTML/CSS:**
   - SF Pro-like font, white semibold text, a rounded translucent blurred box per line, a short fade, and positioning relative to the video rectangle.
   - Image subtitles (PGS/VobSub) fall back to mpv's native rendering.

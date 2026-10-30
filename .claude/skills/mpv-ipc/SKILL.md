@@ -5,12 +5,12 @@ description: How this app embeds and controls mpv on Windows — launch flags, -
 
 # mpv control in this project
 
-mpv runs as a **child process** (`vendor/mpv/mpv.exe`) that draws into the player `BrowserWindow`'s native handle. All control goes through **JSON IPC on a Windows named pipe**. We do not use libmpv bindings, mpv.js or the render API. Keep it that way unless the user decides otherwise.
+mpv runs as a **child process** (`vendor/mpv/mpv.exe`) that draws into the **main app window's** native handle (milestone 4 design: playback takes over the app window; there is no separate player window). All control goes through **JSON IPC on a Windows named pipe**. We do not use libmpv bindings, mpv.js or the render API. Keep it that way unless the user decides otherwise.
 
 ## Launch
 
 ```ts
-const hwnd = playerWin.getNativeWindowHandle().readBigUInt64LE(0).toString();
+const hwnd = mainWin.getNativeWindowHandle().readBigUInt64LE(0).toString();
 const pipe = `\\\\.\\pipe\\vp-mpv-${process.pid}-${playerId}`;
 
 spawn(resolveBinary('mpv'), [
@@ -22,14 +22,16 @@ spawn(resolveBinary('mpv'), [
   '--hwdec=auto-safe', '--vo=gpu-next',
   '--volume-max=200',            // UI slider 0–200 %, like VLC
   '--sub-auto=no', '--audio-file-auto=no',
-  '--sub-visibility=no',         // we draw text subs ourselves (see subtitle-formats)
+  '--sub-visibility=yes',        // until milestone 5: mpv draws text subs; then `no` (we draw them, see subtitle-formats)
   '--msg-level=all=warn',
 ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 ```
 
+- **Raise mpv's window.** mpv's child window is created *below* Chromium's own child windows (`Intermediate D3D Window`), so the picture is hidden. `launch.ts` finds it with `FindWindowExW(main, 0, "mpv")` and calls `SetWindowPos(HWND_TOP, NOMOVE|NOSIZE|NOACTIVATE)` through **koffi** (polling until the window exists). `--ontop`, a separate `BrowserWindow` or a `BaseWindow` do not help: each has the same D3D surface on top. Verified to hold through resize, maximize, full screen and refocus.
+- **One mpv per play session**, spawned on Play and quit on close (stopping without quitting would leave mpv's black child window over the page). The next episode reuses the running process (`loadfile replace`). `launch.ts` keeps every live child and `killAllMpv()` runs on process `exit`.
 - `resolveBinary` returns `process.resourcesPath/vendor/...` when packaged and `<repo>/vendor/...` in dev. Never hardcode paths.
 - Pass file paths only as IPC arguments (`loadfile`), never pasted into a shell string.
-- The player window background must be `#000` so letterboxing matches before the first frame arrives.
+- The main window shows a black cover (`.player-cover`) while playing so letterboxing matches before the first frame arrives.
 
 ## Connecting to the pipe
 
@@ -63,7 +65,8 @@ Wrap these in a small typed client (`src/main/player/mpvIpc.ts`):
 | 4 | `volume`, `mute` | Volume UI |
 | 5 | `track-list` | Audio and subtitle pickers, plus detecting image subs (`codec: hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`) |
 | 6 | `video-params` / `osd-dimensions` | Video rectangle inside the window. The subtitle overlay and letterbox maths need it. |
-| 7 | `eof-reached`, `idle-active`, `paused-for-cache` | End screen and spinner |
+| 7 | `eof-reached`, `idle-active`, `paused-for-cache` | End of file (with `--keep-open=yes` mpv pauses on the last frame and sends **no** `end-file` at EOF; `eof-reached` is the signal), spinner |
+| 8 | `aid`, `sid` | Which tracks the menus mark; restored after a crash |
 
 Resend `time-pos` straight away on `seek` and `playback-restart` so subtitles jump instantly.
 
@@ -88,19 +91,22 @@ af add @dialogue:lavfi=[dynaudnorm=f=150:g=15]     af remove @dialogue
 HTML can't be layered over mpv's surface inside the same window, so the controls and subtitles live in a second window:
 
 ```ts
-new BrowserWindow({ parent: playerWin, transparent: true, frame: false, hasShadow: false,
+new BrowserWindow({ parent: mainWin, transparent: true, frame: false, hasShadow: false,
   skipTaskbar: true, resizable: false, backgroundColor: '#00000000', webPreferences: {...} })
 ```
 
-- Copy `playerWin.getContentBounds()` to the overlay on `move`, `resize`, `maximize`, `unmaximize`, `enter-full-screen` and `leave-full-screen`. Use `setBounds`, not animations.
-- The overlay receives all keyboard and mouse input. The player window never takes focus.
+- The overlay is created **hidden at startup** (so no early `player.*` event is lost) with `parent: mainWindow`, and shown/hidden per play.
+- Copy `mainWindow.getContentBounds()` to the overlay on `move`, `resize`, `maximize`, `unmaximize`, `enter-full-screen` and `leave-full-screen`. Use `setBounds`, not animations.
+- The overlay receives all keyboard and mouse input while shown. Focusing the main window (Alt+Tab, taskbar) re-focuses the overlay. Closing the overlay (Alt+F4 lands there) closes the **app** instead, which saves first.
+- Faded controls take no clicks; the first pointer movement brings them back.
 - Hide the cursor after 2.5 s without movement during playback using CSS `cursor: none` on the overlay.
 
 ## Lifecycle and errors
 
-- One mpv process per player window. When the window closes, send `quit`, then kill the process if it hasn't exited within 1 s.
+- One mpv process per play session. When playback closes (or the app window closes), send `quit`, then kill the process if it hasn't exited within 1 s.
 - **Unexpected exit:** log the stderr tail and respawn once. Then `loadfile`, `seek` to the last `time-pos`, and restore `aid`, `sid` and volume. If it dies again, show an error screen.
 - `end-file` with `reason: "error"`: show "Can't play this file". Include the codec from ffprobe if one is known.
+- Resume points are saved only after the resume seek has landed (`seek` event then `playback-restart`); mpv's first `time-pos` (0) must never overwrite a good position.
 - Save the resume position every 10 s and on close (SQLite `playback_state`, one row per `video_id` — movies and episodes alike). Also write `duration_s` and `last_played_at`. Set `completed = 1` at end of file or once position ≥ 95 % of duration; the show page's Play/Continue logic (`src/main/library/showProgress.ts`) reads these.
 
 ## Debugging
@@ -114,3 +120,10 @@ s.write(JSON.stringify({ command: ['get_property', 'track-list'] }) + '\n');
 ```
 
 Run mpv without `--wid` and with `--msg-level=all=v` to see whether a problem comes from embedding or from decoding.
+
+## Per-title memory and tracks (milestone 4)
+
+- `title_prefs` (migration 3), keyed by the wall key (`movie:<id>`, `tmdb:<id>`, `local:<show>`): volume (default 100), audio and subtitle as `{lang, kind, title}` (`subtitle` may be `"off"`). Never app-wide. A show's prefs move to `tmdb:<id>` when TMDB first matches it.
+- Kinds: `forced` (mpv `forced`), `sdh` (`hearing-impaired` or a title with SDH/hearing), `commentary` (title), else `plain`. Matching: same language + kind → same language plain → same title → mpv's default.
+- Nothing remembered: a forced subtitle in the audio's language still shows. Choosing Off while a forced track shows remembers `"off"`.
+- Code: `src/main/player/` — `mpvIpc.ts` (client), `launch.ts` (spawn, raise, kill), `service.ts` (`PlayerService`: play/stop/command, resume, prefs, limiter, eof → `player.ended` / close, crash respawn), `overlay.ts`, `setup.ts`. Renderer: `src/renderer/overlay/`. Events go to every window (`src/main/broadcast.ts`).

@@ -37,9 +37,10 @@ npm run test:e2e              # builds, then Playwright-Electron
 ## Codebase map
 
 - `src/shared/` — `api.ts` (the one IPC contract: `API`, `apiMethods`, `ApiEvents`), `appError.ts`, `library.ts` types (incl. `WallItem`), `normalize.ts`, `hash.ts` (FNV-1a).
-- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg).
+- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg); `player/` (`mpvIpc` client, `launch` spawn + Win32 raise via koffi, `service` = `PlayerService`, `overlay` window, `titlePrefs`, `resume`, `tracks`); `broadcast.ts` sends events to every window.
 - `src/preload/index.ts` builds `window.api` from `apiMethods`. To add an endpoint: add it to `API` and `apiMethods`, then register a handler with `registerDomain`. Channel names are derived, never hand-written.
-- `src/renderer/src/` — `App` (page state: home / search / settings), `nav/Menu` (top-left drawer), `pages/` (`Settings`, `SearchSoon` until milestone 8), `wall/` (pure `mapping`/`geometry`/`physics`/`camera`, unit-tested in Node; `engine.ts` = imperative tile pool + rAF loop; `Wall.tsx` React shell, `InfoCard`, `Backdrop`).
+- `src/renderer/src/` — `App` (page state: home / search / settings, plus a title page over Home and a black cover while playing), `nav/Menu` (top-left drawer), `pages/` (`Title`, `Settings`, `SearchSoon` until milestone 8), `wall/` (pure `mapping`/`geometry`/`physics`/`camera`, unit-tested in Node; `engine.ts` = imperative tile pool + rAF loop; `Wall.tsx` React shell, `InfoCard`, `Backdrop`).
+- `src/renderer/overlay/` — second renderer entry (`overlay.html`) for the player controls: `Overlay`, `ControlBar`, `TrackMenu`, `NextCard`.
 
 ## Gotchas learned so far
 
@@ -48,6 +49,8 @@ npm run test:e2e              # builds, then Playwright-Electron
 - Git converts files to CRLF on checkout here (`core.autocrlf=true`). Edit with the Edit tool. Shell `sed`/heredoc edits keep mangling backslashes and CRLF text.
 - E2E: reach pages with `goTo(win, 'Settings')` from `tests/e2e/pages.ts`. Fixture TMDB mode serves one placeholder image for every TMDB poster, so blue tiles in screenshots are expected.
 - Wall keys are handled on `window` and ignored inside `nav`/inputs. Anything that leaves focus in the closing drawer swallows the next key, so menu picks move focus out at once.
+- mpv draws into the main window with `--wid`, but Chromium's child windows sit above it: `launch.ts` raises mpv's window with `SetWindowPos` (koffi). Don't remove that call; see `mpv-ipc`.
+- The player overlay window exists (hidden) from startup. In E2E, pick the main window by URL (`!url.endsWith('overlay.html')`), never `getAllWindows()[0]`, and close the app with `closeApp(app)` from `pages.ts`: Playwright's `app.close()` stalls while mpv is quitting.
 - The vendor ffmpeg is an LGPL build: no x264/x265 encoders (fixtures use mpeg4/VP9), but it has libwebp and librsvg. TMDB SVG logos rasterize badly, so PNG logos are preferred.
 
 ## Skill routing

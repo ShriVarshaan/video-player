@@ -88,3 +88,8 @@ npx playwright test                   # e2e, launches Electron via _electron.lau
 sidecar\.venv\Scripts\python -m pytest sidecar/tests -q
 ```
 E2E runs should point the app at a temp `userData` (`--user-data-dir`) so tests never touch the real library or settings.
+
+## Player fixtures (milestone 4)
+
+- `tests/fixtures/media/tracks.mkv` (20 s): audio `eng` 5.1 + `jpn` stereo; subtitles `eng` "English", `eng` "English SDH" (hearing-impaired flag), `eng` forced. Copy it into a temp folder (e.g. `Track Test (2020).mkv`) for the Audio/Subtitles menu and track-memory tests.
+- Library clips are 20 s, so an episode's end is reachable with `player.command({ type: 'seek', toS: 18.5 })`.
