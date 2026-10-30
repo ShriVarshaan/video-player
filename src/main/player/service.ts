@@ -2,7 +2,7 @@ import { basename, join } from 'node:path'
 import type { API, ApiEvents } from '@shared/api'
 import { throwAppError } from '@shared/appError'
 import type { TitleDetail } from '@shared/library'
-import type { Cue, PlayerCommand, PlayerState, Track } from '@shared/player'
+import type { Cue, PlayerCommand, PlayerState, Track, TrackRef } from '@shared/player'
 import type { Db } from '../db'
 import { getTitle } from '../library/queries'
 import { isFinished, nextEpisode, type ProgressEpisode } from '../library/showProgress'
@@ -58,6 +58,8 @@ type Current = {
   ended: boolean
   // Running once mpv has opened the file: externals, tracks, the subtitle pick.
   setup: Promise<void> | null
+  // The subtitle pick for this file is made; its lines may be shown.
+  picked: boolean
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -90,7 +92,9 @@ export function createPlayerService(deps: {
   let lastEmit = 0
   let emitTimer: NodeJS.Timeout | null = null
   let crashes = 0
-  let restore: { positionS: number; aid: number | null; sid: number | null } | null = null
+  // Where to pick up after mpv crashed. The subtitle is kept by reference, not id:
+  // files are added again on the respawn and their ids can move.
+  let restore: { positionS: number; aid: number | null; sub: TrackRef | 'off' } | null = null
   const st = {
     paused: false,
     positionS: 0,
@@ -216,7 +220,7 @@ export function createPlayerService(deps: {
     if (!cur) return
     const mine = cur
     const prefs = getPrefs(db, cur.title.key)
-    const target = restore ?? { positionS: cur.startAt, aid: null, sid: null }
+    const target = restore ?? { positionS: cur.startAt }
     if (target.positionS > 0) {
       const mine = cur
       mine.seeking = 'sent'
@@ -237,7 +241,7 @@ export function createPlayerService(deps: {
     const subs = st.tracks.filter((t) => t.type === 'sub')
     if (restore) {
       if (restore.aid !== null) await cmd('set_property', 'aid', restore.aid)
-      await selectSubtitle(restore.sid)
+      await selectSubtitle(restore.sub === 'off' ? null : (pickTrack(subs, restore.sub)?.id ?? null))
     } else {
       const settings = deps.styles.subtitleSettings()
       const a = pickTrack(audio, prefs.audio)
@@ -247,6 +251,8 @@ export function createPlayerService(deps: {
       const s = pickSubtitle(subs, prefs.subtitle, { audioLang, userLang: settings.language, preferSdh: settings.preferSdh })
       await selectSubtitle(s ? s.id : null)
     }
+    // Lines are shown only from here on: before the pick, mpv's own default track could speak.
+    mine.picked = true
     restore = null
     emitState(true)
   }
@@ -299,7 +305,7 @@ export function createPlayerService(deps: {
     void c.observe('sid', (v) => (st.sid = num(v)))
     void c.observe('sub-text/ass', (v) => {
       // Lines from a file that is no longer (or not yet) the current one are dropped.
-      if (cur?.loaded) emitCue(toCue(v))
+      if (cur?.picked) emitCue(toCue(v))
     })
     void c.observe('eof-reached', (v) => {
       if (v === true) void onEof()
@@ -348,8 +354,9 @@ export function createPlayerService(deps: {
     if (expected || !cur || closing) return
     save()
     if (++crashes > 1) return fail()
-    restore = { positionS: st.positionS, aid: st.aid, sid: st.sid }
-    Object.assign(cur, { loaded: false, ready: false, seeking: 'no' })
+    const showing = st.tracks.find((t) => t.type === 'sub' && t.id === st.sid)
+    restore = { positionS: st.positionS, aid: st.aid, sub: showing ? refOf(showing) : 'off' }
+    Object.assign(cur, { loaded: false, ready: false, seeking: 'no', setup: null, picked: false })
     try {
       const next = await ensureProcess()
       if (!cur) return quitIfIdle()
@@ -384,7 +391,8 @@ export function createPlayerService(deps: {
       ready: false,
       seeking: 'no',
       ended: false,
-      setup: null
+      setup: null,
+      picked: false
     }
     cur = mine
     crashes = 0

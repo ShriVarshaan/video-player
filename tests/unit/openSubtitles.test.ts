@@ -129,6 +129,20 @@ describe('OpenSubtitles client', () => {
     expect(await result).toBe('opensubtitles_unavailable')
   })
 
+  it('gives up when a response stalls after its headers (review)', async () => {
+    vi.useFakeTimers()
+    const stalled = () => new Response(new ReadableStream({ start: () => {} }), { status: 200 })
+    for (const which of ['subtitles', 'file'] as const) {
+      const s = server(which === 'subtitles' ? { subtitles: stalled } : {})
+      const fetchWithStall = (async (input: string | URL | Request, init?: RequestInit) =>
+        new URL(String(input)).hostname === 'dl.example' && which === 'file' ? stalled() : s.fetch(input, init)) as typeof fetch
+      const os = createOpenSubtitles({ secrets: () => SECRETS, mode: 'live', fixturesDir: FIXTURES, fetch: fetchWithStall, userAgent: 'x', timeoutMs: 15_000 })
+      const result = codeOf(which === 'subtitles' ? os.search({ tmdbId: 1, language: 'en' }) : os.download(1))
+      await vi.advanceTimersByTimeAsync(15_001)
+      expect(await result).toBe('opensubtitles_unavailable')
+    }
+  })
+
   it('reports the network being down', async () => {
     const down = vi.fn(async () => {
       throw new TypeError('fetch failed')

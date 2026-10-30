@@ -56,13 +56,17 @@ export function toTracks(trackList: unknown, externals: ExternalSub[] = []): Tra
 
 export const refOf = (t: Track): TrackRef => ({ lang: t.lang, kind: t.kind, title: t.title })
 
-// The remembered track in this file: same language and kind, then same language
+// The remembered track in this file: same language and kind (the very same title
+// first, so a chosen file beats an embedded track of its language), then same language
 // plain, then same title. null keeps mpv's own choice.
 export function pickTrack(tracks: Track[], ref: TrackRef | null): Track | null {
   if (!ref) return null
   if (ref.lang) {
     const same = tracks.filter((t) => t.lang === ref.lang)
-    const hit = same.find((t) => t.kind === ref.kind) ?? same.find((t) => t.kind === 'plain')
+    const hit =
+      same.find((t) => t.kind === ref.kind && t.title === ref.title) ??
+      same.find((t) => t.kind === ref.kind) ??
+      same.find((t) => t.kind === 'plain')
     if (hit) return hit
   }
   return (ref.title && tracks.find((t) => t.title === ref.title)) || null

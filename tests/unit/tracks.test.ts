@@ -79,6 +79,11 @@ describe('pickTrack', () => {
   it('prefers the same language and kind', () => {
     expect(pickTrack(subs, { lang: 'eng', kind: 'sdh', title: null })?.id).toBe(2)
   })
+  it('prefers the very same track (by title) within a language and kind', () => {
+    const two = [t(1, 'eng', 'plain', 'English'), t(2, 'eng', 'plain', 'movie.en.srt')]
+    expect(pickTrack(two, { lang: 'eng', kind: 'plain', title: 'movie.en.srt' })?.id).toBe(2)
+    expect(pickTrack(two, { lang: 'eng', kind: 'plain', title: 'other.srt' })?.id).toBe(1)
+  })
   it('falls back to the same language, plain kind', () => {
     expect(pickTrack(subs, { lang: 'jpn', kind: 'sdh', title: null })?.id).toBe(3)
   })

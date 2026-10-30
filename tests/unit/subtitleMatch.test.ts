@@ -83,6 +83,29 @@ describe('findSubtitles', () => {
     expect(names(await findSubtitles(b, { userLang: 'eng' }))).toEqual(['[Group] Show - 01.srt'])
   })
 
+  it("leaves a sequel's subtitles to the sequel (review)", async () => {
+    const v = movie('Toy Story.mkv')
+    touch('Toy Story 2.mkv')
+    touch('Toy Story 2.en.srt')
+    touch('Toy Story.en.srt')
+    touch('Toy Story.srt')
+    expect(names(await findSubtitles(v, { userLang: 'eng' }))).toEqual(['Toy Story.en.srt', 'Toy Story.srt'])
+    const e1 = { path: touch('Show S01E1.mkv'), season: null, episode: null }
+    touch('Show S01E10.mkv')
+    touch('Show S01E10.en.srt')
+    expect(names(await findSubtitles(e1, { userLang: 'eng' }))).toEqual([])
+  })
+
+  it('does not read ordinary words in a different name as languages (review)', async () => {
+    const v = movie('Some Film.mkv')
+    touch('It.Follows.2014.1080p.srt')
+    touch('In.Bruges.2008.srt')
+    const subs = await findSubtitles(v, { userLang: 'eng' })
+    expect(subs.map((s) => s.lang)).toEqual(['eng', 'eng'])
+    expect(parseSubName('Release.Group.fr.srt', 'Other')).toEqual({ lang: 'fre', kind: 'plain' })
+    expect(parseSubName('Release.Group.French.forced.srt', 'Other')).toEqual({ lang: 'fre', kind: 'forced' })
+  })
+
   it('returns nothing, without throwing, for missing folders', async () => {
     expect(await findSubtitles({ path: join(dir, 'gone', 'Movie.mkv'), season: null, episode: null }, { userLang: 'eng' })).toEqual([])
   })

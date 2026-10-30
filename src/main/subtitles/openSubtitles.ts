@@ -63,8 +63,9 @@ export function createOpenSubtitles(opts: Options) {
   let base = API
   let remaining: number | null = null
 
-  // fetch with a deadline: a hung request must not leave the panel spinning.
-  async function timed(url: string, init: RequestInit): Promise<Response> {
+  // fetch and read the body with one deadline: a request that hangs, or whose body
+  // stalls after the headers, must not leave the panel spinning.
+  async function timed<T>(url: string, init: RequestInit, read: (res: Response) => Promise<T>): Promise<T> {
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
     const deadline = new Promise<never>((_, reject) => {
@@ -74,7 +75,7 @@ export function createOpenSubtitles(opts: Options) {
       }, timeoutMs)
     })
     try {
-      return await Promise.race([fetchImpl(url, { ...init, signal: abort.signal }), deadline])
+      return await Promise.race([fetchImpl(url, { ...init, signal: abort.signal }).then(read), deadline])
     } catch (e) {
       return unavailable(e)
     } finally {
@@ -94,9 +95,16 @@ export function createOpenSubtitles(opts: Options) {
     const headers: Record<string, string> = { 'Api-Key': secrets.apiKey, 'User-Agent': opts.userAgent, Accept: 'application/json' }
     if (p.body !== undefined) headers['Content-Type'] = 'application/json'
     if (p.auth && token) headers['Authorization'] = `Bearer ${token}`
-    const res = await timed(url.toString(), { method, headers, body: p.body === undefined ? undefined : JSON.stringify(p.body) })
-    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    return { status: res.status, body }
+    return timed(url.toString(), { method, headers, body: p.body === undefined ? undefined : JSON.stringify(p.body) }, async (res) => {
+      const text = await res.text()
+      let body: Record<string, unknown> = {}
+      try {
+        body = JSON.parse(text) as Record<string, unknown>
+      } catch {
+        // Not JSON (an error page): the status decides.
+      }
+      return { status: res.status, body }
+    })
   }
 
   async function login(): Promise<void> {
@@ -169,9 +177,9 @@ export function createOpenSubtitles(opts: Options) {
       if (opts.mode === 'fixtures' && link.startsWith(FIXTURE_LINK)) {
         content = await readFile(join(opts.fixturesDir, link.slice(FIXTURE_LINK.length)))
       } else {
-        const file = await timed(link, { headers: { 'User-Agent': opts.userAgent } })
-        if (!file.ok) unavailable(`file ${file.status}`)
-        content = Buffer.from(await file.arrayBuffer())
+        content = await timed(link, { headers: { 'User-Agent': opts.userAgent } }, async (file) =>
+          file.ok ? Buffer.from(await file.arrayBuffer()) : unavailable(`file ${file.status}`)
+        )
       }
       return { content, fileName: String(r.body['file_name'] ?? ''), remaining: remaining ?? 0, resetAt }
     },

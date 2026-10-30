@@ -624,4 +624,37 @@ describe('subtitles (milestone 5)', () => {
     expect(downloaded).toBeTruthy()
     expect(lastSid).toEqual(['set_property', 'sid', downloaded!.id])
   })
+
+  it('shows no line until the subtitle pick is made, so a remembered Off never flashes (review)', async () => {
+    savePrefs(db, 'movie:2', { subtitle: 'off' }, 1)
+    let release!: () => void
+    trackGate = new Promise<void>((r) => (release = r))
+    await player.play({ key: 'movie:2' })
+    mpv().fire('file-loaded')
+    await flush()
+    // mpv's own default track speaks while the file is still being set up.
+    mpv().set('sub-text/ass', 'Default track line')
+    expect(cues().filter((c) => c !== null)).toEqual([])
+    release()
+    trackGate = null
+    await flush()
+    mpv().set('sub-text/ass', 'After the pick')
+    expect(cues().at(-1)).toMatchObject({ lines: [[{ text: 'After the pick' }]] })
+  })
+
+  it('after an mpv crash, brings back the same subtitle file even if the ids moved (review)', async () => {
+    const fr: ExternalSub = { path: 'D:/L/matrix.fr.srt', lang: 'fre', kind: 'plain', format: 'srt' }
+    const en: ExternalSub = { path: 'D:/L/matrix.en.srt', lang: 'eng', kind: 'plain', format: 'srt' }
+    externals = [fr, en]
+    await player.play({ key: 'movie:2', from: 'start' })
+    await loaded()
+    await player.command({ type: 'subtitle', id: 4 }) // matrix.en.srt
+    mpv().set('sid', 4)
+    externals = [en, fr]
+    mpv().crash()
+    await flush()
+    await loaded()
+    // After the respawn English is id 3.
+    expect(sent('set_property').filter((c) => c[1] === 'sid').at(-1)).toEqual(['set_property', 'sid', 3])
+  })
 })

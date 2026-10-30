@@ -29,6 +29,13 @@ describe('toCue', () => {
     expect(toCue(undefined)).toBeNull()
   })
 
+  it('drops ASS drawings (sign masks) and turns soft breaks into spaces (review)', () => {
+    // As the vendor mpv reports them: one event per line, drawing commands raw.
+    expect(toCue('{\\p1}m 0 0 l 100 0 100 40 0 40{\\p0}\nHello')?.lines).toEqual([[span('Hello')]])
+    expect(toCue('soft\\nbreak')?.lines).toEqual([[span('soft break')]])
+    expect(toCue('{\\p1}m 0 0 l 1 1{\\p0}')).toBeNull()
+  })
+
   it('keeps text that looks like markup as text', () => {
     expect(toCue('<script>alert(1)</script> & <3')?.lines).toEqual([[span('alert(1) & <3')]])
   })

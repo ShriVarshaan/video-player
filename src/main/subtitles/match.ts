@@ -19,18 +19,29 @@ const formatOf = (name: string): SubFormat | null => {
   return FORMATS.has(ext) ? (ext as SubFormat) : null
 }
 
-// Language and kind from the words after the video's name ("Movie.en.forced.srt"),
-// or from the whole name when it doesn't start with it. Later words win.
+// The file is named after this video: its name, then the end or a separator
+// ("Toy Story.en.srt" yes, "Toy Story 2.en.srt" no for "Toy Story", "S01E10" no for "S01E1").
+function namedAfter(fileName: string, videoBase: string): boolean {
+  const n = fold(stem(fileName))
+  const b = fold(videoBase)
+  return n.startsWith(b) && (n.length === b.length || /[._\s-]/.test(n[b.length]!))
+}
+
+// Language and kind from the words after the video's name ("Movie.en.forced.srt").
+// A file named otherwise ("It.Follows.2014.srt") is read only from its last three
+// words, and two-letter codes only as the very last word, so "It" or "In" in a
+// title isn't taken for a language. Later words win.
 export function parseSubName(fileName: string, videoBase: string): { lang: string | null; kind: TrackKind } {
   const base = stem(fileName)
-  const rest = fold(base).startsWith(fold(videoBase)) ? base.slice(videoBase.length) : base
+  const own = namedAfter(fileName, videoBase)
+  const words = (own ? base.slice(videoBase.length) : base).split(/[._\s-]+/).filter(Boolean).reverse()
   let lang: string | null = null
   let kind: TrackKind = 'plain'
-  for (const word of rest.split(/[._\s-]+/).filter(Boolean).reverse()) {
+  for (const [i, word] of (own ? words : words.slice(0, 3)).entries()) {
     const w = word.toLowerCase()
     if (FORCED.has(w)) kind = 'forced'
     else if (SDH.has(w)) kind = kind === 'forced' ? kind : 'sdh'
-    else lang ??= normalizeLang(w)
+    else if (own || w.length > 2 || i === 0) lang ??= normalizeLang(w)
   }
   return { lang, kind }
 }
@@ -52,14 +63,18 @@ export async function findSubtitles(
   const dir = dirname(video.path)
   const videoBase = stem(basename(video.path))
   const siblings = await list(dir)
-  const onlyVideo = siblings.filter(isVideoFile).length <= 1
+  const videoBases = siblings.filter(isVideoFile).map(stem)
+  const onlyVideo = videoBases.length <= 1
+  // Named after this video, and not after a longer-named one beside it ("Toy Story 2").
+  const ours = (name: string) =>
+    namedAfter(name, videoBase) && !videoBases.some((b) => b.length > videoBase.length && namedAfter(name, b))
 
   const sameEpisode = (name: string) => {
     if (video.season === null || video.episode === null) return false
     const p = parseVideoPath(`${stem(name)}.mkv`)
     return p?.kind === 'episode' && p.season === video.season && p.episode === video.episode
   }
-  const belongs = (name: string) => onlyVideo || fold(name).startsWith(fold(videoBase)) || sameEpisode(name)
+  const belongs = (name: string) => onlyVideo || ours(name) || sameEpisode(name)
 
   const places: { dir: string; any: boolean }[] = [
     { dir, any: false },
