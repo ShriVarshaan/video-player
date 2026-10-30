@@ -418,6 +418,13 @@ export class WallEngine {
     if (this.camera.mode === 'glide' || this.camera.mode === 'spring' || this.camera.mode === 'drift') this.camera.stop()
   }
 
+  private overCard(x: number, y: number): boolean {
+    const card = this.root.querySelector('.info-card.shown')
+    if (!card) return false
+    const r = card.getBoundingClientRect()
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+  }
+
   private onPointerMove = (e: PointerEvent): void => {
     if (!this.active) return
     this.input()
@@ -434,6 +441,8 @@ export class WallEngine {
     }
     clearTimeout(this.hoverTimer)
     const { clientX, clientY } = e
+    // Over the info card the pointer is reaching for its buttons, not the tile behind.
+    if (this.overCard(clientX, clientY)) return
     this.hoverTimer = window.setTimeout(() => {
       if (this.camera.mode === 'glide' || this.camera.mode === 'drag' || this.camera.mode === 'spring') return
       const cell = this.cellAtPoint(clientX, clientY)

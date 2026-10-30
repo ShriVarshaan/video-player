@@ -120,3 +120,19 @@ test('holding Enter on the wall opens the page but does not start playback', asy
   await win.waitForTimeout(800)
   expect(await overlayVisible(app)).toBe(false)
 })
+
+test("resting the mouse on the info card's button keeps that title and plays it", async () => {
+  await focusTile(win, 'The Matrix')
+  const card = win.getByTestId('info-card')
+  await expect(card).toContainText('The Matrix')
+  const button = card.getByRole('button', { name: 'Play' })
+  const box = (await button.boundingBox())!
+  // Approach the button slowly, the way a hand does, and rest on it.
+  await win.mouse.move(box.x + box.width / 2 + 120, box.y - 80)
+  await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 12 })
+  await win.waitForTimeout(700)
+  await expect(card).toContainText('The Matrix')
+  await button.click()
+  const overlay = await overlayPage(app)
+  await expect(overlay.getByTestId('player-heading')).toHaveText('The Matrix')
+})
