@@ -94,7 +94,7 @@ video-player/
 |---|---|---|---|
 | 1 | **Scaffold:** electron-vite + React + TS, `fetch-vendor` script, SQLite schema, type-safe IPC | `electron`, `electron-skills`, `vite`, `release-windows` (vendor) | ✅ done |
 | 2 | **Library:** folder picker, scan and watch, ffprobe, movie and TV filename parse, TMDB movies + shows + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` | ✅ done |
-| 3 | **Infinite wall** | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | |
+| 3 | **Infinite wall:** poster wall on Home, menu drawer (Search · Home · Settings), Settings page, bottom-left info card | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | ✅ done |
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | |
 | 5 | **Subtitles:** parse and extract, auto-match, Apple TV renderer, style settings | `subtitle-formats`, `apple-design` | |
 | 6 | **Manual sync:** hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |

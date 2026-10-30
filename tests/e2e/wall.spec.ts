@@ -243,3 +243,38 @@ test.describe('review fixes', () => {
     await expect(win.locator('.backdrop-layer.shown')).toHaveCount(0)
   })
 })
+
+test.describe('final review fixes', () => {
+  const panFar = async () => {
+    await win.mouse.move(640, 300)
+    for (let i = 0; i < 6; i++) await win.mouse.wheel(900, 700)
+    await win.waitForTimeout(300)
+  }
+
+  test('coming back from Settings keeps a camera panned away from focus', async () => {
+    await launch(LIBRARY)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
+    await panFar()
+    const plane = win.getByTestId('wall-plane')
+    const before = await plane.getAttribute('style')
+    await goTo(win, 'Settings')
+    await goTo(win, 'Home')
+    await win.waitForTimeout(800)
+    expect(await plane.getAttribute('style')).toBe(before)
+  })
+
+  test('a library refresh keeps a camera panned away from focus', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vp-e2e-pan-'))
+    cleanup.push(dir)
+    cpSync(LIBRARY, dir, { recursive: true })
+    await launch(dir)
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toEqual(expect.arrayContaining(ALL_TITLES))
+    await panFar()
+    const plane = win.getByTestId('wall-plane')
+    const before = await plane.getAttribute('style')
+    copyFileSync(resolve('tests', 'fixtures', 'media', 'h264_like.mp4'), join(dir, 'Lonely Film (2020).mp4'))
+    await expect.poll(() => wallTitles(win), { timeout: 30_000 }).toContain('Lonely Film')
+    await win.waitForTimeout(800)
+    expect(await plane.getAttribute('style')).toBe(before)
+  })
+})

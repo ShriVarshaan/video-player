@@ -119,6 +119,7 @@ export class WallEngine {
 
   setItems(items: WallItem[]): void {
     const keep = this.focusedItem()?.key
+    const focusVisible = this.vw > 0 && this.cellOnScreen(this.focus)
     this.items = items
     this.stride = chooseStride(items.length)
     for (const slot of this.slots) this.fill(slot)
@@ -127,7 +128,9 @@ export class WallEngine {
     if (index >= 0 && this.focusedItem()?.key !== keep) {
       const near = nearestCell(index, this.focus, items.length, this.stride)
       this.setFocus(near)
-      this.follow(near)
+      // Only chase it if the user was looking at it; a wall panned or drifted
+      // away keeps its camera (the next arrow starts from the centre).
+      if (focusVisible) this.follow(near)
     }
     this.markFocus()
     this.cb.onFocus(this.focusedItem())
@@ -138,6 +141,7 @@ export class WallEngine {
   private resize(vw: number, vh: number): void {
     if (vw === 0 || vh === 0) return // hidden while another page is shown
     const first = this.vw === 0
+    const focusVisible = !first && this.cellOnScreen(this.focus)
     const old = { size: this.size, vw: this.vw, vh: this.vh }
     this.vw = vw
     this.vh = vh
@@ -161,7 +165,7 @@ export class WallEngine {
     for (const slot of this.slots) slot.cell = null
     this.render()
     this.markFocus()
-    if (!first && this.items.length > 0) this.follow(this.focus)
+    if (focusVisible && this.items.length > 0) this.follow(this.focus)
   }
 
   private makeSlot(): Slot {
