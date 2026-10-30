@@ -1,6 +1,6 @@
 # Milestone 5 — Subtitles: design
 
-Status: draft, awaiting the user's approval.
+Status: approved by the user (2026-10-30). Built on `milestone-5-subtitles`; see "As built" at the end.
 
 ## Intent
 
@@ -167,3 +167,28 @@ A "Subtitles" section: Subtitle language, Prefer SDH, the same style controls wi
 - The default subtitle language comes from Windows' display language.
 - Episodes also match subtitle files by season/episode number; files with no language in the name count as your language.
 - A preset sets the whole look except position.
+
+## As built (2026-10-30)
+
+Differences from the design, and why:
+- **Encodings are decoded by the app**, not mpv: the Task 1 spike showed mpv's `sub-codepage=auto` garbles cp1252 and cp1256. `subtitles/decode.ts` hands mpv a UTF-8 copy (language-hinted code page, then a confident `jschardet` guess, then windows-1252).
+- **Embedded subtitles in your language now come on for foreign audio** when nothing is remembered (milestone 4 showed nothing there).
+- **Turning a showing subtitle Off is remembered** as `'off'` for the title, so a file next to the video doesn't come back on every play.
+- **Matching a file to a video** needs the video's name followed by the end or a separator, and not a longer video name in the same folder (so `Toy Story 2.en.srt` stays with *Toy Story 2*). Files named otherwise are read for a language only from their last three words, two-letter codes only as the last word (so *It Follows* isn't Italian).
+- **No line is shown until the file's subtitle pick is made**, so mpv's own default track never flashes; ASS drawings (`\p1`) are dropped and the soft break `\n` is a space.
+- **A downloaded subtitle waits for the file's setup to finish** and is then selected explicitly, so the automatic pick can't replace it. After an mpv crash the subtitle is restored by track (language, kind, title), not by id.
+- **The OpenSubtitles account** is one DPAPI secret; the fixtures are hand-written in the API's shape until re-recorded with `scripts/record-opensubtitles-fixtures.mjs`.
+- Style rows are custom ARIA sliders shared by the player panel and Settings; the panel keeps a local draft so quick key presses aren't lost.
+
+Deferred (minor, from the final review):
+- A slow previous file's subtitle load can add a track to the next file (re-check after the await in `addExternals`).
+- `addSubtitle` selects the last external track rather than matching by path.
+- A download that finishes while mpv is respawning is saved but not shown until the next play.
+- A slow earlier search can overwrite results after a language change.
+- Switching from a picture track to a text track may let mpv draw one frame.
+- A write failure after `open` can leave a partial file next to the video.
+- Brazilian Portuguese and Traditional Chinese can't be searched separately from pt-PT / zh-CN.
+- `cache/subtitles` UTF-8 copies are never cleaned up.
+- The wall's info-card hover check reads layout on every pointer move.
+
+Needs the user's check: a real OpenSubtitles search and download with their account; real films (two-line cues, italics, a 2.39:1 film, full screen at 125 %).

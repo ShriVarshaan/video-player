@@ -42,9 +42,9 @@
 **Interfaces:**
 - Produces: a ledger `Ruling:` naming (a) how mpv's drawing is hidden for text tracks (`sub-visibility=no`, or transparent `sub-color`/`sub-border-color`/`sub-shadow-color` if `sub-text` stops updating when hidden), (b) the formatted-text property used (`sub-text/ass` or `sub-text-ass`, whichever this mpv build has), (c) whether mpv's `sub-codepage` auto-detect decodes cp1252 and cp1256 `.srt` correctly. Task 5 consumes (a)+(b); Task 3 consumes (c).
 
-- [ ] **Step 1:** Write the script: spawn `vendor/mpv/mpv.exe --idle=yes --no-video --ao=null --input-ipc-server=\\.\pipe\vp-spike` using `src/main/player/mpvIpc.ts`'s protocol (plain `net` + JSON lines is fine), `loadfile tests/fixtures/media/tracks.mkv`, set `sub-visibility` to `no`, observe `sub-text` and the formatted property, log each change with `performance.now()`; then `sub-add` a cp1252 and a cp1256 `.srt` written by the script (`é`, `ñ`, Arabic letters) and log their `sub-text`.
-- [ ] **Step 2:** Run: `node scripts/spike-sub-text.mjs`. Expected: `Hello there.` arrives within ~50 ms of 1.0 s while hidden; accented/Arabic text prints correctly, or doesn't (then the ruling says Task 3 decodes in main).
-- [ ] **Step 3:** Record the findings in the mpv-ipc skill, delete the script, commit.
+- [x] **Step 1:** Write the script: spawn `vendor/mpv/mpv.exe --idle=yes --no-video --ao=null --input-ipc-server=\\.\pipe\vp-spike` using `src/main/player/mpvIpc.ts`'s protocol (plain `net` + JSON lines is fine), `loadfile tests/fixtures/media/tracks.mkv`, set `sub-visibility` to `no`, observe `sub-text` and the formatted property, log each change with `performance.now()`; then `sub-add` a cp1252 and a cp1256 `.srt` written by the script (`é`, `ñ`, Arabic letters) and log their `sub-text`.
+- [x] **Step 2:** Run: `node scripts/spike-sub-text.mjs`. Expected: `Hello there.` arrives within ~50 ms of 1.0 s while hidden; accented/Arabic text prints correctly, or doesn't (then the ruling says Task 3 decodes in main).
+- [x] **Step 3:** Record the findings in the mpv-ipc skill, delete the script, commit.
 
 ```bash
 git add .claude/skills/mpv-ipc/SKILL.md
@@ -66,7 +66,7 @@ git commit -m "docs: mpv subtitle text and encoding findings for the overlay ren
   - `toOpenSubtitles(code2: string): string` → `code1`.
   - `languageName(code: string): string` (same behaviour tracks.ts has today).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 expect(normalizeLang('en')).toBe('eng'); expect(normalizeLang('ENG')).toBe('eng')
@@ -76,10 +76,10 @@ expect(normalizeLang('und')).toBeNull(); expect(normalizeLang('xx')).toBeNull();
 expect(toOpenSubtitles('eng')).toBe('en'); expect(toOpenSubtitles('chi')).toBe('zh-cn')
 expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('XX1')
 ```
-- [ ] **Step 2:** Run `npx vitest run tests/unit/lang.test.ts tests/unit/tracks.test.ts` → FAIL (module missing).
-- [ ] **Step 3:** Implement `src/shared/lang.ts`; point `tracks.ts` at its `languageName`.
-- [ ] **Step 4:** Run the same command → PASS.
-- [ ] **Step 5:** Commit `feat: language codes shared by tracks, subtitles and OpenSubtitles`.
+- [x] **Step 2:** Run `npx vitest run tests/unit/lang.test.ts tests/unit/tracks.test.ts` → FAIL (module missing).
+- [x] **Step 3:** Implement `src/shared/lang.ts`; point `tracks.ts` at its `languageName`.
+- [x] **Step 4:** Run the same command → PASS.
+- [x] **Step 5:** Commit `feat: language codes shared by tracks, subtitles and OpenSubtitles`.
 
 ### Task 3: Finding local subtitle files
 
@@ -95,7 +95,7 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - `findSubtitles(video: { path: string; season: number | null; episode: number | null }, opts: { userLang: string; extraDirs?: string[] }): Promise<ExternalSub[]>` — order: same folder, `Subs/`, `Subtitles/`, `Subs/<base>/`, `Subtitles/<base>/`, then each `extraDirs` entry (Task 8 passes the app-data fallback folder `subtitles/<videoId>/`). Accepts a file when its name starts with the video base (case-insensitive, plain string compare, no regex/glob built from the name), or the folder holds exactly one video, or (episodes) `parseVideoPath` gives the same season and episode. A file with no language token gets `opts.userLang`. Missing or unreadable folders are skipped. Results de-duplicated by path.
   - If Task 1 ruled decoding in main: `ensureUtf8(path: string, cacheDir: string): Promise<string>` returns the path to hand mpv (the original when already UTF-8, else a UTF-8 copy in `cacheDir`). Adds `jschardet` + `iconv-lite` as dependencies.
 
-- [ ] **Step 1: Write the failing tests** (one `it` each):
+- [x] **Step 1: Write the failing tests** (one `it` each):
   - `Movie.Name.2019.mkv` with `Movie.Name.2019.srt`, `.en.srt`, `.English.forced.srt`, `.eng.sdh.srt`, `.fr.srt`, `.hi.srt` → langs `[user, eng, eng, eng, fre, user]` / kinds `[plain, plain, forced, sdh, plain, sdh]`.
   - files in `Subs/`, `Subtitles/`, `Subs/Movie.Name.2019/` are found; a file in an unrelated subfolder isn't.
   - folder with one video: `English.srt` (different name) is found; with two videos it isn't.
@@ -104,10 +104,10 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - a missing `Subs` folder and a video in a folder that no longer exists → `[]`, no throw.
   - non-subtitle files (`.nfo`, `.txt`, `.idx`) are ignored; `.vtt`, `.ass`, `.ssa` accepted with `format` set.
   - `extraDirs` entries are searched and their files accepted without a name check.
-- [ ] **Step 2:** `npx vitest run tests/unit/subtitleMatch.test.ts` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Same command → PASS.
-- [ ] **Step 5:** Commit `feat: find local subtitle files next to a video`.
+- [x] **Step 2:** `npx vitest run tests/unit/subtitleMatch.test.ts` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Same command → PASS.
+- [x] **Step 5:** Commit `feat: find local subtitle files next to a video`.
 
 ### Task 4: Style model, storage, migration 4
 
@@ -131,7 +131,7 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - Migration 4: `ALTER TABLE title_prefs ADD COLUMN style_json TEXT; ALTER TABLE tmdb_movies ADD COLUMN original_language TEXT; ALTER TABLE tmdb_shows ADD COLUMN original_language TEXT;`
   - `originalLanguage(db: Db, videoId: number): string | null` in `styleStore.ts`'s sibling `src/main/subtitles/titleInfo.ts` → `normalizeLang` of the movie's or show's `original_language`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `presetOf({...PRESETS.largeText, position: 40})` → `'largeText'`; changing size to 120 → `'custom'`.
   - `effectiveStyle(global, { size: 150 })` keeps global font; after `setGlobal({...g, font: 'georgia'})`, `effective('movie:1')` has `font 'georgia'` and `size 150` (the Dune example).
   - `setOverrides(k, {size:150}); setOverrides(k, {edge:'outline'})` → overrides `{size:150, edge:'outline'}`.
@@ -139,10 +139,10 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - `sanitizeStyle({ size: 900, font: 'comic', textColor: 'red' })` → size 200, font default, textColor `#ffffff`.
   - `rekeyPrefs` moves `style_json` (local → tmdb key).
   - `schemaVersion(db)` → 4; `title_prefs` gains `style_json`; matching a movie fixture saves `original_language = 'en'`.
-- [ ] **Step 2:** `npx vitest run tests/unit/subtitleStyle.test.ts tests/unit/styleStore.test.ts tests/unit/titlePrefs.test.ts tests/unit/match.test.ts` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Same command → PASS; then `npm test` → all pass (db/migration tests that assert version 3 are updated to 4).
-- [ ] **Step 5:** Commit `feat: subtitle style model, per-title overrides and migration 4`.
+- [x] **Step 2:** `npx vitest run tests/unit/subtitleStyle.test.ts tests/unit/styleStore.test.ts tests/unit/titlePrefs.test.ts tests/unit/match.test.ts` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Same command → PASS; then `npm test` → all pass (db/migration tests that assert version 3 are updated to 4).
+- [x] **Step 5:** Commit `feat: subtitle style model, per-title overrides and migration 4`.
 
 ### Task 5: Player — external tracks, auto-pick, current line
 
@@ -165,15 +165,15 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - `PlayerService` gains `addSubtitle(path: string): Promise<void>` (Task 8: `sub-add <path> select`, refresh tracks, remember it), `current(): { videoId: number; titleKey: string; path: string } | null`, and `notifyStyle(): void` (re-emits `subtitles.style` for the playing title; Task 7 calls it after every style change).
   - `ApiEvents` gains `'subtitles.cue': Cue | null` and `'subtitles.style': SubtitleStyle`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `toCue('{\\an8}{\\i1}Hello{\\i0}\\Nthere')` → `{ top: true, lines: [[{text:'Hello',italic:true,bold:false}], [{text:'there',italic:false,bold:false}]] }`; `toCue('{\\pos(10,10)}<b>Hi</b>')` → one bold span, top false; `toCue('')` → null; `<script>` stays literal text.
   - `pickSubtitle`: external `eng` plain chosen for English audio with userLang `eng` and nothing remembered; with `preferSdh` the external SDH is chosen; embedded `eng` NOT chosen for English audio when there is no external; embedded `eng` chosen for Japanese audio; `'off'` still wins; remembered ref still wins over an external.
   - `subtitlePrefFor(null, true)` → `'off'`; `subtitlePrefFor(null, false)` → null.
   - playerService (fake mpv; `findSubtitles` injected as a dep returning one `Movie.en.srt`): `sub-add` is sent before `get_property track-list`; the picked external's id is set as `sid`; the visibility command per ruling is sent; firing the text observer emits `subtitles.cue` with the parsed cue; a `loadfile` for the next episode emits `subtitles.cue` null before the new file's lines (Review Focus 2); `stop()` emits null; selecting an image track sends `sub-visibility yes`, then a text track sends the hide command again (Review Focus 4); untagged audio + `original_language 'ja'` row → embedded English subtitle chosen.
-- [ ] **Step 2:** `npx vitest run tests/unit/cue.test.ts tests/unit/tracks.test.ts tests/unit/playerService.test.ts` → FAIL.
-- [ ] **Step 3:** Implement; `createPlayerService` deps gain `findSubtitles` and `styles` (the style store); `setup.ts` wires the real ones.
-- [ ] **Step 4:** Same command → PASS; `npm test` → all pass; `npm run typecheck` clean.
-- [ ] **Step 5:** Commit `feat: external subtitle tracks, auto-pick and the current line for the overlay`.
+- [x] **Step 2:** `npx vitest run tests/unit/cue.test.ts tests/unit/tracks.test.ts tests/unit/playerService.test.ts` → FAIL.
+- [x] **Step 3:** Implement; `createPlayerService` deps gain `findSubtitles` and `styles` (the style store); `setup.ts` wires the real ones.
+- [x] **Step 4:** Same command → PASS; `npm test` → all pass; `npm run typecheck` clean.
+- [x] **Step 5:** Commit `feat: external subtitle tracks, auto-pick and the current line for the overlay`.
 
 ### Task 6: Drawing subtitles in the overlay
 
@@ -190,17 +190,17 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - `<SubtitleView cue style controlsTop sample?>`: `data-testid="subtitle"`, one `<span>` per line (`box-decoration-break: clone`), text as React text, `pointer-events: none`, 120 ms fade in / 160 ms out, lift transition 250 ms (none under `prefers-reduced-motion`); `data-position` attribute with the computed bottom for tests.
   - Fixtures: `make-fixtures.mjs` writes next to the fake library (lines at 1.0–4.0 s, 5.0–8.0 s): `The.Matrix.1999.1080p.BluRay.x264.en.srt` ("Wake up, Neo." / "Follow the white rabbit."), `Amélie (2001).fr.srt` in **cp1252** ("Le fabuleux destin d'Amélie"), `Breaking Bad/Season 1/Subs/Breaking.Bad.S01E01.English.srt`, `inception_2010_720p.en.forced.srt`.
 
-- [ ] **Step 1: Write the failing unit tests** for `subtitleBottom` (windowH 1000, blockH 100: position 0 → 40; 100 → 860; 50 → 450; top cue → 860; controlsTop 880 with position 0 → 128; controlsTop 880 with position 50 → 450) and `styleToCss` (size 150 at windowH 1000 → `67.5px`; size 100 at windowH 300 → `18px`; textOpacity 50 white → `rgba(255, 255, 255, 0.5)`; classic → background `rgba(0, 0, 0, 1)`).
-- [ ] **Step 2: Write the failing e2e tests** in `tests/e2e/subtitles.spec.ts` (run `node scripts/make-fixtures.mjs` first):
+- [x] **Step 1: Write the failing unit tests** for `subtitleBottom` (windowH 1000, blockH 100: position 0 → 40; 100 → 860; 50 → 450; top cue → 860; controlsTop 880 with position 0 → 128; controlsTop 880 with position 50 → 450) and `styleToCss` (size 150 at windowH 1000 → `67.5px`; size 100 at windowH 300 → `18px`; textOpacity 50 white → `rgba(255, 255, 255, 0.5)`; classic → background `rgba(0, 0, 0, 1)`).
+- [x] **Step 2: Write the failing e2e tests** in `tests/e2e/subtitles.spec.ts` (run `node scripts/make-fixtures.mjs` first):
   - Matrix plays → Subtitles menu shows an "English" item marked checked without any choice; `subtitle` shows "Wake up, Neo." between 1–4 s and is empty at 4.5 s.
   - Amélie: pick French → text contains "Amélie" (é intact).
   - `tracks.mkv` fixture (via a temp library holding it): picking its English track shows "Hello there."
   - Paused, seek to 2.0 s → "Wake up, Neo." visible within 500 ms (Review Focus 1).
   - Breaking Bad S01E01 finds its `Subs/` file.
-- [ ] **Step 3:** Run `npx vitest run tests/unit/subtitleLayout.test.ts` and `npm run test:e2e -- subtitles.spec.ts` → FAIL.
-- [ ] **Step 4:** Implement; Overlay keeps `cue`/`style` state from the events and passes `controlsTop` (control bar's top when controls are visible, else null).
-- [ ] **Step 5:** Same commands → PASS; `npm run test:e2e` (all) → PASS.
-- [ ] **Step 6:** Commit `feat: Apple TV-style subtitles drawn in the overlay`.
+- [x] **Step 3:** Run `npx vitest run tests/unit/subtitleLayout.test.ts` and `npm run test:e2e -- subtitles.spec.ts` → FAIL.
+- [x] **Step 4:** Implement; Overlay keeps `cue`/`style` state from the events and passes `controlsTop` (control bar's top when controls are visible, else null).
+- [x] **Step 5:** Same commands → PASS; `npm run test:e2e` (all) → PASS.
+- [x] **Step 6:** Commit `feat: Apple TV-style subtitles drawn in the overlay`.
 
 ### Task 7: Style panel in the player and the Settings section
 
@@ -218,16 +218,16 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - Main validates every incoming style with `sanitizeStyle` / known keys (renderer input is untrusted).
 - UI: Subtitles menu's last item "Style…" opens `StylePanel` (`data-testid="style-panel"`, right side of the overlay; rows: Style preset, Font, Size, Text colour, Text opacity, Edge, Background, Background opacity, Window, Window opacity, Position slider; buttons "Use for all movies and shows" and "Reset to my global style" — the latter only when overrides exist). Sample line "The quick brown fox jumps over the lazy dog." while the panel is open and no cue is showing. ↑/↓ rows, ←/→ values, Esc closes the panel only; player keys don't act while it's open. Settings page gets a "Subtitles" section: Subtitle language (from `LANGUAGES`), Prefer SDH, the same controls, and a 16:9 preview (`data-testid="subtitle-preview"`) of a library backdrop with the sample line.
 
-- [ ] **Step 1: Write the failing e2e tests**
+- [x] **Step 1: Write the failing e2e tests**
   - In the player, Style… → size to 150 → `subtitle` font size grows; close and play another movie → normal size; replay the first → still 150.
   - Same change then "Use for all movies and shows" → another movie shows size 150.
   - Settings → font Georgia; play the movie with the size override → font Georgia and size 150.
   - Position slider to 100 in the panel → `data-position` near the top; with controls showing at position 0 the line sits above the control bar.
   - Reset to my global style → size back to global, button disappears.
-- [ ] **Step 2:** `npm run test:e2e -- subtitleStyle.spec.ts` → FAIL.
-- [ ] **Step 3:** Implement (API contract + `apiMethods`, `registerDomain(ipcMain, 'subtitles', …)` in `src/main/subtitles/setup.ts`, UI per `apple-design`).
-- [ ] **Step 4:** Same command → PASS; `npm test`, `npm run typecheck` → PASS.
-- [ ] **Step 5:** Commit `feat: subtitle style panel in the player and Subtitles settings`.
+- [x] **Step 2:** `npm run test:e2e -- subtitleStyle.spec.ts` → FAIL.
+- [x] **Step 3:** Implement (API contract + `apiMethods`, `registerDomain(ipcMain, 'subtitles', …)` in `src/main/subtitles/setup.ts`, UI per `apple-design`).
+- [x] **Step 4:** Same command → PASS; `npm test`, `npm run typecheck` → PASS.
+- [x] **Step 5:** Commit `feat: subtitle style panel in the player and Subtitles settings`.
 
 ### Task 8: OpenSubtitles search and download
 
@@ -247,21 +247,21 @@ expect(languageName('jpn')).toBe('Japanese'); expect(languageName('xx1')).toBe('
   - Fixture mode: `VP_OPENSUBS_MODE=fixtures` in dev; responses keyed by endpoint + sorted query (like TMDB's `fixtureName`); downloads return `download.srt`.
   - UI: `SearchPanel` (`data-testid="search-panel"`) with language picker, rows (language, release, "Matches your file" badge, SDH/forced, downloads), remaining downloads, states: not set up ("Add your OpenSubtitles account in Settings"), searching, no results, error, limit reached (with reset time), wrong login. Picking a row downloads and selects it, closes the panel.
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
   - `osHash` on a generated 200 KB file equals the value computed by an independent reference written in the test with `BigInt` over the whole definition; a file under 64 KB hashes without throwing.
   - client (fake fetch): login sends `Api-Key` + `User-Agent` and is done once for two searches; movie search sends `moviehash`, `tmdb_id`, `languages=en`; episode sends `parent_tmdb_id`, `season_number`, `episode_number`; results sorted hash-match first; 401 twice → `opensubtitles_login`; 406 → `opensubtitles_quota` with `resetAt`; a fetch that never resolves → `opensubtitles_unavailable` after the timeout (fake timers) (Review Focus 5); no secrets → `opensubtitles_not_set_up` and no fetch.
   - `saveDownload`: `Movie.mkv` → `Movie.en.srt`; existing `Movie.en.srt` untouched and new file is `Movie.en.2.srt`; sdh → `Movie.en.sdh.srt`; read-only folder (simulate with a path under a file, so `open` fails `ENOTDIR`) → saved in `fallbackDir`.
   - `createSecretStore(db, safe, 'opensubtitles.apiKey')` round-trips and refuses when encryption is unavailable.
-- [ ] **Step 2: Write the failing e2e tests** (fixture mode): with no account, Search online… shows the set-up message; after `setAccount` via `window.api`, search lists fixture results with one "Matches your file"; picking it shows the downloaded line and a new `.en.srt` (or `.en.2.srt`) exists next to the fixture video; the Matrix's existing `.en.srt` is byte-identical afterwards.
-- [ ] **Step 3:** Run `npx vitest run tests/unit/osHash.test.ts tests/unit/openSubtitles.test.ts tests/unit/subtitleDownload.test.ts tests/unit/credential.test.ts` and `npm run test:e2e -- subtitleSearch.spec.ts` → FAIL.
-- [ ] **Step 4:** Implement. Recording script: `OS_API_KEY=… OS_USERNAME=… OS_PASSWORD=… node scripts/record-opensubtitles-fixtures.mjs` records search responses for the fixture titles (no downloads, to spare the quota) and strips tokens/user data before writing.
-- [ ] **Step 5:** Same commands → PASS; `npm test`, `npm run typecheck`, `npm run test:e2e` → PASS.
-- [ ] **Step 6:** Commit `feat: search and download subtitles from OpenSubtitles`.
+- [x] **Step 2: Write the failing e2e tests** (fixture mode): with no account, Search online… shows the set-up message; after `setAccount` via `window.api`, search lists fixture results with one "Matches your file"; picking it shows the downloaded line and a new `.en.srt` (or `.en.2.srt`) exists next to the fixture video; the Matrix's existing `.en.srt` is byte-identical afterwards.
+- [x] **Step 3:** Run `npx vitest run tests/unit/osHash.test.ts tests/unit/openSubtitles.test.ts tests/unit/subtitleDownload.test.ts tests/unit/credential.test.ts` and `npm run test:e2e -- subtitleSearch.spec.ts` → FAIL.
+- [x] **Step 4:** Implement. Recording script: `OS_API_KEY=… OS_USERNAME=… OS_PASSWORD=… node scripts/record-opensubtitles-fixtures.mjs` records search responses for the fixture titles (no downloads, to spare the quota) and strips tokens/user data before writing.
+- [x] **Step 5:** Same commands → PASS; `npm test`, `npm run typecheck`, `npm run test:e2e` → PASS.
+- [x] **Step 6:** Commit `feat: search and download subtitles from OpenSubtitles`.
 
 ### Task 9: Docs
 
 **Files:**
 - Modify: `.claude/skills/subtitle-formats/SKILL.md` (as built: mpv times lines, matcher rules, style model, presets, position maths), `.claude/skills/mpv-ipc/SKILL.md` (sub-add, visibility switching, cue observer), `.claude/skills/test-media-fixtures/SKILL.md` (subtitle fixtures, OpenSubtitles fixtures + recording), `docs/PROJECT_PLAN.md`, `CLAUDE.md` (codebase map: `src/main/subtitles/`, overlay files; gotcha: `VP_OPENSUBS_MODE`; OpenSubtitles secrets rule next to the TMDB one)
 
-- [ ] **Step 1:** Update the docs; `npm test` and `npm run typecheck` → PASS.
-- [ ] **Step 2:** Commit `docs: subtitles milestone in plan, skills and CLAUDE.md`.
+- [x] **Step 1:** Update the docs; `npm test` and `npm run typecheck` → PASS.
+- [x] **Step 2:** Commit `docs: subtitles milestone in plan, skills and CLAUDE.md`.

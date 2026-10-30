@@ -103,7 +103,7 @@ video-player/
 | 2 | **Library:** folder picker, scan and watch, ffprobe, movie and TV filename parse, TMDB movies + shows + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` | ✅ done |
 | 3 | **Infinite wall:** poster wall on Home, menu drawer (Search · Home · Settings), Settings page, bottom-left info card | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | ✅ done |
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | ✅ done |
-| 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | |
+| 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
 | 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |
 | 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |
 | 8 | **Search** | `netflix-search` | |
