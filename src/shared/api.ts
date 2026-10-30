@@ -2,6 +2,7 @@
 // apiMethods; the compiler then points at the missing handler and bridge.
 
 import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
+import type { NextEpisode, PlayerCommand, PlayerState } from './player'
 
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json }
 
@@ -39,6 +40,13 @@ export type API = {
     setTmdbKey: (params: { key: string }) => Promise<void>
     status: (params: Record<string, never>) => Promise<MetadataStatus>
   }
+  player: {
+    // Plays a title in the app window. Without videoId, plays the title page's main button.
+    play: (params: { key: string; videoId?: number; from?: 'resume' | 'start' }) => Promise<void>
+    // Saves the position and closes to the title page (player.closed).
+    stop: (params: Record<string, never>) => Promise<void>
+    command: (params: PlayerCommand) => Promise<void>
+  }
 }
 
 export type Domain = keyof API
@@ -48,7 +56,8 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
   app: { getInfo: true },
   settings: { get: true, set: true },
   library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true, getTitle: true },
-  metadata: { setTmdbKey: true, status: true }
+  metadata: { setTmdbKey: true, status: true },
+  player: { play: true, stop: true, command: true }
 }
 
 export const channelFor = (domain: string, method: string): string => `vp:${domain}.${method}`
@@ -57,6 +66,12 @@ export const channelFor = (domain: string, method: string): string => `vp:${doma
 export type ApiEvents = {
   'library.progress': ScanProgress
   'library.changed': Record<string, never>
+  'player.state': PlayerState
+  // A file played to its end; next is the episode that autoplays after the countdown.
+  'player.ended': { next: NextEpisode | null }
+  // The player closed; the main window shows this title's page.
+  'player.closed': { titleKey: string }
+  'player.error': { message: string }
 }
 
 export const eventChannel = (name: keyof ApiEvents): string => `vp:event.${name}`
