@@ -32,15 +32,16 @@ npm run test:e2e              # builds, then Playwright-Electron
 ```
 - The library DB is `%APPDATA%\video-player\library.db` (one per Windows user). `--user-data-dir=<dir>` points the app elsewhere; E2E tests always do.
 - `VP_TMDB_MODE=fixtures` (dev builds only) reads `tests/fixtures/tmdb/*.json` instead of the network. Those fixtures are real TMDB responses; re-record with `TMDB_TOKEN=… node scripts/record-tmdb-fixtures.mjs`.
-- The user's TMDB key is entered in the app (stored encrypted with DPAPI). **Never write a TMDB key or token to any file, commit or memory**; pass it through an environment variable for one command only.
+- `VP_OPENSUBS_MODE=fixtures` (dev builds only) reads `tests/fixtures/opensubtitles/*.json`; `launchApp` in E2E sets it. Re-record searches with `OS_API_KEY=… OS_USERNAME=… OS_PASSWORD=… node scripts/record-opensubtitles-fixtures.mjs`.
+- The user's TMDB key and OpenSubtitles login are entered in the app (stored encrypted with DPAPI). **Never write a TMDB key or token, or an OpenSubtitles key or password, to any file, commit or memory**; pass them through environment variables for one command only.
 
 ## Codebase map
 
 - `src/shared/` — `api.ts` (the one IPC contract: `API`, `apiMethods`, `ApiEvents`), `appError.ts`, `library.ts` types (incl. `WallItem`), `normalize.ts`, `hash.ts` (FNV-1a).
-- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg); `player/` (`mpvIpc` client, `launch` spawn + Win32 raise via koffi, `service` = `PlayerService`, `overlay` window, `titlePrefs`, `resume`, `tracks`); `broadcast.ts` sends events to every window.
+- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg); `player/` (`mpvIpc` client, `launch` spawn + Win32 raise via koffi, `service` = `PlayerService`, `overlay` window, `titlePrefs`, `resume`, `tracks` incl. the subtitle pick); `subtitles/` (`match` finds files next to a video, `decode` UTF-8 copies for mpv, `cue` mpv line → `Cue`, `styleStore` global + per-title style, `openSubtitles` client, `osHash`, `download`, `setup.ts` = the `subtitles` IPC domain); `broadcast.ts` sends events to every window.
 - `src/preload/index.ts` builds `window.api` from `apiMethods`. To add an endpoint: add it to `API` and `apiMethods`, then register a handler with `registerDomain`. Channel names are derived, never hand-written.
 - `src/renderer/src/` — `App` (page state: home / search / settings, plus a title page over Home and a black cover while playing), `nav/Menu` (top-left drawer), `pages/` (`Title`, `Settings`, `SearchSoon` until milestone 8), `wall/` (pure `mapping`/`geometry`/`physics`/`camera`, unit-tested in Node; `engine.ts` = imperative tile pool + rAF loop; `Wall.tsx` React shell, `InfoCard`, `Backdrop`).
-- `src/renderer/overlay/` — second renderer entry (`overlay.html`) for the player controls: `Overlay`, `ControlBar`, `TrackMenu`, `NextCard`.
+- `src/renderer/overlay/` — second renderer entry (`overlay.html`) for the player controls: `Overlay`, `ControlBar`, `TrackMenu`, `NextCard`, `SubtitleView` (+ pure `subtitleLayout`), `StylePanel`, `SearchPanel`. `src/renderer/src/components/SubtitleStyleControls` is shared by the style panel and Settings → Subtitles.
 
 ## Gotchas learned so far
 
@@ -51,6 +52,8 @@ npm run test:e2e              # builds, then Playwright-Electron
 - Wall keys are handled on `window` and ignored inside `nav`/inputs. Anything that leaves focus in the closing drawer swallows the next key, so menu picks move focus out at once.
 - mpv draws into the main window with `--wid`, but Chromium's child windows sit above it: `launch.ts` raises mpv's window with `SetWindowPos` (koffi). Don't remove that call; see `mpv-ipc`.
 - The player overlay window exists (hidden) from startup. In E2E, pick the main window by URL (`!url.endsWith('overlay.html')`), never `getAllWindows()[0]`, and close the app with `closeApp(app)` from `pages.ts`: Playwright's `app.close()` stalls while mpv is quitting.
+- mpv's `sub-codepage=auto` garbles cp1252/cp1256 subtitles, so files go to mpv as UTF-8 copies (`subtitles/decode.ts`). Text subtitles are drawn by the overlay (`sub-visibility=no`), never by mpv.
+- E2E player tests: faded controls take no clicks (move the mouse first), and a seek sent before mpv has opened the file is dropped (wait for the position to move first).
 - The vendor ffmpeg is an LGPL build: no x264/x265 encoders (fixtures use mpeg4/VP9), but it has libwebp and librsvg. TMDB SVG logos rasterize badly, so PNG logos are preferred.
 
 ## Skill routing

@@ -22,13 +22,14 @@ Electron main process (Node/TS)
  ├─ LibraryService   – folder scan, fs.watch, ffprobe, movie/episode name parse, SQLite (built-in node:sqlite)
  ├─ MetadataService  – TMDB movie + TV lookup, WebP image cache behind poster://, ffmpeg frame fallback
  ├─ PlayerService    – spawns mpv.exe with --wid=<main window HWND>, JSON IPC over a named pipe     [mpv-ipc]
- ├─ SubtitleService  – load .srt/.vtt/.ass + extract embedded subs, offset store, export            [subtitle-formats]
+ ├─ Subtitles        – find files next to videos, UTF-8 copies for mpv, style store, OpenSubtitles  [subtitle-formats]
+ │                     (milestone 6 adds the app's own reader: offsets, sync-to-line, export)
  └─ SyncService      – Python sidecar over stdio JSON-lines                                          [subtitle-sync-ml]
 Renderer (React + TS + Vite)
  ├─ Menu + pages     – top-left drawer: Search · Home (the wall, title pages) · Settings (folders, TMDB key, about)
  ├─ InfiniteWall     – virtualized, wrapping 2D grid                                                  [infinite-wall]
  ├─ SearchOverlay    – Netflix-style search                                                           [netflix-search]
- └─ Overlay window   – transparent window over the app window: controls, track menus, next episode; later subtitles, sync panel
+ └─ Overlay window   – transparent window over the app window: controls, track menus, next episode, subtitles, style and search panels; later sync panel
 Python sidecar (PyInstaller onedir)
  └─ ffsubsync (VAD) + faster-whisper (deep sync)
 ```
@@ -41,9 +42,11 @@ Python sidecar (PyInstaller onedir)
   - Esc/✕ saves the position and goes to the title's page. Episodes autoplay after a 10 s "Next episode" card.
   - Volume, audio and subtitle choices are remembered **per movie or show** (`title_prefs`), never app-wide.
 - **Title pages:** Enter/click on a wall tile opens a page for the movie or show: full-bleed backdrop, details on the left (TMDB synopsis and rating), Play / Continue watching + Restart; shows add a season row and an episode strip. The wall's info card button plays directly.
-- **Apple TV-style subtitles are drawn in HTML/CSS:**
-  - SF Pro-like font, white semibold text, a rounded translucent blurred box per line, a short fade, and positioning relative to the video rectangle.
-  - Image subtitles (PGS/VobSub) fall back to mpv's native rendering.
+- **Subtitles** (design: `docs/superpowers/specs/2026-10-30-milestone-5-subtitles-design.md`):
+  - mpv loads and times every subtitle (embedded, files next to the video, downloads); the overlay draws the current line in HTML/CSS. Image subtitles (PGS/VobSub) stay mpv's.
+  - A subtitle file next to the video in the user's language comes on every time; otherwise the per-title choice, then Apple TV's "Auto" rule.
+  - Apple TV's style options plus a 0–100 height slider. Changes in the player stay with that title unless "Use for all"; Settings changes are global. A title keeps only the fields changed for it.
+  - Online search (OpenSubtitles) only from the player's "Search online…"; downloads are saved next to the video, never over an existing file.
 - **Volume boost:** `--volume-max=200` with a UI slider from 0 to 200 %, like VLC.
   - An `alimiter` filter is added automatically above 100 %.
   - "Dialogue boost" is an optional `dynaudnorm` filter.
@@ -100,8 +103,8 @@ video-player/
 | 2 | **Library:** folder picker, scan and watch, ffprobe, movie and TV filename parse, TMDB movies + shows + cache, thumbnail fallback | `ffmpeg`, `test-media-fixtures` | ✅ done |
 | 3 | **Infinite wall:** poster wall on Home, menu drawer (Search · Home · Settings), Settings page, bottom-left info card | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | ✅ done |
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | ✅ done |
-| 5 | **Subtitles:** parse and extract, auto-match, Apple TV renderer, style settings | `subtitle-formats`, `apple-design` | |
-| 6 | **Manual sync:** hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |
+| 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | |
+| 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |
 | 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |
 | 8 | **Search** | `netflix-search` | |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |

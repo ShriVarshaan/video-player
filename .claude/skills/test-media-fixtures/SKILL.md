@@ -81,6 +81,17 @@ Set `VP_TMDB_MODE=fixtures` (development builds only). The TMDB client then read
 - A missing fixture behaves like TMDB's 404. The key `invalid` behaves like a rejected key.
 - The JSON fixtures are **real TMDB responses**, recorded with `TMDB_TOKEN=<v4 read access token> node scripts/record-tmdb-fixtures.mjs`. The token is read from the environment only; never write it to a file. When the app starts making a new TMDB request for the fixture library, add it to the script's `REQUESTS` list and re-record. Images are not recorded: posters are copyrighted, so tests use `image.png`.
 
+## Subtitle fixtures (milestone 5)
+- `make-fixtures.mjs` writes `.srt` files next to the fake library's videos, with lines at 1–4 s and 5–8 s: `The.Matrix…x264.en.srt` ("Wake up, Neo." / "Follow the white rabbit."), `Amélie (2001).fr.srt` **in Windows-1252** ("Le fabuleux destin d'Amélie"), `Breaking Bad/Season 1/Subs/Breaking.Bad.S01E01.English.srt` ("Say my name."), `inception_2010_720p.en.forced.srt`. Delete `tests/fixtures/library/` and rerun the script after changing them.
+- E2E reads the drawn line as `[data-testid="subtitle"][data-shown="true"]` (the last line stays in the DOM while it fades out). Pause and seek into a cue (`holdAt`) rather than racing the clock.
+- A test that downloads subtitles must use its **own temp library** (copy the video and its `.srt`), so nothing is written into the shared fixture library.
+
+## OpenSubtitles in tests
+- `launchApp` sets `VP_OPENSUBS_MODE=fixtures` (development builds only): the client reads `tests/fixtures/opensubtitles/*.json` and a download returns `download.srt` ("There is no spoon." at 1–4 s). Never call the real API in tests.
+- **Fixture names** come from `fixtureName(method, path, params)` in `src/main/subtitles/openSubtitles.ts`: `get_subtitles__languages=en_tmdb_id=603.json`. The file hash (`moviehash`) is left out so names don't depend on the generated video.
+- `post_login.json`, `post_download.json`, `get_infos_user.json` are hand-written in the API's shape. The search fixtures can be re-recorded with `OS_API_KEY=… OS_USERNAME=… OS_PASSWORD=… node scripts/record-opensubtitles-fixtures.mjs` (searches only, no downloads; credentials from the environment for that command only, never written anywhere).
+- Fixture mode still needs an account saved (`window.api.subtitles.setAccount(...)`), so the "not set up" state can be tested.
+
 ## Running tests
 ```
 npx vitest run                        # unit (renderer + main pure logic)

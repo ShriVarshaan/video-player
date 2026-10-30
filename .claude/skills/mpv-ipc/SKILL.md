@@ -22,7 +22,7 @@ spawn(resolveBinary('mpv'), [
   '--hwdec=auto-safe', '--vo=gpu-next',
   '--volume-max=200',            // UI slider 0–200 %, like VLC
   '--sub-auto=no', '--audio-file-auto=no',
-  '--sub-visibility=yes',        // until milestone 5: mpv draws text subs; then `no` (we draw them, see subtitle-formats)
+  '--sub-visibility=no',         // the overlay draws text subs; the service turns it on for picture-based tracks only
   '--msg-level=all=warn',
 ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 ```
@@ -91,6 +91,7 @@ af add @dialogue:lavfi=[dynaudnorm=f=150:g=15]     af remove @dialogue
 - Change notifications arrive within a few ms of the cue start. A seek while paused fires `undefined` then the line at the new position (~50 ms), so a paused seek into a cue shows it.
 - Between files and with no track, the properties go `undefined`; with a track but no line, `""`. Treat both as "no line".
 - `sub-add <path> <select|auto> <title> <lang>` works; the track shows `external: true` and `external-filename` (absolute path) in `track-list`.
+- **As built (milestone 5):** on `file-loaded` the service finds subtitle files (`subtitles/match.ts`), `sub-add`s each UTF-8 copy with `auto` *before* reading `track-list`, then picks one. `selectSubtitle(id)` always sets `sid` and then `sub-visibility` (true only for picture-based tracks). `subtitles.cue` is emitted only while the current file is loaded, cleared to `null` on `loadfile`, on a track change and on stop. A downloaded file (`addSubtitle`) waits for the file's setup to finish, then is added with `select` and selected explicitly, so the automatic pick can't replace it.
 - **`sub-codepage=auto` does not decode legacy encodings** in this build: cp1252 "Café señor" came out as "CafÚ se˝or", cp1256 Arabic as wrong letters. So the app decodes external files itself and hands mpv a UTF-8 copy (`subtitles/decode.ts`, see subtitle-formats).
 
 ## Overlay window (controls and subtitles)

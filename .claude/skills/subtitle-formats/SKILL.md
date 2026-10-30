@@ -5,7 +5,15 @@ description: Subtitle handling for this app — parsing SRT/WebVTT/ASS into cues
 
 # Subtitles
 
-## Cue model
+## How it works now (milestone 5, design: `docs/superpowers/specs/2026-10-30-milestone-5-subtitles-design.md`)
+- **mpv reads and times every subtitle**; the app draws the line. Files are added with `sub-add`, mpv's drawing is off for text tracks (`sub-visibility=no`), and `PlayerService` observes `sub-text/ass` and broadcasts `subtitles.cue` (`Cue | null` from `src/shared/player.ts`: lines of `{text, italic, bold}` spans plus `top`). `src/main/subtitles/cue.ts` keeps only line breaks, italics, bold and `\an7–9` (top); every other tag is dropped. Picture-based tracks are drawn by mpv (`sub-visibility=yes`).
+- **Encodings:** mpv's `sub-codepage=auto` garbles legacy code pages, so `decode.ts` `ensureUtf8(path, cacheDir, lang)` hands mpv a UTF-8 copy in `cache/subtitles/`: BOM → UTF-16; valid UTF-8 → the file itself; else the language's Windows code page (Arabic 1256, Russian 1251, Polish 1250, Chinese GB18030…); else a ≥ 0.9-confidence `jschardet` guess; else windows-1252. The user's file is never changed.
+- **The pipeline below (own parser, cue list, extraction of embedded tracks) is milestone 6's**, where sync-to-line and export need cues in the app. Milestone 5 doesn't parse files itself.
+- **Which subtitle shows** (`tracks.ts` `pickSubtitle`): remembered choice → a subtitle *file* in the user's language, every time (SDH first if "Prefer SDH", forced last) → an embedded one in the user's language when the audio is foreign → a forced track in the audio language. Untagged audio takes TMDB's `original_language` (migration 4), else counts as the user's language. Turning Off a showing track is remembered as `'off'`.
+- **Style** (`src/shared/subtitleStyle.ts`): Apple TV's options plus `position` 0–100 (0 = bottom of the window). Global style is the `subtitle.style` settings row; a title's own changes are `title_prefs.style_json` holding **only the changed fields**; effective = `{...global, ...overrides}`. Presets (Default, Large Text, Classic, Outline Text) set every field except `position`. Everything read back goes through `sanitizeStyle`/`sanitizePatch`.
+- **Online:** OpenSubtitles REST (`openSubtitles.ts`), only from the player's "Search online…". Query = OpenSubtitles file hash (`osHash.ts`) + TMDB id (`parent_tmdb_id` + season/episode for episodes), else the parsed name. Downloads are saved by `download.ts` as `<video>.<lang>[.sdh|.forced].<ext>` next to the video (`.2`, `.3`… when taken, opened with `wx`), or in `userData/subtitles/<videoId>/` when the folder can't be written. `VP_OPENSUBS_MODE=fixtures` reads `tests/fixtures/opensubtitles/`.
+
+## Cue model (milestone 6: the app's own reader)
 ```ts
 type Cue = { start: number; end: number; lines: string[]; italic?: boolean; top?: boolean }; // seconds (float)
 type Transform = { scale: number; offset: number };   // displayed = scale * t + offset
@@ -53,12 +61,14 @@ type Transform = { scale: number; offset: number };   // displayed = scale * t +
 - Text tracks (`subrip`, `ass`, `mov_text`, `webvtt`): extract with ffmpeg to a temp `.srt`/`.ass` (see the `ffmpeg` skill), then parse as above. Cache by `(file mtime, stream index)`.
 - Image tracks (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`) can't be parsed. Let mpv draw them (`mpv-ipc`: `sid` + `sub-visibility yes`). Manual offset still works through mpv's `sub-delay`. ML sync isn't available for these.
 
-## Auto-matching external files
-For the video `Movie.Name.2019.mkv`, check these in order:
-1. the same folder, `Movie.Name.2019*.{srt,vtt,ass,ssa}`
-2. `Subs/`, `Subtitles/`, `Subs/<basename>/`
+## Auto-matching external files (`subtitles/match.ts`, as built)
+For the video `Movie.Name.2019.mkv`, look in: the same folder, `Subs/`, `Subtitles/`, `Subs/<basename>/`, `Subtitles/<basename>/`, then `userData/subtitles/<videoId>/` (downloads that couldn't go next to the video). Accept `.srt/.vtt/.ass/.ssa` when:
+- the name starts with the video's name (case-insensitive plain string compare, never a regex or glob built from the name: names have `[]()`), or
+- the folder holds only one video, or
+- (episodes) the name parses to the same season and episode (`Show.S01E02.WEB.en.srt` for `Show - 1x02.mkv`), or
+- it is in `Subs/<basename>/` or the download folder.
 
-Parse the language and flags from the suffix: `.en`, `.eng`, `.English`, `.forced`, `.sdh`, `.hi`. Prefer the user's language first, then non-forced, then non-SDH.
+Language and kind come from the words after the video's name, last word first: `.en`, `.eng`, `.English`, `fr`; `.forced`/`.foreign` → forced; `.sdh`/`.hi`/`.cc` → SDH. A file with no language word is taken to be in the user's subtitle language. Language codes everywhere go through `src/shared/lang.ts` `normalizeLang` (→ ISO 639-2/B, as mpv names them).
 
 Always list `*.synced.srt` first and label it "Synced".
 
@@ -89,20 +99,13 @@ Store the transform per `(movieId, subtitlePathHash)` in SQLite and apply it imm
 - **Never overwrite the original subtitle file.** If the `.synced.srt` already exists, ask before replacing it.
 - Re-wrap italics as `<i>…</i>` and top cues with `{\an8}`.
 
-## Apple TV-style renderer (`SubtitleView.tsx`)
-Draw cues as HTML in the overlay window, positioned against the **video rectangle** (from mpv `osd-dimensions` / `video-params`), not the window.
-
-```css
---sub-font: -apple-system, "SF Pro Display", "Inter Variable", "Segoe UI Variable Display", system-ui, sans-serif;
---sub-size: calc(var(--video-h) * 0.045);          /* min 18px; user scale S .8 | M 1 | L 1.25 | XL 1.5 */
---sub-weight: 600;   --sub-color: #fff;   --sub-line: 1.22;   --sub-tracking: -0.005em;
---sub-box: rgba(18, 18, 20, 0.62);   --sub-box-blur: 18px;   --sub-radius: 0.28em;   --sub-pad: 0.12em 0.42em;
---sub-bottom: calc(var(--video-h) * 0.075);   --sub-max-width: 80%;
-```
-
-- **Per-line box:** use an inline `<span>` with `background`, `border-radius` and `box-decoration-break: clone` so every wrapped line gets its own rounded pill. Don't draw one big rectangle. Add `backdrop-filter: blur(var(--sub-box-blur))` where supported.
-- Use `text-wrap: balance`, centre alignment, and `font-optical-sizing: auto`. Italics come from `font-style`, not synthetic slant.
-- **Motion:** fade in 120 ms and fade out 160 ms, `ease-out`. No movement on cue change. When the controls appear, lift the subtitles by the control bar's height with a 250 ms spring. Under `prefers-reduced-motion`, switch instantly.
-- `top` cues anchor to `--sub-bottom` from the top instead.
-- **Settings:** size, box opacity (0–100 %), and style presets *Apple TV (boxed)*, *Outline* (`text-shadow` 4-way, 0.06em, no box) and *Large Text*.
-- Treat cue text as text (`textContent`), never as HTML.
+## Apple TV-style renderer (`src/renderer/overlay/SubtitleView.tsx`, as built)
+Cues are drawn as HTML in the overlay window, measured against the **window** (the user's choice: 0 is the bottom of the screen, so wide films put subtitles in the black bar). The maths is pure and unit-tested in `subtitleLayout.ts`:
+- **Size:** `max(18px, 4.5 % of the height) × size%`. Weight 600, line height 1.22, tracking −0.005em, `font-optical-sizing: auto`, `text-wrap: balance`, centred, 80 % max width.
+- **Position:** margin `m = 4 %` of the height; bottom of the block = `m + position/100 × (H − 2m − blockH)`. `top` cues sit at the top margin. While the controls show, a block below the seek bar lifts to 8 px above it (250 ms spring); top cues and high positions never move.
+- **Fonts** (all ship with Windows 11): Default = Segoe UI Variable Display, Arial, Georgia, Courier New, Consolas, Trebuchet MS, Casual = Comic Sans MS, Cursive = Segoe Script, Small Capitals = default + `small-caps`.
+- **Edges** (`text-shadow` in em): drop shadow (soft), raised / depressed (light and dark 1-px-ish pair), outline (8-way at 0.06em).
+- **Boxes:** the per-line box is an inline `<span>` with `box-decoration-break: clone` (`--sub-line-bg`); the window box wraps the whole cue (`--sub-window-bg`).
+- **Motion:** fade in 120 ms, out 160 ms (the last cue stays drawn while it fades); no movement on cue change; `prefers-reduced-motion` switches instantly. `pointer-events: none`.
+- Cue text is React text, never HTML.
+- **Style controls** (`src/renderer/src/components/SubtitleStyleControls.tsx`) are shared by the player's style panel (title-only changes, "Use for all movies and shows", "Reset to my global style") and Settings → Subtitles (global, with a 16:9 preview). Each row is an ARIA slider: ←/→ change it, ↑/↓ move rows, Home/End jump. Panels keep a local draft so quick key presses aren't lost while changes travel to main and back.
