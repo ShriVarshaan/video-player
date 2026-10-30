@@ -11,6 +11,7 @@ export type AppErrorCode =
   | 'tmdb_unavailable'
   | 'tmdb_not_found'
   | 'tmdb_storage_unavailable'
+  | 'mpv'
   | 'unknown'
 
 export const appErrorMessages: Record<AppErrorCode, string> = {
@@ -22,6 +23,7 @@ export const appErrorMessages: Record<AppErrorCode, string> = {
   tmdb_unavailable: 'TMDB could not be reached. Movie details will be fetched later.',
   tmdb_not_found: 'TMDB has no record of this title.',
   tmdb_storage_unavailable: 'Windows could not encrypt the TMDB key, so it was not saved.',
+  mpv: 'The video player stopped responding.',
   unknown: 'An unknown error occurred.'
 }
 
