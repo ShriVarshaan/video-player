@@ -1,13 +1,18 @@
+import { basename, join } from 'node:path'
 import type { API, ApiEvents } from '@shared/api'
 import { throwAppError } from '@shared/appError'
 import type { TitleDetail } from '@shared/library'
-import type { PlayerCommand, PlayerState, Track } from '@shared/player'
+import type { Cue, PlayerCommand, PlayerState, Track } from '@shared/player'
 import type { Db } from '../db'
 import { getTitle } from '../library/queries'
 import { isFinished, nextEpisode, type ProgressEpisode } from '../library/showProgress'
 import type { MpvClient } from './mpvIpc'
 import { savePosition } from './resume'
 import { getPrefs, savePrefs } from './titlePrefs'
+import { toCue } from '../subtitles/cue'
+import type { ExternalSub } from '../subtitles/match'
+import type { StyleStore } from '../subtitles/styleStore'
+import { originalLanguage } from '../subtitles/titleInfo'
 import { pickSubtitle, pickTrack, refOf, subtitlePrefFor, toTracks } from './tracks'
 
 // One running mpv. onExit's flag is true when we asked it to quit.
@@ -15,7 +20,22 @@ export type MpvProcess = { client: MpvClient; onExit(cb: (expected: boolean) => 
 
 type Emit = <K extends keyof ApiEvents>(event: K, payload: ApiEvents[K]) => void
 
-export type PlayerService = API['player'] & { shutdown(): Promise<void> }
+export type PlayerService = API['player'] & {
+  shutdown(): Promise<void>
+  // What is playing, for subtitle search and style changes.
+  current(): { videoId: number; titleKey: string; path: string } | null
+  // Re-sends the playing title's subtitle style after a change.
+  notifyStyle(): void
+  // Adds a downloaded subtitle file, shows it and remembers it for the title.
+  addSubtitle(sub: ExternalSub): Promise<void>
+}
+
+// Finds a video's subtitle files and turns one into a path mpv can read (UTF-8).
+export type SubtitleSource = {
+  find(video: { path: string; season: number | null; episode: number | null }, opts: { userLang: string; extraDirs: string[] }): Promise<ExternalSub[]>
+  load(sub: ExternalSub): Promise<string>
+  userData: string
+}
 
 const SAVE_EVERY_MS = 10_000
 const STATE_EVERY_MS = 33 // about 30 updates a second to the overlay
@@ -26,6 +46,8 @@ type Current = {
   title: TitleDetail
   videoId: number
   path: string
+  season: number | null
+  episode: number | null
   heading: string
   startAt: number
   loaded: boolean
@@ -53,6 +75,8 @@ export function createPlayerService(deps: {
   window: { setFullScreen(on: boolean): void; isFullScreen(): boolean }
   overlay: { show(): void; hide(): void }
   now: () => number
+  subtitles: SubtitleSource
+  styles: StyleStore
 }): PlayerService {
   const { db } = deps
   let proc: MpvProcess | null = null
@@ -73,12 +97,49 @@ export function createPlayerService(deps: {
     muted: false,
     tracks: [] as Track[],
     aid: null as number | null,
-    sid: null as number | null
+    sid: null as number | null,
+    // Subtitle files added to this file, with the path mpv was given.
+    externals: [] as ExternalSub[]
   }
+  let lastCue = 'null'
 
   // Commands other than loadfile are best effort: a failed one must not break playback.
   const cmd = (...args: unknown[]) =>
     proc?.client.command(...args).catch((e: unknown) => console.warn('mpv command failed:', args[0], e)) ?? Promise.resolve()
+
+  function emitCue(cue: Cue | null) {
+    const json = JSON.stringify(cue)
+    if (json === lastCue) return
+    lastCue = json
+    deps.emit('subtitles.cue', cue)
+  }
+
+  // Text subtitles are drawn by the overlay; mpv draws only picture-based ones.
+  async function selectSubtitle(id: number | null) {
+    await cmd('set_property', 'sid', id ?? 'no')
+    const image = st.tracks.some((t) => t.type === 'sub' && t.id === id && t.image)
+    await cmd('set_property', 'sub-visibility', image)
+  }
+
+  function notifyStyle() {
+    if (cur) deps.emit('subtitles.style', deps.styles.effective(cur.title.key))
+  }
+
+  async function addExternals(mine: Current): Promise<void> {
+    const { language } = deps.styles.subtitleSettings()
+    const extraDirs = [join(deps.subtitles.userData, 'subtitles', String(mine.videoId))]
+    const found = await deps.subtitles
+      .find({ path: mine.path, season: mine.season, episode: mine.episode }, { userLang: language, extraDirs })
+      .catch(() => [])
+    st.externals = []
+    for (const sub of found) {
+      if (cur !== mine) return
+      const path = await deps.subtitles.load(sub).catch(() => null)
+      if (!path) continue
+      st.externals.push({ ...sub, path })
+      await cmd('sub-add', path, 'auto', basename(sub.path), sub.lang ?? '')
+    }
+  }
 
   function state(): PlayerState {
     return {
@@ -142,6 +203,7 @@ export function createPlayerService(deps: {
 
   async function onLoaded() {
     if (!cur) return
+    const mine = cur
     cur.loaded = true
     const prefs = getPrefs(db, cur.title.key)
     const target = restore ?? { positionS: cur.startAt, aid: null, sid: null }
@@ -158,18 +220,22 @@ export function createPlayerService(deps: {
       cur.ready = true
     }
     await applyVolume(prefs.volume)
-    st.tracks = toTracks(await cmd('get_property', 'track-list'))
+    await addExternals(mine)
+    if (cur !== mine) return
+    st.tracks = toTracks(await cmd('get_property', 'track-list'), st.externals)
     const audio = st.tracks.filter((t) => t.type === 'audio')
     const subs = st.tracks.filter((t) => t.type === 'sub')
     if (restore) {
       if (restore.aid !== null) await cmd('set_property', 'aid', restore.aid)
-      await cmd('set_property', 'sid', restore.sid ?? 'no')
+      await selectSubtitle(restore.sid)
     } else {
+      const settings = deps.styles.subtitleSettings()
       const a = pickTrack(audio, prefs.audio)
       if (a) await cmd('set_property', 'aid', a.id)
-      const audioLang = (a ?? audio.find((t) => t.default) ?? audio[0])?.lang ?? null
-      const s = pickSubtitle(subs, prefs.subtitle, audioLang)
-      await cmd('set_property', 'sid', s ? s.id : 'no')
+      // Untagged audio: TMDB's original language, else assume it is the user's.
+      const audioLang = (a ?? audio.find((t) => t.default) ?? audio[0])?.lang ?? originalLanguage(db, mine.videoId) ?? settings.language
+      const s = pickSubtitle(subs, prefs.subtitle, { audioLang, userLang: settings.language, preferSdh: settings.preferSdh })
+      await selectSubtitle(s ? s.id : null)
     }
     restore = null
     emitState(true)
@@ -221,6 +287,10 @@ export function createPlayerService(deps: {
     void c.observe('mute', (v) => (st.muted = v === true))
     void c.observe('aid', (v) => (st.aid = num(v)))
     void c.observe('sid', (v) => (st.sid = num(v)))
+    void c.observe('sub-text/ass', (v) => {
+      // Lines from a file that is no longer (or not yet) the current one are dropped.
+      if (cur?.loaded) emitCue(toCue(v))
+    })
     void c.observe('eof-reached', (v) => {
       if (v === true) void onEof()
     })
@@ -284,7 +354,9 @@ export function createPlayerService(deps: {
     if (!title) throwAppError({ code: 'invalid_argument', message: 'That title is no longer in the library.' })
     const videoId = p.videoId ?? title.main.videoId
     const from = p.videoId === undefined ? (p.from ?? title.main.from) : (p.from ?? 'resume')
-    const row = db.prepare('SELECT path FROM videos WHERE id = ?').get(videoId) as { path: string } | undefined
+    const row = db.prepare('SELECT path, season, episode FROM videos WHERE id = ?').get(videoId) as
+      | { path: string; season: number | null; episode: number | null }
+      | undefined
     if (!row) throwAppError({ code: 'invalid_argument', message: 'That file is no longer in the library.' })
 
     // Let a stop that is still closing finish first, so it can't close this session.
@@ -294,6 +366,8 @@ export function createPlayerService(deps: {
       title,
       videoId,
       path: row.path,
+      season: row.season,
+      episode: row.episode,
       heading: headingFor(title, videoId),
       startAt: from === 'resume' ? resumePoint(videoId) : 0,
       loaded: false,
@@ -305,8 +379,10 @@ export function createPlayerService(deps: {
     crashes = 0
     restore = null
     lastSave = deps.now()
-    Object.assign(st, { paused: false, positionS: mine.startAt, durationS: null, tracks: [], aid: null, sid: null })
+    Object.assign(st, { paused: false, positionS: mine.startAt, durationS: null, tracks: [], aid: null, sid: null, externals: [] })
     st.volume = getPrefs(db, title.key).volume
+    emitCue(null)
+    notifyStyle()
 
     const p2 = await ensureProcess()
     // Stopped, or replaced by a newer play, while mpv was starting.
@@ -331,6 +407,7 @@ export function createPlayerService(deps: {
       deps.overlay.hide()
       const titleKey = cur!.title.key
       cur = null
+      emitCue(null)
       if (emitTimer) clearTimeout(emitTimer)
       emitTimer = null
       deps.emit('player.closed', { titleKey })
@@ -371,8 +448,10 @@ export function createPlayerService(deps: {
       case 'subtitle': {
         const showing = st.tracks.find((t) => t.type === 'sub' && t.id === st.sid)
         const choice = c.id === null ? null : (st.tracks.find((t) => t.type === 'sub' && t.id === c.id) ?? null)
-        await cmd('set_property', 'sid', c.id ?? 'no')
-        savePrefs(db, key, { subtitle: subtitlePrefFor(choice, showing?.kind === 'forced') }, deps.now())
+        emitCue(null)
+        await selectSubtitle(c.id)
+        // Off over nothing changes nothing; Off over a showing track is remembered.
+        if (choice || showing) savePrefs(db, key, { subtitle: subtitlePrefFor(choice, showing !== undefined) }, deps.now())
         return
       }
       case 'fullScreen':
@@ -381,10 +460,30 @@ export function createPlayerService(deps: {
     }
   }
 
+  async function addSubtitle(sub: ExternalSub) {
+    if (!proc || !cur?.loaded) return
+    const mine = cur
+    const path = await deps.subtitles.load(sub)
+    if (cur !== mine) return
+    st.externals.push({ ...sub, path })
+    emitCue(null)
+    await cmd('sub-add', path, 'select', basename(sub.path), sub.lang ?? '')
+    st.tracks = toTracks(await cmd('get_property', 'track-list'), st.externals)
+    const added = st.tracks.filter((t) => t.type === 'sub' && t.external).at(-1)
+    if (added) {
+      await cmd('set_property', 'sub-visibility', false)
+      savePrefs(db, mine.title.key, { subtitle: refOf(added) }, deps.now())
+    }
+    emitState(true)
+  }
+
   return {
     play,
     stop: () => stop(),
     command,
-    shutdown: () => stop()
+    shutdown: () => stop(),
+    current: () => (cur ? { videoId: cur.videoId, titleKey: cur.title.key, path: cur.path } : null),
+    notifyStyle,
+    addSubtitle
   }
 }

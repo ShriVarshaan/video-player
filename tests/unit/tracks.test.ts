@@ -68,7 +68,9 @@ const t = (id: number, lang: string | null, kind: Track['kind'], title: string |
   kind,
   title,
   image: false,
-  default: false
+  default: false,
+  external: false,
+  fileName: null
 })
 
 describe('pickTrack', () => {
@@ -92,22 +94,57 @@ describe('pickTrack', () => {
 
 describe('pickSubtitle', () => {
   const subs = [t(1, 'eng', 'plain'), t(2, 'eng', 'forced'), t(3, 'jpn', 'forced')]
+  const ctx = (audioLang: string | null, userLang = 'eng', preferSdh = false) => ({ audioLang, userLang, preferSdh })
+  const ext = (id: number, lang: string, kind: Track['kind']): Track => ({ ...t(id, lang, kind), external: true, fileName: `m.${lang}.srt` })
 
   it("shows nothing for 'off'", () => {
-    expect(pickSubtitle(subs, 'off', 'eng')).toBeNull()
+    expect(pickSubtitle(subs, 'off', ctx('eng'))).toBeNull()
   })
   it('follows a remembered track', () => {
-    expect(pickSubtitle(subs, { lang: 'eng', kind: 'plain', title: null }, 'eng')?.id).toBe(1)
+    expect(pickSubtitle(subs, { lang: 'eng', kind: 'plain', title: null }, ctx('eng'))?.id).toBe(1)
   })
   it('shows the forced track in the audio language when nothing is remembered', () => {
-    expect(pickSubtitle(subs, null, 'jpn')?.id).toBe(3)
-    expect(pickSubtitle(subs, null, 'ger')).toBeNull()
-    expect(pickSubtitle(subs, null, null)).toBeNull()
+    expect(pickSubtitle(subs, null, ctx('jpn', 'jpn'))?.id).toBe(3)
+    expect(pickSubtitle(subs, null, ctx('ger', 'ger'))).toBeNull()
+    expect(pickSubtitle(subs, null, ctx(null))).toBeNull()
+  })
+
+  it('turns on a subtitle file in your language every time, whatever the audio', () => {
+    const all = [...subs, ext(4, 'eng', 'forced'), ext(5, 'eng', 'plain'), ext(6, 'eng', 'sdh'), ext(7, 'fre', 'plain')]
+    expect(pickSubtitle(all, null, ctx('eng'))?.id).toBe(5)
+    expect(pickSubtitle(all, null, ctx('eng', 'eng', true))?.id).toBe(6)
+    expect(pickSubtitle(all, null, ctx('jpn'))?.id).toBe(5)
+    expect(pickSubtitle([...subs, ext(4, 'eng', 'forced')], null, ctx('eng'))?.id).toBe(4)
+  })
+
+  it('remembered choices and Off still win over a subtitle file', () => {
+    const all = [...subs, ext(5, 'eng', 'plain')]
+    expect(pickSubtitle(all, { lang: 'eng', kind: 'forced', title: null }, ctx('eng'))?.id).toBe(2)
+    expect(pickSubtitle(all, 'off', ctx('eng'))).toBeNull()
+  })
+
+  it('turns on an embedded subtitle in your language only for foreign audio', () => {
+    const embedded = [t(1, 'eng', 'plain'), t(2, 'eng', 'sdh'), t(3, 'jpn', 'forced')]
+    expect(pickSubtitle(embedded, null, ctx('eng'))).toBeNull()
+    expect(pickSubtitle(embedded, null, ctx('jpn'))?.id).toBe(1)
+    expect(pickSubtitle(embedded, null, ctx('jpn', 'eng', true))?.id).toBe(2)
+  })
+})
+
+describe('toTracks with subtitle files', () => {
+  it('takes language and kind from the matched file, and marks it external', () => {
+    const list = [
+      { id: 1, type: 'sub', lang: 'eng', codec: 'subrip' },
+      { id: 2, type: 'sub', external: true, 'external-filename': 'C:\\M\\Movie.srt', title: 'Movie.srt', codec: 'subrip' }
+    ]
+    const [embedded, file] = toTracks(list, [{ path: 'C:/M/Movie.srt', lang: 'fre', kind: 'sdh', format: 'srt' }])
+    expect(embedded).toMatchObject({ external: false, fileName: null })
+    expect(file).toMatchObject({ id: 2, lang: 'fre', kind: 'sdh', label: 'French (SDH)', external: true, fileName: 'Movie.srt' })
   })
 })
 
 describe('subtitlePrefFor', () => {
-  it("remembers 'off' only when it hid a forced track", () => {
+  it("remembers 'off' only when it hid a track the app turned on by itself", () => {
     expect(subtitlePrefFor(null, true)).toBe('off')
     expect(subtitlePrefFor(null, false)).toBeNull()
   })

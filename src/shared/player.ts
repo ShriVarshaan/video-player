@@ -15,6 +15,8 @@ export type Track = {
   title: string | null
   image: boolean // picture-based subtitles (PGS/VobSub/DVB), always drawn by mpv
   default: boolean
+  external: boolean // a subtitle file next to the video (or downloaded), not inside it
+  fileName: string | null
 }
 
 // Remembered per title (movie or whole show), never app-wide.
@@ -48,3 +50,7 @@ export type PlayerCommand =
   | { type: 'audio'; id: number }
   | { type: 'subtitle'; id: number | null }
   | { type: 'fullScreen'; on: boolean }
+
+// The subtitle line on screen now, as the overlay draws it.
+export type CueSpan = { text: string; italic: boolean; bold: boolean }
+export type Cue = { lines: CueSpan[][]; top: boolean }

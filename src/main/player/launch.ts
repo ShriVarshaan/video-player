@@ -3,8 +3,8 @@ import { createRequire } from 'node:module'
 import { connectMpv, type MpvClient } from './mpvIpc'
 import type { MpvProcess } from './service'
 
-// mpv flags from the mpv-ipc skill. --sub-visibility=yes: mpv draws text
-// subtitles itself until the Apple TV renderer arrives (milestone 5).
+// mpv flags from the mpv-ipc skill. --sub-visibility=no: the overlay draws text
+// subtitles; the service turns it on only for picture-based tracks.
 const FLAGS = [
   '--idle=yes',
   '--keep-open=yes',
@@ -20,7 +20,7 @@ const FLAGS = [
   '--volume-max=200',
   '--sub-auto=no',
   '--audio-file-auto=no',
-  '--sub-visibility=yes',
+  '--sub-visibility=no',
   '--msg-level=all=warn'
 ]
 

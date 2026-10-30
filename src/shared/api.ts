@@ -2,7 +2,8 @@
 // apiMethods; the compiler then points at the missing handler and bridge.
 
 import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
-import type { NextEpisode, PlayerCommand, PlayerState } from './player'
+import type { Cue, NextEpisode, PlayerCommand, PlayerState } from './player'
+import type { SubtitleStyle } from './subtitleStyle'
 
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json }
 
@@ -72,6 +73,10 @@ export type ApiEvents = {
   // The player closed; the main window shows this title's page.
   'player.closed': { titleKey: string }
   'player.error': { message: string }
+  // The subtitle line on screen now (null: none), drawn by the overlay.
+  'subtitles.cue': Cue | null
+  // The playing title's effective subtitle style.
+  'subtitles.style': SubtitleStyle
 }
 
 export const eventChannel = (name: keyof ApiEvents): string => `vp:event.${name}`

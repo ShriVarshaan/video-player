@@ -1,5 +1,7 @@
+import { basename } from 'node:path'
 import { languageName } from '@shared/lang'
 import type { Track, TrackKind, TrackRef } from '@shared/player'
+import type { ExternalSub } from '../subtitles/match'
 
 export { languageName }
 
@@ -15,17 +17,24 @@ function kindOf(t: Record<string, unknown>, title: string | null): TrackKind {
   return 'plain'
 }
 
-// mpv's track-list → the audio and subtitle tracks the menus show.
-export function toTracks(trackList: unknown): Track[] {
+const slashes = (p: string) => p.replace(/\\/g, '/')
+const samePath = (a: string, b: string) => slashes(a).toLowerCase() === slashes(b).toLowerCase()
+
+// mpv's track-list → the audio and subtitle tracks the menus show. Subtitle
+// files take their language and kind from the file name (see subtitles/match).
+export function toTracks(trackList: unknown, externals: ExternalSub[] = []): Track[] {
   if (!Array.isArray(trackList)) return []
   const out: Track[] = []
   for (const raw of trackList as Record<string, unknown>[]) {
     const type = raw['type']
     if (type !== 'audio' && type !== 'sub') continue
     const id = Number(raw['id'])
-    const lang = typeof raw['lang'] === 'string' && raw['lang'] !== 'und' ? raw['lang'] : null
+    const file = typeof raw['external-filename'] === 'string' ? raw['external-filename'] : null
+    const ext = file ? externals.find((e) => samePath(e.path, file)) : undefined
+    const tagged = typeof raw['lang'] === 'string' && raw['lang'] !== 'und' ? raw['lang'] : null
+    const lang = ext ? ext.lang : tagged
     const title = typeof raw['title'] === 'string' && raw['title'] ? raw['title'] : null
-    const kind = kindOf(raw, title)
+    const kind = ext ? ext.kind : kindOf(raw, title)
     let label: string
     if (lang) label = languageName(lang) + (type === 'audio' ? channels(raw['demux-channel-count']) : KIND_SUFFIX[kind])
     else label = title ?? `Track ${id}`
@@ -37,7 +46,9 @@ export function toTracks(trackList: unknown): Track[] {
       kind,
       title,
       image: type === 'sub' && IMAGE_CODECS.has(String(raw['codec'])),
-      default: raw['default'] === true
+      default: raw['default'] === true,
+      external: raw['external'] === true,
+      fileName: raw['external'] === true && file ? (title ?? basename(slashes(file))) : null
     })
   }
   return out
@@ -57,15 +68,38 @@ export function pickTrack(tracks: Track[], ref: TrackRef | null): Track | null {
   return (ref.title && tracks.find((t) => t.title === ref.title)) || null
 }
 
-// Nothing remembered still shows forced subtitles in the audio's language.
-export function pickSubtitle(subs: Track[], pref: TrackRef | 'off' | null, audioLang: string | null): Track | null {
-  if (pref === 'off') return null
-  if (pref) return pickTrack(subs, pref)
-  return (audioLang && subs.find((t) => t.kind === 'forced' && t.lang === audioLang)) || null
+export type PickContext = { audioLang: string | null; userLang: string; preferSdh: boolean }
+
+// The best track in a language: SDH first when preferred, else plain; forced last.
+function bestIn(subs: Track[], lang: string, preferSdh: boolean): Track | null {
+  const same = subs.filter((t) => t.lang === lang && t.kind !== 'commentary')
+  const order: TrackKind[] = preferSdh ? ['sdh', 'plain', 'forced'] : ['plain', 'sdh', 'forced']
+  for (const kind of order) {
+    const hit = same.find((t) => t.kind === kind)
+    if (hit) return hit
+  }
+  return null
 }
 
-// Choosing Off is remembered only when it hid a forced track; otherwise nothing is.
-export function subtitlePrefFor(choice: Track | null, forcedShowing: boolean): TrackRef | 'off' | null {
+// With nothing remembered: a subtitle file in your language comes on every time;
+// else an embedded one in your language when the audio is foreign; else a forced
+// track in the audio's language.
+export function pickSubtitle(subs: Track[], pref: TrackRef | 'off' | null, ctx: PickContext): Track | null {
+  if (pref === 'off') return null
+  if (pref) return pickTrack(subs, pref)
+  const file = bestIn(subs.filter((t) => t.external), ctx.userLang, ctx.preferSdh)
+  if (file) return file
+  // Unknown audio counts as your language (the service has already tried TMDB).
+  if (ctx.audioLang && ctx.audioLang !== ctx.userLang) {
+    const embedded = bestIn(subs.filter((t) => !t.external && !t.image), ctx.userLang, ctx.preferSdh)
+    if (embedded) return embedded
+  }
+  return (ctx.audioLang && subs.find((t) => t.kind === 'forced' && t.lang === ctx.audioLang)) || null
+}
+
+// Choosing Off is remembered when it hid a track the app turned on by itself
+// (a forced track or an automatic pick); otherwise nothing is.
+export function subtitlePrefFor(choice: Track | null, autoShowing: boolean): TrackRef | 'off' | null {
   if (choice) return refOf(choice)
-  return forcedShowing ? 'off' : null
+  return autoShowing ? 'off' : null
 }

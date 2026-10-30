@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { join } from 'node:path'
 import type { ApiEvents } from '@shared/api'
 import { openDb, type Db } from '../../src/main/db'
 import type { MpvClient } from '../../src/main/player/mpvIpc'
 import { createPlayerService, type MpvProcess, type PlayerService } from '../../src/main/player/service'
 import { getPrefs, savePrefs } from '../../src/main/player/titlePrefs'
+import type { ExternalSub } from '../../src/main/subtitles/match'
+import { createStyleStore } from '../../src/main/subtitles/styleStore'
 
 const TRACKS = [
   { id: 1, type: 'video', codec: 'h264' },
@@ -27,10 +30,15 @@ function fakeMpv(): Fake {
   const observers = new Map<string, (v: unknown) => void>()
   const listeners = new Map<string, Set<(m: Record<string, unknown>) => void>>()
   let onExit: (expected: boolean) => void = () => {}
+  const added: Record<string, unknown>[] = []
   const client: MpvClient = {
     command: async (...args) => {
       commands.push(args)
-      return args[0] === 'get_property' && args[1] === 'track-list' ? TRACKS : null
+      if (args[0] === 'sub-add') {
+        added.push({ id: 3 + added.length, type: 'sub', external: true, 'external-filename': args[1], title: args[3], lang: args[4] || undefined, codec: 'subrip' })
+      }
+      if (args[0] === 'loadfile') added.length = 0
+      return args[0] === 'get_property' && args[1] === 'track-list' ? [...trackList, ...added] : null
     },
     observe: async (name, cb) => void observers.set(name, cb),
     on: (event, cb) => {
@@ -56,6 +64,8 @@ function fakeMpv(): Fake {
 }
 
 let db: Db
+let trackList: Record<string, unknown>[]
+let externals: ExternalSub[]
 let fakes: Fake[]
 let events: { event: keyof ApiEvents; payload: unknown }[]
 let overlay: { show: ReturnType<typeof vi.fn<() => void>>; hide: ReturnType<typeof vi.fn<() => void>> }
@@ -102,6 +112,8 @@ beforeEach(() => {
   for (const [id, s, e] of [[5, 1, 1], [6, 1, 2], [7, 2, 1], [9, 0, 1]] as const) {
     add.run(id, `D:/L/bb${id}.mkv`, 'Breaking Bad', null, 'episode', 'breaking bad', 1396, s, e, 3000)
   }
+  trackList = TRACKS
+  externals = []
   fakes = []
   events = []
   overlay = { show: vi.fn<() => void>(), hide: vi.fn<() => void>() }
@@ -128,7 +140,13 @@ beforeEach(() => {
     emit: (event, payload) => events.push({ event, payload }),
     window: win,
     overlay,
-    now: () => Date.now()
+    now: () => Date.now(),
+    subtitles: {
+      find: async () => externals,
+      load: async (s) => s.path,
+      userData: 'C:/data'
+    },
+    styles: createStyleStore(db, { now: () => 1, defaultLanguage: 'eng' })
   })
 })
 
@@ -175,8 +193,8 @@ describe('play', () => {
     expect(mpv().commands).toContainEqual(['set_property', 'volume', 150])
     expect(mpv().commands).toContainEqual(['af', 'add', '@limiter:lavfi=[alimiter=limit=0.97]'])
     expect(mpv().commands).toContainEqual(['set_property', 'aid', 2])
-    // Japanese audio, no Japanese forced track: nothing shown.
-    expect(mpv().commands).toContainEqual(['set_property', 'sid', 'no'])
+    // Japanese audio and nothing remembered: English subtitles come on (milestone 5's Auto rule).
+    expect(mpv().commands).toContainEqual(['set_property', 'sid', 1])
   })
 
   it('shows a forced track in the audio language when nothing is remembered', async () => {
@@ -464,5 +482,114 @@ describe('failures and library refresh (mid-branch review)', () => {
     expect(emitted('library.changed')).toHaveLength(1)
     await player.stop({})
     expect(emitted('library.changed')).toHaveLength(2)
+  })
+})
+
+describe('subtitles (milestone 5)', () => {
+  const srt = (lang: string, kind: ExternalSub['kind'] = 'plain'): ExternalSub => ({ path: `D:/L/matrix.${lang}.srt`, lang, kind, format: 'srt' })
+  const cues = () => emitted('subtitles.cue')
+
+  it('adds subtitle files before reading the tracks and turns one in your language on', async () => {
+    externals = [srt('eng')]
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    const cmds = mpv().commands.map((c) => c[0] + ' ' + String(c[1]))
+    expect(mpv().commands).toContainEqual(['sub-add', 'D:/L/matrix.eng.srt', 'auto', 'matrix.eng.srt', 'eng'])
+    expect(cmds.indexOf('sub-add D:/L/matrix.eng.srt')).toBeLessThan(cmds.lastIndexOf('get_property track-list'))
+    expect(mpv().commands).toContainEqual(['set_property', 'sid', 3])
+    expect(mpv().commands).toContainEqual(['set_property', 'sub-visibility', false])
+    vi.advanceTimersByTime(50)
+    const subs = (emitted('player.state').at(-1) as { subtitles: { id: number; external: boolean; fileName: string | null }[] }).subtitles
+    expect(subs.at(-1)).toMatchObject({ id: 3, external: true, fileName: 'matrix.eng.srt' })
+  })
+
+  it('looks for subtitles with the episode numbers and the download folder', async () => {
+    const find = vi.fn(async () => [])
+    player = createPlayerService({
+      db, launch: async () => (fakes.push(fakeMpv()), mpv().proc), emit: (event, payload) => events.push({ event, payload }),
+      window: win, overlay, now: () => Date.now(),
+      subtitles: { find, load: async (s) => s.path, userData: 'C:/data' },
+      styles: createStyleStore(db, { now: () => 1, defaultLanguage: 'fre' })
+    })
+    await player.play({ key: 'tmdb:1396', videoId: 6, from: 'start' })
+    await loaded(3000)
+    expect(find).toHaveBeenCalledWith({ path: 'D:/L/bb6.mkv', season: 1, episode: 2 }, { userLang: 'fre', extraDirs: [join('C:/data', 'subtitles', '6')] })
+  })
+
+  it('sends the current line to the overlay as a cue, and clears it between files and on stop', async () => {
+    await player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    await loaded(3000)
+    mpv().set('sub-text/ass', '{\\i1}Say my name{\\i0}')
+    expect(cues().at(-1)).toEqual({ top: false, lines: [[{ text: 'Say my name', italic: true, bold: false }]] })
+    mpv().set('sub-text/ass', '')
+    expect(cues().at(-1)).toBeNull()
+    mpv().set('sub-text/ass', 'Still here')
+    await player.play({ key: 'tmdb:1396', videoId: 6, from: 'start' })
+    expect(cues().at(-1)).toBeNull()
+    // A late line from the old file, before the new one has loaded, is not shown.
+    mpv().set('sub-text/ass', 'Old line')
+    expect(cues().at(-1)).toBeNull()
+    await loaded(3000)
+    mpv().set('sub-text/ass', 'New line')
+    expect(cues().at(-1)).toMatchObject({ lines: [[{ text: 'New line' }]] })
+    await player.stop({})
+    expect(cues().at(-1)).toBeNull()
+  })
+
+  it('lets mpv draw picture subtitles and hides its drawing again for text ones', async () => {
+    trackList = [...TRACKS, { id: 3, type: 'sub', lang: 'fre', codec: 'hdmv_pgs_subtitle' }]
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.command({ type: 'subtitle', id: 3 })
+    expect(mpv().commands.at(-1)).toEqual(['set_property', 'sub-visibility', true])
+    await player.command({ type: 'subtitle', id: 1 })
+    expect(mpv().commands.at(-1)).toEqual(['set_property', 'sub-visibility', false])
+  })
+
+  it('clears the line when the subtitle track changes', async () => {
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    mpv().set('sub-text/ass', 'Wake up')
+    await player.command({ type: 'subtitle', id: 1 })
+    expect(cues().at(-1)).toBeNull()
+  })
+
+  it('remembers Off when it hides a subtitle file the app turned on', async () => {
+    externals = [srt('eng')]
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    mpv().set('sid', 3)
+    await player.command({ type: 'subtitle', id: null })
+    expect(getPrefs(db, 'movie:2').subtitle).toBe('off')
+  })
+
+  it('uses the TMDB original language for audio with no language tag', async () => {
+    trackList = [
+      { id: 1, type: 'audio', codec: 'aac' },
+      { id: 1, type: 'sub', lang: 'eng', codec: 'subrip' }
+    ]
+    db.exec(`UPDATE tmdb_movies SET original_language = 'ja' WHERE tmdb_id = 603`)
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    expect(mpv().commands).toContainEqual(['set_property', 'sid', 1])
+  })
+
+  it('sends the title’s effective style on play and when asked', async () => {
+    const styles = createStyleStore(db, { now: () => 1, defaultLanguage: 'eng' })
+    styles.setOverrides('movie:2', { size: 150 })
+    await player.play({ key: 'movie:2' })
+    expect(emitted('subtitles.style').at(-1)).toMatchObject({ size: 150 })
+    styles.setOverrides('movie:2', { size: 120 })
+    player.notifyStyle()
+    expect(emitted('subtitles.style').at(-1)).toMatchObject({ size: 120 })
+    expect(player.current()).toEqual({ videoId: 2, titleKey: 'movie:2', path: 'D:/L/matrix.mkv' })
+  })
+
+  it('adds a downloaded subtitle, shows it and remembers it', async () => {
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.addSubtitle({ path: 'D:/L/matrix.en.srt', lang: 'eng', kind: 'sdh', format: 'srt' })
+    expect(mpv().commands).toContainEqual(['sub-add', 'D:/L/matrix.en.srt', 'select', 'matrix.en.srt', 'eng'])
+    expect(getPrefs(db, 'movie:2').subtitle).toEqual({ lang: 'eng', kind: 'sdh', title: 'matrix.en.srt' })
   })
 })

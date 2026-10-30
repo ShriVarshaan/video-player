@@ -110,7 +110,7 @@ function start(): void {
 
   const main = createWindow()
   mainWindow = main
-  player = setupPlayer({ db, binaryBase, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences })
+  ;({ player } = setupPlayer({ db, binaryBase, userDataPath, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences }))
   // Closing the window mid-film saves the position and stops mpv first.
   let saved = false
   main.on('close', (event) => {
