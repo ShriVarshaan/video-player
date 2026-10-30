@@ -17,12 +17,12 @@ type Person = { id: number; name: string; character?: string; order?: number; jo
 type Genre = { id: number; name: string }
 type Logos = { images?: { logos?: { file_path: string; iso_639_1: string | null }[] } }
 type MovieDetail = Logos & {
-  id: number; title: string; original_title?: string; release_date?: string; overview?: string; runtime?: number
+  id: number; title: string; original_title?: string; original_language?: string; release_date?: string; overview?: string; runtime?: number
   vote_average?: number; poster_path?: string | null; backdrop_path?: string | null; genres?: Genre[]
   credits?: { cast?: Person[]; crew?: Person[] }
 }
 type ShowDetail = Logos & {
-  id: number; name: string; original_name?: string; first_air_date?: string; overview?: string; vote_average?: number
+  id: number; name: string; original_name?: string; original_language?: string; first_air_date?: string; overview?: string; vote_average?: number
   poster_path?: string | null; backdrop_path?: string | null; genres?: Genre[]; created_by?: Person[]
   credits?: { cast?: Person[] }; seasons?: { season_number: number; name?: string; poster_path?: string | null }[]
 }
@@ -72,14 +72,15 @@ export async function matchPending(db: Db, client: TmdbClient, opts: Opts): Prom
     // Upsert, never REPLACE: REPLACE deletes the row first, and ON DELETE SET NULL
     // would unlink every video already matched to it.
     db.prepare(
-      `INSERT INTO tmdb_movies (tmdb_id, title, original_title, year, overview, runtime_min, rating,
-         poster_path, backdrop_path, logo_path, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO tmdb_movies (tmdb_id, title, original_title, original_language, year, overview, runtime_min, rating,
+         poster_path, backdrop_path, logo_path, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(tmdb_id) DO UPDATE SET title = excluded.title, original_title = excluded.original_title,
+         original_language = excluded.original_language,
          year = excluded.year, overview = excluded.overview, runtime_min = excluded.runtime_min, rating = excluded.rating,
          poster_path = excluded.poster_path, backdrop_path = excluded.backdrop_path, logo_path = excluded.logo_path,
          fetched_at = excluded.fetched_at`
-    ).run(d.id, d.title, d.original_title ?? null, yearOf(d.release_date), d.overview ?? null, d.runtime ?? null,
-      d.vote_average ?? null, d.poster_path ?? null, d.backdrop_path ?? null, logoOf(d), now)
+    ).run(d.id, d.title, d.original_title ?? null, d.original_language ?? null, yearOf(d.release_date), d.overview ?? null,
+      d.runtime ?? null, d.vote_average ?? null, d.poster_path ?? null, d.backdrop_path ?? null, logoOf(d), now)
     for (const g of d.genres ?? []) {
       upsertGenre.run(g.id, g.name)
       db.prepare('INSERT OR IGNORE INTO tmdb_movie_genres (tmdb_id, genre_id) VALUES (?, ?)').run(d.id, g.id)
@@ -97,14 +98,15 @@ export async function matchPending(db: Db, client: TmdbClient, opts: Opts): Prom
 
   function saveShow(d: ShowDetail) {
     db.prepare(
-      `INSERT INTO tmdb_shows (tmdb_id, name, original_name, first_air_year, overview, rating, poster_path,
-         backdrop_path, logo_path, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO tmdb_shows (tmdb_id, name, original_name, original_language, first_air_year, overview, rating, poster_path,
+         backdrop_path, logo_path, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(tmdb_id) DO UPDATE SET name = excluded.name, original_name = excluded.original_name,
+         original_language = excluded.original_language,
          first_air_year = excluded.first_air_year, overview = excluded.overview, rating = excluded.rating,
          poster_path = excluded.poster_path, backdrop_path = excluded.backdrop_path, logo_path = excluded.logo_path,
          fetched_at = excluded.fetched_at`
-    ).run(d.id, d.name, d.original_name ?? null, yearOf(d.first_air_date), d.overview ?? null, d.vote_average ?? null,
-      d.poster_path ?? null, d.backdrop_path ?? null, logoOf(d), now)
+    ).run(d.id, d.name, d.original_name ?? null, d.original_language ?? null, yearOf(d.first_air_date), d.overview ?? null,
+      d.vote_average ?? null, d.poster_path ?? null, d.backdrop_path ?? null, logoOf(d), now)
     for (const s of d.seasons ?? []) {
       db.prepare('INSERT OR REPLACE INTO tmdb_seasons (show_tmdb_id, season, name, poster_path) VALUES (?, ?, ?, ?)')
         .run(d.id, s.season_number, s.name ?? null, s.poster_path ?? null)

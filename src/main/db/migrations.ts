@@ -209,5 +209,12 @@ CREATE TABLE title_prefs (
   subtitle_json  TEXT,                     -- {lang, kind, title} or "off"
   updated_at     INTEGER NOT NULL
 );
+`,
+  `
+-- 4: subtitles. A title's own subtitle style (only the fields changed for it), and
+-- TMDB's original language for titles whose audio tracks carry no language tag.
+ALTER TABLE title_prefs ADD COLUMN style_json TEXT;
+ALTER TABLE tmdb_movies ADD COLUMN original_language TEXT;
+ALTER TABLE tmdb_shows  ADD COLUMN original_language TEXT;
 `
 ]

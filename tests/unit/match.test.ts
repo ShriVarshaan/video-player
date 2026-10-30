@@ -53,10 +53,11 @@ describe('matchPending — movies', () => {
     expect(video(inception)['tmdb_id']).toBe(27205)
     expect(video(home)).toMatchObject({ tmdb_id: null, match_status: 'unmatched' })
 
-    expect(db.prepare('SELECT title, year, runtime_min, logo_path FROM tmdb_movies WHERE tmdb_id = 603').get()).toEqual({
+    expect(db.prepare('SELECT title, year, runtime_min, original_language, logo_path FROM tmdb_movies WHERE tmdb_id = 603').get()).toEqual({
       title: 'The Matrix',
       year: 1999,
       runtime_min: 136,
+      original_language: 'en',
       // TMDB lists an SVG first; PNG is preferred because ffmpeg rasterizes SVG badly.
       logo_path: '/iWxxHjuJ1vCLQcg3iiOMucvbrF1.png'
     })
@@ -113,7 +114,11 @@ describe('matchPending — shows', () => {
     for (const id of ids) expect(video(id)).toMatchObject({ show_tmdb_id: 1396, match_status: 'matched' })
     expect(get.mock.calls.filter((c) => c[0] === 'search/tv')).toHaveLength(1)
 
-    expect(db.prepare('SELECT name, first_air_year FROM tmdb_shows').get()).toEqual({ name: 'Breaking Bad', first_air_year: 2008 })
+    expect(db.prepare('SELECT name, first_air_year, original_language FROM tmdb_shows').get()).toEqual({
+      name: 'Breaking Bad',
+      first_air_year: 2008,
+      original_language: 'en'
+    })
     expect(db.prepare('SELECT season, name FROM tmdb_seasons ORDER BY season').all().map((s) => ({ ...s }))).toEqual([
       { season: 0, name: 'Specials' },
       { season: 1, name: 'Season 1' },

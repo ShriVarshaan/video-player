@@ -7,16 +7,26 @@ beforeEach(() => {
   db = openDb(':memory:')
 })
 
+describe('migration 4', () => {
+  it('adds per-title subtitle style and TMDB original languages', () => {
+    expect(schemaVersion(db)).toBe(4)
+    const cols = (t: string) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c['name'])
+    expect(cols('title_prefs')).toContain('style_json')
+    expect(cols('tmdb_movies')).toContain('original_language')
+    expect(cols('tmdb_shows')).toContain('original_language')
+  })
+})
+
 describe('migration 3', () => {
   it('adds title_prefs', () => {
-    expect(schemaVersion(db)).toBe(3)
     const cols = db.prepare('PRAGMA table_info(title_prefs)').all().map((c) => ({ name: c['name'], type: c['type'], pk: c['pk'], notnull: c['notnull'] }))
     expect(cols).toEqual([
       { name: 'title_key', type: 'TEXT', pk: 1, notnull: 0 },
       { name: 'volume', type: 'INTEGER', pk: 0, notnull: 0 },
       { name: 'audio_json', type: 'TEXT', pk: 0, notnull: 0 },
       { name: 'subtitle_json', type: 'TEXT', pk: 0, notnull: 0 },
-      { name: 'updated_at', type: 'INTEGER', pk: 0, notnull: 1 }
+      { name: 'updated_at', type: 'INTEGER', pk: 0, notnull: 1 },
+      { name: 'style_json', type: 'TEXT', pk: 0, notnull: 0 }
     ])
   })
 })
