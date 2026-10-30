@@ -53,6 +53,7 @@ test('Play, close, then Continue watching and Restart', async () => {
   await win.getByTestId('title-main').click()
   let overlay = await overlayPage(app)
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(3)
+  await overlay.mouse.move(40, 40) // wakes the faded controls, as a real pointer does
   await overlay.getByTestId('player-close').click()
   await expect.poll(() => overlayVisible(app)).toBe(false)
 

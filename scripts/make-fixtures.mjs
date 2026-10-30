@@ -61,4 +61,25 @@ for (const [name, src] of LIBRARY) make(join(library, name), remux(src, name))
 // Stand-in for every TMDB image in fixtures mode (committed).
 make(tmdbImage, (f) => run(['-f', 'lavfi', '-i', 'color=c=0x335577:s=500x750', '-frames:v', '1', f]))
 
+// Two audio tracks and three English subtitle tracks (plain, SDH, forced) for the
+// player's Audio and Subtitles menus and per-title track memory.
+make(join(media, 'tracks.mkv'), (f) => {
+  const srt = join(media, 'tracks.srt')
+  writeFileSync(srt, '1\n00:00:01,000 --> 00:00:19,000\nHello there.\n')
+  run([
+    '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=24',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
+    '-f', 'lavfi', '-i', 'sine=frequency=660:sample_rate=48000',
+    '-i', srt,
+    '-t', '20',
+    '-map', '0:v', '-map', '1:a', '-map', '2:a', '-map', '3:s', '-map', '3:s', '-map', '3:s',
+    '-c:v', 'mpeg4', '-q:v', '5', '-c:a', 'aac', '-ac:a:0', '6', '-ac:a:1', '2', '-c:s', 'srt',
+    '-metadata:s:a:0', 'language=eng', '-metadata:s:a:1', 'language=jpn',
+    '-metadata:s:s:0', 'language=eng', '-metadata:s:s:0', 'title=English',
+    '-metadata:s:s:1', 'language=eng', '-metadata:s:s:1', 'title=English SDH', '-disposition:s:1', 'hearing_impaired',
+    '-metadata:s:s:2', 'language=eng', '-disposition:s:2', 'forced',
+    f
+  ])
+})
+
 console.log('fixtures ready')

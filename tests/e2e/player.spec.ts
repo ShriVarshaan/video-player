@@ -67,6 +67,7 @@ test('closes to the title and saves the position', async () => {
   await play(key)
   const overlay = await overlayPage(app)
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(3)
+  await overlay.mouse.move(40, 40) // wakes the faded controls, as a real pointer does
   await overlay.getByTestId('player-close').click()
   await expect.poll(() => overlayVisible(app)).toBe(false)
   const title = await win.evaluate((k) => window.api.library.getTitle({ key: k }), key)
@@ -95,6 +96,7 @@ test("shows Can't play this file for a broken file", async () => {
   await play(await keyOf(win, 'Broken Film'))
   const overlay = await overlayPage(app)
   await expect(overlay.getByTestId('player-error')).toHaveText("Can't play this file")
+  await overlay.mouse.move(40, 40) // wakes the faded controls, as a real pointer does
   await overlay.getByTestId('player-close').click()
   await expect.poll(() => overlayVisible(app)).toBe(false)
 })
