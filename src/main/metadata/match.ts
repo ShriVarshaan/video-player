@@ -2,6 +2,7 @@ import { parseAppError } from '@shared/appError'
 import { tx, type Db } from '../db'
 import { pickBest, type Candidate } from './score'
 import type { TmdbClient } from './tmdbClient'
+import { rekeyPrefs } from '../player/titlePrefs'
 
 type Opts = {
   now: () => number
@@ -221,6 +222,8 @@ export async function matchPending(db: Db, client: TmdbClient, opts: Opts): Prom
             if (detail) saveShow(detail)
             for (const [s, d] of seasonDetails) saveSeason(best.id, s, d)
             ids.forEach((id) => setEpisode.run(best.id, 'matched', now, id))
+            // The show's key changes from local:<name> to tmdb:<id>; keep what the player remembered.
+            if (first.parsed_show) rekeyPrefs(db, `local:${first.parsed_show}`, `tmdb:${best.id}`)
           })
           result.matched += ids.length
         } catch {

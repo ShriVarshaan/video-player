@@ -199,5 +199,15 @@ CREATE TABLE images (
   source      TEXT NOT NULL CHECK (source IN ('tmdb','ffmpeg')),
   created_at  INTEGER NOT NULL
 );
+`,
+  `
+-- 3: what the player remembers per title (WallItem.key: 'movie:<id>', 'tmdb:<id>', 'local:<show>').
+CREATE TABLE title_prefs (
+  title_key      TEXT PRIMARY KEY,
+  volume         INTEGER,                  -- 0–200
+  audio_json     TEXT,                     -- {lang, kind, title}
+  subtitle_json  TEXT,                     -- {lang, kind, title} or "off"
+  updated_at     INTEGER NOT NULL
+);
 `
 ]

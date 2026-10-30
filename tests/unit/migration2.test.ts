@@ -30,7 +30,7 @@ describe('migration 2', () => {
   it('moves movie rows, progress and offsets onto videos', () => {
     const file = join(dir, 'library.db')
     v1WithData(file)
-    const db = openDb(file)
+    const db = openDb(file, migrations.slice(0, 2))
     expect(schemaVersion(db)).toBe(2)
     expect({ ...db.prepare('SELECT kind, parsed_title FROM videos WHERE id = 10').get() }).toEqual({
       kind: 'movie',
@@ -48,7 +48,7 @@ describe('migration 2', () => {
   it('still cascades a removed folder to progress', () => {
     const file = join(dir, 'library.db')
     v1WithData(file)
-    const db = openDb(file)
+    const db = openDb(file, migrations.slice(0, 2))
     db.exec('DELETE FROM library_folders WHERE id = 1')
     expect(db.prepare('SELECT count(*) AS n FROM playback_state').get()).toEqual({ n: 0 })
     db.close()

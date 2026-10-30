@@ -4,6 +4,7 @@ import { throwAppError } from '@shared/appError'
 import { openDb, type Db } from '../../src/main/db'
 import { matchPending } from '../../src/main/metadata/match'
 import { createTmdbClient, type TmdbClient } from '../../src/main/metadata/tmdbClient'
+import { getPrefs, savePrefs } from '../../src/main/player/titlePrefs'
 
 const FIXTURES = join(__dirname, '..', 'fixtures', 'tmdb')
 let db: Db
@@ -134,6 +135,13 @@ describe('matchPending — shows', () => {
     expect(
       db.prepare(`SELECT p.name FROM show_credits c JOIN people p ON p.id = c.person_id WHERE role = 'creator'`).get()
     ).toEqual({ name: 'Vince Gilligan' })
+  })
+
+  it('moves remembered prefs when a local show is matched', async () => {
+    addEpisode('Breaking Bad', 1, 1)
+    savePrefs(db, 'local:breaking bad', { volume: 140 }, 1)
+    await matchPending(db, fixtures(), opts)
+    expect(getPrefs(db, 'tmdb:1396').volume).toBe(140)
   })
 
   it('marks an unknown show unmatched', async () => {

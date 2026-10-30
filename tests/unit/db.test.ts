@@ -17,6 +17,7 @@ const TABLES = [
   'settings',
   'show_credits',
   'subtitle_transforms',
+  'title_prefs',
   'tmdb_episodes',
   'tmdb_movie_genres',
   'tmdb_movies',
