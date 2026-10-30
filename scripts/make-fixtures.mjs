@@ -58,6 +58,17 @@ const LIBRARY = [
 ]
 for (const [name, src] of LIBRARY) make(join(library, name), remux(src, name))
 
+// Subtitle files next to the library's videos, with lines at 1–4 s and 5–8 s.
+const srt = (a, b) => `1\r\n00:00:01,000 --> 00:00:04,000\r\n${a}\r\n\r\n2\r\n00:00:05,000 --> 00:00:08,000\r\n${b}\r\n`
+const SUBTITLES = [
+  ['The.Matrix.1999.1080p.BluRay.x264.en.srt', Buffer.from(srt('Wake up, Neo.', 'Follow the white rabbit.'))],
+  // Saved in Windows-1252, as old French subtitle files often are.
+  ['Amélie (2001).fr.srt', Buffer.from(srt("Le fabuleux destin d'Amélie", 'Café des Deux Moulins'), 'latin1')],
+  ['Breaking Bad/Season 1/Subs/Breaking.Bad.S01E01.English.srt', Buffer.from(srt('Say my name.', 'You got me.'))],
+  ['inception_2010_720p.en.forced.srt', Buffer.from(srt('[Japanese] Are you here to kill me?', 'Dream within a dream.'))]
+]
+for (const [name, data] of SUBTITLES) make(join(library, name), (f) => writeFileSync(f, data))
+
 // Stand-in for every TMDB image in fixtures mode (committed).
 make(tmdbImage, (f) => run(['-f', 'lavfi', '-i', 'color=c=0x335577:s=500x750', '-frames:v', '1', f]))
 

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { NextEpisode, PlayerCommand, PlayerState } from '@shared/player'
+import type { Cue, NextEpisode, PlayerCommand, PlayerState } from '@shared/player'
+import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
 import { formatTime } from '@shared/time'
 import { ControlBar, type Menu } from './ControlBar'
 import { NextCard } from './NextCard'
+import { SubtitleView } from './SubtitleView'
 
 const HIDE_AFTER_MS = 2500
 const send = (c: PlayerCommand) => void window.api.player.command(c)
@@ -14,6 +16,9 @@ export function Overlay() {
   const [next, setNext] = useState<NextEpisode | null>(null)
   const [menu, setMenu] = useState<Menu>(null)
   const [idle, setIdle] = useState(false)
+  const [cue, setCue] = useState<Cue | null>(null)
+  const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_STYLE)
+  const [controlsTop, setControlsTop] = useState<number | null>(null)
   const stateRef = useRef<PlayerState | null>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const fillRef = useRef<HTMLElement>(null)
@@ -39,6 +44,8 @@ export function Overlay() {
         if (v.sent === null || v.sent === s.volume) volume.current = { value: s.volume, sent: null }
       }),
       window.api.on('player.ended', ({ next: n }) => setNext(n)),
+      window.api.on('subtitles.cue', setCue),
+      window.api.on('subtitles.style', setSubStyle),
       window.api.on('player.error', ({ message }) => setError(message)),
       window.api.on('player.closed', () => {
         stateRef.current = null
@@ -47,6 +54,7 @@ export function Overlay() {
         setError(null)
         setNext(null)
         setMenu(null)
+        setCue(null)
       })
     ]
     return () => offs.forEach((off) => off())
@@ -85,6 +93,16 @@ export function Overlay() {
   }, [hasState, wake])
   useEffect(() => () => void (hideTimer.current && clearTimeout(hideTimer.current)), [])
   const hidden = idle && !keepVisible
+
+  // Where the control bar starts while it shows, so low subtitles can sit above it.
+  const hasControls = state !== null && !hidden
+  useEffect(() => {
+    if (!hasControls) return setControlsTop(null)
+    const measure = () => setControlsTop(document.querySelector('.player-bottom .seek')?.getBoundingClientRect().top ?? null)
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [hasControls])
 
   const close = useCallback(() => {
     if (closing.current) return
@@ -164,6 +182,7 @@ export function Overlay() {
         if (state && e.target === e.currentTarget) send({ type: 'fullScreen', on: !state.fullScreen })
       }}
     >
+      {state && <SubtitleView cue={cue} style={subStyle} controlsTop={controlsTop} />}
       <div className="controls" data-testid="controls" data-hidden={hidden}>
         <div className="player-top">
           <button type="button" className="player-close" data-testid="player-close" aria-label="Close player" onClick={close}>

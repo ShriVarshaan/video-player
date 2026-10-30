@@ -1,0 +1,54 @@
+/* Apple TV-style subtitles. Colours, font, size and edges come from the user's
+   style as inline properties (subtitleLayout.ts); this file is the fixed shape. */
+.subs {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  font-weight: 600;
+  line-height: 1.22;
+  letter-spacing: -0.005em;
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  opacity: 0;
+  transition:
+    opacity 160ms ease-out,
+    transform 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.subs[data-shown='true'] {
+  opacity: 1;
+  transition:
+    opacity 120ms ease-out,
+    transform 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.subs-window {
+  max-width: 100%;
+  padding: 0.08em 0.3em;
+  border-radius: 0.3em;
+  background: var(--sub-window-bg);
+}
+
+.subs-line {
+  text-wrap: balance;
+}
+
+.subs-line > span {
+  padding: 0.06em 0.32em;
+  border-radius: 0.22em;
+  background: var(--sub-line-bg);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subs,
+  .subs[data-shown='true'] {
+    transition: none;
+  }
+}

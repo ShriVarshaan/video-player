@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
-export type MenuItem = { id: number | null; label: string }
+// detail: a quieter second label ("External", or the file name when two look alike).
+export type MenuItem = { id: number | null; label: string; detail?: string | null }
 
 // The Audio or Subtitles menu: a list of radio items above its button.
 // ↑/↓ move, Enter picks, Esc closes just the menu.
@@ -50,6 +51,7 @@ export function TrackMenu({
           onClick={() => onPick(it.id)}
         >
           {it.label}
+          {it.detail && <span className="detail">{it.detail}</span>}
         </button>
       ))}
     </div>

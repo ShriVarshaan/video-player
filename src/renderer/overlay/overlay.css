@@ -315,6 +315,13 @@ button.text {
   content: '✓';
 }
 
+.track-menu .detail {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .track-menu button:hover,
 .track-menu button:focus-visible {
   background: rgba(255, 255, 255, 0.12);

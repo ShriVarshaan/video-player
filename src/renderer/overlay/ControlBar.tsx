@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import type { PlayerCommand, PlayerState } from '@shared/player'
+import type { PlayerCommand, PlayerState, Track } from '@shared/player'
 import { formatTime } from '@shared/time'
-import { TrackMenu } from './TrackMenu'
+import { TrackMenu, type MenuItem } from './TrackMenu'
 
 export type Menu = 'audio' | 'subtitles' | null
 
@@ -21,6 +21,17 @@ const ICONS = {
   mute: 'M4 9v6h4l5 4V5L8 9H4Zm12.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3L16.6 12Z',
   full: 'M5 5h5v2H7v3H5V5Zm9 0h5v5h-2V7h-3V5ZM5 14h2v3h3v2H5v-5Zm12 3v-3h2v5h-5v-2h3Z',
   exitFull: 'M8 5h2v5H5V8h3V5Zm6 0h2v3h3v2h-5V5ZM5 14h5v5H8v-3H5v-2Zm9 0h5v2h-3v3h-2v-5Z'
+}
+
+// Subtitle files say so; when two tracks share a label, files show their name instead.
+function subtitleItems(subs: Track[]): MenuItem[] {
+  const count = new Map<string, number>()
+  for (const t of subs) count.set(t.label, (count.get(t.label) ?? 0) + 1)
+  return subs.map((t) => ({
+    id: t.id,
+    label: t.label,
+    detail: t.external ? ((count.get(t.label) ?? 0) > 1 ? t.fileName : 'External') : null
+  }))
 }
 
 // The bottom bar: seek bar, then play/skip, volume, time, Audio, Subtitles, full screen.
@@ -180,7 +191,7 @@ export function ControlBar({
           {menu === 'subtitles' && (
             <TrackMenu
               label="Subtitles"
-              items={[{ id: null, label: 'Off' }, ...state.subtitles.map((t) => ({ id: t.id, label: t.label }))]}
+              items={[{ id: null, label: 'Off' }, ...subtitleItems(state.subtitles)]}
               selected={state.subtitleId}
               onPick={(id) => {
                 send({ type: 'subtitle', id })
