@@ -614,6 +614,52 @@ button.text {
   font-size: 13px;
 }
 
+/* Auto sync: the same card with a thin bar; indeterminate while matching. */
+.auto-sync-bar {
+  position: relative;
+  height: 4px;
+  margin: 2px 0 10px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.auto-sync-bar > span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--fg);
+  transform-origin: left;
+  transform: scaleX(var(--progress, 0));
+  transition: transform 200ms ease-out;
+}
+
+.auto-sync-bar[data-indeterminate='true'] > span {
+  width: 30%;
+  transform: none;
+  animation: auto-sync-sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes auto-sync-sweep {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 340% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auto-sync-bar > span {
+    transition: none;
+  }
+  .auto-sync-bar[data-indeterminate='true'] > span {
+    width: 100%;
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
 .sync-card kbd,
 .timing-note kbd {
   display: inline-block;

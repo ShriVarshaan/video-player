@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from '@shared/player'
 import { parseAppError } from '@shared/appError'
+import { describeOutcome, type AutoSyncOutcome, type AutoSyncProgress } from '@shared/autoSync'
 import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
 import { NUDGE_BIG_S, NUDGE_S, formatOffset } from '@shared/subtitleTiming'
 import { formatTime } from '@shared/time'
+import { AutoSyncCard } from './AutoSyncCard'
 import { ConfirmCard } from './ConfirmCard'
 import { ControlBar, type Menu, type SubtitleAction } from './ControlBar'
 import { NextCard } from './NextCard'
@@ -32,7 +34,12 @@ export function Overlay() {
   const [syncing, setSyncing] = useState(false)
   const [offsetOpen, setOffsetOpen] = useState(false)
   const [note, setNote] = useState<{ text: string; n: number } | null>(null)
-  const [confirm, setConfirm] = useState<{ name: string; key: string } | null>(null)
+  // kind: which flow asked — manual export or auto sync (its result is held in main).
+  const [confirm, setConfirm] = useState<{ name: string; key: string; kind: 'export' | 'auto' } | null>(null)
+  // Auto sync (milestone 7): the running job's subtitle and progress.
+  const [autoSync, setAutoSync] = useState<{ key: string; progress: AutoSyncProgress | null } | null>(null)
+  const autoJob = useRef(0)
+  const autoRunning = useRef(false)
   const stateRef = useRef<PlayerState | null>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const fillRef = useRef<HTMLElement>(null)
@@ -41,6 +48,14 @@ export function Overlay() {
   // Volume keys run ahead of the state coming back from main.
   const volume = useRef<{ value: number; sent: number | null }>({ value: 100, sent: null })
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cancels a running auto sync: another subtitle or file, or the player closed.
+  // Its answer (cancelled) then shows nothing.
+  const stopAutoSync = useCallback(() => {
+    if (autoRunning.current) void window.api.subtitles.autoSyncCancel({})
+    autoRunning.current = false
+    setAutoSync(null)
+  }, [])
 
   useEffect(() => {
     const offs = [
@@ -55,6 +70,7 @@ export function Overlay() {
         }
         // The sync card and the replace prompt are about one subtitle: another one closes them.
         if (prev?.videoId !== s.videoId || prev?.subtitleId !== s.subtitleId) {
+          stopAutoSync()
           setSyncing(false)
           setOffsetOpen(false)
           setConfirm(null)
@@ -68,6 +84,7 @@ export function Overlay() {
       window.api.on('subtitles.style', setSubStyle),
       window.api.on('subtitles.timing', (t) => setOffset(t?.offset ?? null)),
       window.api.on('player.error', ({ message }) => setError(message)),
+      window.api.on('subtitles.autoSyncProgress', (p) => setAutoSync((a) => (a && a.key === p.key ? { ...a, progress: p } : a))),
       window.api.on('player.closed', () => {
         stateRef.current = null
         closing.current = false
@@ -76,6 +93,7 @@ export function Overlay() {
         setNext(null)
         setMenu(null)
         setCue(null)
+        stopAutoSync()
         setSyncing(false)
         setOffsetOpen(false)
         setConfirm(null)
@@ -83,7 +101,7 @@ export function Overlay() {
       })
     ]
     return () => offs.forEach((off) => off())
-  }, [])
+  }, [stopAutoSync])
 
   // Between state updates (≈30 Hz) the clock runs on, so time and the seek bar move every frame.
   useEffect(() => {
@@ -152,7 +170,7 @@ export function Overlay() {
       setConfirm(null)
       try {
         const r = await window.api.subtitles.exportSynced({ replace, key })
-        if ('exists' in r) setConfirm({ name: r.exists, key })
+        if ('exists' in r) setConfirm({ name: r.exists, key, kind: 'export' })
         else say(r.fallback ? `Saved ${r.saved} in the app's folder` : `Saved ${r.saved}`)
       } catch (e) {
         sayError(e)
@@ -171,9 +189,49 @@ export function Overlay() {
     setSyncing(true)
   }, [say])
 
+  const onAutoOutcome = useCallback(
+    (o: AutoSyncOutcome, key: string) => {
+      if (o.status === 'exists') return setConfirm({ name: o.name, key, kind: 'auto' })
+      const text = describeOutcome(o)
+      if (text) say(text)
+    },
+    [say]
+  )
+
+  // Auto sync of the showing subtitle; one at a time. Picture subtitles can't be read.
+  const startAutoSync = useCallback(() => {
+    const s = stateRef.current
+    const track = s?.subtitles.find((t) => t.id === s.subtitleId)
+    if (!track?.key || autoRunning.current) return
+    if (track.image) return say("Picture subtitles can't be auto-synced")
+    const key = track.key
+    const job = ++autoJob.current
+    autoRunning.current = true
+    setMenu(null)
+    setConfirm(null)
+    setAutoSync({ key, progress: null })
+    window.api.subtitles.autoSync({ key }).then(
+      (o) => job === autoJob.current && onAutoOutcome(o, key),
+      (e: unknown) => job === autoJob.current && sayError(e)
+    ).finally(() => {
+      if (job !== autoJob.current) return
+      autoRunning.current = false
+      setAutoSync(null)
+    })
+  }, [say, sayError, onAutoOutcome])
+
+  const replaceAutoSync = useCallback(
+    (key: string) => {
+      setConfirm(null)
+      window.api.subtitles.autoSyncReplace({ key }).then((o) => onAutoOutcome(o, key), sayError)
+    },
+    [onAutoOutcome, sayError]
+  )
+
   const onSubtitleAction = useCallback(
     (a: SubtitleAction) => {
       if (a === 'sync') return startSync()
+      if (a === 'auto') return startAutoSync()
       setMenu(null)
       if (a === 'offset') return setOffsetOpen(true)
       if (a === 'reset') void window.api.subtitles.resetTiming({}).then(() => sayOffset(0), sayError)
@@ -183,7 +241,7 @@ export function Overlay() {
         if (key) void exportSynced(false, key)
       }
     },
-    [startSync, sayOffset, sayError, exportSynced]
+    [startSync, startAutoSync, sayOffset, sayError, exportSynced]
   )
 
   const close = useCallback(() => {
@@ -250,6 +308,11 @@ export function Overlay() {
           if (s.subtitleId === null || e.repeat) return
           startSync()
           break
+        case 'a':
+        case 'A':
+          if (s.subtitleId === null || e.repeat) return
+          startAutoSync()
+          break
         default:
           return
       }
@@ -257,7 +320,7 @@ export function Overlay() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [menu, close, wake, nudge, startSync])
+  }, [menu, close, wake, nudge, startSync, startAutoSync])
 
   const playNext = useCallback(() => {
     const s = stateRef.current
@@ -316,9 +379,14 @@ export function Overlay() {
       {state && offsetOpen && showingKey && (
         <OffsetPanel offset={offset ?? 0} subtitleKey={showingKey} onClose={() => setOffsetOpen(false)} />
       )}
+      {state && autoSync && <AutoSyncCard progress={autoSync.progress} onCancel={stopAutoSync} />}
       {state && syncing && <SyncCard getPosition={getPosition} onSynced={sayOffset} onClose={closeSync} />}
       {state && confirm && (
-        <ConfirmCard name={confirm.name} onReplace={() => void exportSynced(true, confirm.key)} onCancel={() => setConfirm(null)} />
+        <ConfirmCard
+          name={confirm.name}
+          onReplace={() => (confirm.kind === 'auto' ? replaceAutoSync(confirm.key) : void exportSynced(true, confirm.key))}
+          onCancel={() => setConfirm(null)}
+        />
       )}
       <TimingNote message={note} />
     </div>

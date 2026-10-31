@@ -239,6 +239,16 @@ function makeSpeech() {
 if (process.platform === 'win32' && !existsSync(speechVideo)) makeSpeech()
 else if (!existsSync(speechVideo)) console.warn('skipping speech.mkv: Windows TTS needed')
 
+// The speech looped to ~90 min under a tiny picture: a sync that takes a few
+// seconds, so E2E can cancel it or use the player while it runs.
+make(join(media, 'speech-long.mkv'), (f) =>
+  run([
+    '-f', 'lavfi', '-i', 'color=c=0x223344:s=64x36:r=1',
+    '-stream_loop', '11', '-i', speechVideo,
+    '-map', '0:v', '-map', '1:a', '-shortest', '-c:v', 'mpeg4', '-c:a', 'copy', f
+  ])
+)
+
 // The same picture with no audio stream at all.
 make(join(media, 'speech-noaudio.mkv'), (f) =>
   run(['-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24:duration=10', '-c:v', 'mpeg4', '-q:v', '8', f])

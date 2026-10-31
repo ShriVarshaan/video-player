@@ -26,7 +26,7 @@ const ICONS = {
 }
 
 // Subtitle timing commands in the Subtitles menu.
-export type SubtitleAction = 'offset' | 'sync' | 'reset' | 'export'
+export type SubtitleAction = 'auto' | 'offset' | 'sync' | 'reset' | 'export'
 
 // Subtitle files say so; when two tracks share a label, files show their name instead.
 // The showing subtitle's row carries its timing fix ("+0.35 s") when it has one.
@@ -65,6 +65,7 @@ export function ControlBar({
   const timingActions = !showing
     ? []
     : [
+        { label: 'Auto sync', onPick: () => onSubtitleAction('auto') },
         { label: 'Set offset…', onPick: () => onSubtitleAction('offset') },
         ...(showing.image ? [] : [{ label: 'Sync to a line…', onPick: () => onSubtitleAction('sync') }]),
         ...(offset ? [{ label: 'Reset timing', onPick: () => onSubtitleAction('reset') }] : []),
