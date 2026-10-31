@@ -116,7 +116,16 @@ class Server:
             self._error(job.id, "CANCELLED", "cancelled")
 
 
+    def finish(self) -> None:
+        """At end of input: let a running job reply before the process exits."""
+        with self._state_lock:
+            job = self._running
+        if job is not None and job.thread is not None:
+            job.thread.join()
+
+
 def serve(run_job: Job, inp: TextIO, out: TextIO) -> None:
     server = Server(run_job, out)
     for line in inp:
         server.handle_line(line)
+    server.finish()

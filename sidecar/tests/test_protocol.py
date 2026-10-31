@@ -138,3 +138,15 @@ def test_unexpected_exception(capsys):
     line = out.wait_for(lambda l: "error" in l)
     assert line["error"]["code"] == "INTERNAL" and "boom" in line["error"]["message"]
     assert "Traceback" in capsys.readouterr().err
+
+
+def test_serve_finishes_running_job_at_eof():
+    from vp_sync.protocol import serve
+
+    def job(params, progress, cancelled):
+        time.sleep(0.2)
+        return {"offset": 1.0, "scale": 1.0, "score": 9.0}
+
+    out = Out()
+    serve(job, io.StringIO('{"id":1,"method":"sync","params":{}}\n'), out)
+    assert out.lines() == [{"id": 1, "result": {"offset": 1.0, "scale": 1.0, "score": 9.0}}]
