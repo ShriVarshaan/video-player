@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { binaryPath, userDataDir, userDataOverride } from '../../src/main/paths'
+import { binaryPath, sidecarCommand, userDataDir, userDataOverride } from '../../src/main/paths'
 
 describe('binaryPath', () => {
   it('puts mpv under vendor/mpv', () => {
@@ -35,5 +35,31 @@ describe('userDataDir', () => {
 
   it('prefers --user-data-dir', () => {
     expect(userDataDir(['electron', '--user-data-dir=D:\\t'], 'C:\\AppData')).toBe('D:\\t')
+  })
+})
+
+describe('sidecarCommand', () => {
+  const all = () => true
+  const none = () => false
+
+  it('dev: runs the venv python as a module from sidecar/', () => {
+    expect(sidecarCommand('C:\\base', false, all)).toEqual({
+      cmd: 'C:\\base\\sidecar\\.venv\\Scripts\\python.exe',
+      args: ['-m', 'vp_sync'],
+      cwd: 'C:\\base\\sidecar'
+    })
+  })
+
+  it('packaged: runs the bundled exe from its folder', () => {
+    expect(sidecarCommand('C:\\res', true, all)).toEqual({
+      cmd: 'C:\\res\\sidecar\\vp-sync\\vp-sync.exe',
+      args: [],
+      cwd: 'C:\\res\\sidecar\\vp-sync'
+    })
+  })
+
+  it('missing: null', () => {
+    expect(sidecarCommand('C:\\base', false, none)).toBeNull()
+    expect(sidecarCommand('C:\\res', true, none)).toBeNull()
   })
 })
