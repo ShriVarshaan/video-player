@@ -13,7 +13,12 @@ import { toCue } from '../subtitles/cue'
 import type { ExternalSub, LoadedSub } from '../subtitles/match'
 import type { StyleStore } from '../subtitles/styleStore'
 import { originalLanguage } from '../subtitles/titleInfo'
-import { pickSubtitle, pickTrack, refOf, subtitlePrefFor, toTracks } from './tracks'
+import type { ParsedCue } from '../subtitles/parse'
+import { TEXT_CODECS } from '../subtitles/extract'
+import { subtitleKeyForFile } from '../subtitles/transforms'
+import { offsetForCue } from '@shared/subtitleTiming'
+import { createSubtitleDelay } from './subtitleDelay'
+import { pickSubtitle, pickTrack, preferSynced, refOf, subtitlePrefFor, toTracks } from './tracks'
 
 // One running mpv. onExit's flag is true when we asked it to quit.
 export type MpvProcess = { client: MpvClient; onExit(cb: (expected: boolean) => void): void; quit(): Promise<void> }
@@ -26,16 +31,31 @@ export type PlayerService = API['player'] & {
   current(): { videoId: number; titleKey: string; path: string } | null
   // Re-sends the playing title's subtitle style after a change.
   notifyStyle(): void
-  // Adds a downloaded subtitle file, shows it and remembers it for the title.
-  addSubtitle(sub: ExternalSub): Promise<void>
+  // Adds a subtitle file and shows it; remembers it for the title unless remember is false.
+  addSubtitle(sub: ExternalSub, opts?: { remember?: boolean }): Promise<void>
+  // Timing of the showing subtitle (milestone 6). null: no subtitle showing.
+  nudgeSubtitle(deltaS: number): Promise<number | null>
+  syncSubtitleTo(cueStart: number): Promise<number | null>
+  resetSubtitleTiming(): Promise<void>
+  currentSubtitle(): { videoId: number; videoPath: string; track: Track; offset: number } | null
+  // The showing text subtitle's lines, read by the app itself.
+  subtitleCues(): Promise<ParsedCue[]>
 }
+
+// Where the app reads a subtitle's lines from.
+export type SubtitleCueSource =
+  | { kind: 'file'; path: string; lang: string | null }
+  | { kind: 'embedded'; video: string; ffIndex: number; codec: string; signal?: AbortSignal }
 
 // Finds a video's subtitle files and turns one into a path mpv can read (UTF-8).
 export type SubtitleSource = {
   find(video: { path: string; season: number | null; episode: number | null }, opts: { userLang: string; extraDirs: string[] }): Promise<ExternalSub[]>
   load(sub: ExternalSub): Promise<string>
   userData: string
+  cues(src: SubtitleCueSource): Promise<ParsedCue[]>
 }
+
+const NEEDS_TEXT = 'Sync to a line needs a text subtitle'
 
 const SAVE_EVERY_MS = 10_000
 const STATE_EVERY_MS = 33 // about 30 updates a second to the overlay
@@ -108,10 +128,27 @@ export function createPlayerService(deps: {
     externals: [] as LoadedSub[]
   }
   let lastCue = 'null'
+  // Cues the app has read for the current file, by subtitle key; aborted when the file changes.
+  let cueCache = new Map<string, Promise<ParsedCue[]>>()
+  let cueAbort = new AbortController()
 
   // Commands other than loadfile are best effort: a failed one must not break playback.
   const cmd = (...args: unknown[]) =>
     proc?.client.command(...args).catch((e: unknown) => console.warn('mpv command failed:', args[0], e)) ?? Promise.resolve()
+
+  const delay = createSubtitleDelay({
+    db,
+    setDelay: async (s) => void (await cmd('set_property', 'sub-delay', s)),
+    emit: (offset) => deps.emit('subtitles.timing', offset === null ? null : { offset }),
+    now: deps.now
+  })
+
+  function newFile() {
+    delay.flush()
+    cueAbort.abort()
+    cueAbort = new AbortController()
+    cueCache = new Map()
+  }
 
   function emitCue(cue: Cue | null) {
     const json = JSON.stringify(cue)
@@ -122,7 +159,12 @@ export function createPlayerService(deps: {
 
   // Text subtitles are drawn by the overlay; mpv draws only picture-based ones.
   async function selectSubtitle(id: number | null) {
+    // The track's own timing fix (or none) is in place before it shows.
+    const track = id === null ? undefined : st.tracks.find((t) => t.type === 'sub' && t.id === id)
+    if (cur) await delay.select(cur.videoId, track?.key ?? null)
     await cmd('set_property', 'sid', id ?? 'no')
+    // Known at once (mpv's sid observer confirms it shortly after).
+    st.sid = id
     const image = st.tracks.some((t) => t.type === 'sub' && t.id === id && t.image)
     await cmd('set_property', 'sub-visibility', image)
   }
@@ -241,14 +283,14 @@ export function createPlayerService(deps: {
     const subs = st.tracks.filter((t) => t.type === 'sub')
     if (restore) {
       if (restore.aid !== null) await cmd('set_property', 'aid', restore.aid)
-      await selectSubtitle(restore.sub === 'off' ? null : (pickTrack(subs, restore.sub)?.id ?? null))
+      await selectSubtitle(restore.sub === 'off' ? null : (preferSynced(subs, pickTrack(subs, restore.sub))?.id ?? null))
     } else {
       const settings = deps.styles.subtitleSettings()
       const a = pickTrack(audio, prefs.audio)
       if (a) await cmd('set_property', 'aid', a.id)
       // Untagged audio: TMDB's original language, else assume it is the user's.
       const audioLang = (a ?? audio.find((t) => t.default) ?? audio[0])?.lang ?? originalLanguage(db, mine.videoId) ?? settings.language
-      const s = pickSubtitle(subs, prefs.subtitle, { audioLang, userLang: settings.language, preferSdh: settings.preferSdh })
+      const s = preferSynced(subs, pickSubtitle(subs, prefs.subtitle, { audioLang, userLang: settings.language, preferSdh: settings.preferSdh }))
       await selectSubtitle(s ? s.id : null)
     }
     // Lines are shown only from here on: before the pick, mpv's own default track could speak.
@@ -379,6 +421,7 @@ export function createPlayerService(deps: {
     // Let a stop that is still closing finish first, so it can't close this session.
     if (closing) await closing.catch(() => {})
     if (cur && cur.videoId !== videoId) save()
+    newFile()
     const mine: Current = {
       title,
       videoId,
@@ -418,6 +461,7 @@ export function createPlayerService(deps: {
     if (!cur) return
     closing = (async () => {
       save()
+      newFile()
       deps.emit('library.changed', {})
       const p = proc
       proc = null
@@ -479,7 +523,7 @@ export function createPlayerService(deps: {
     }
   }
 
-  async function addSubtitle(sub: ExternalSub) {
+  async function addSubtitle(sub: ExternalSub, opts: { remember?: boolean } = {}) {
     if (!proc || !cur?.loaded) return
     const mine = cur
     await mine.setup?.catch(() => {})
@@ -489,12 +533,49 @@ export function createPlayerService(deps: {
     emitCue(null)
     await cmd('sub-add', path, 'select', basename(sub.path), sub.lang ?? '')
     st.tracks = toTracks(await cmd('get_property', 'track-list'), st.externals)
-    const added = st.tracks.filter((t) => t.type === 'sub' && t.external).at(-1)
+    // The track of this very file (a re-export can add the same name twice: the newest).
+    const key = subtitleKeyForFile(sub.path)
+    const added = st.tracks.filter((t) => t.type === 'sub' && t.key === key).at(-1)
     if (added) {
       await selectSubtitle(added.id)
-      savePrefs(db, mine.title.key, { subtitle: refOf(added) }, deps.now())
+      if (opts.remember !== false) savePrefs(db, mine.title.key, { subtitle: refOf(added) }, deps.now())
     }
     emitState(true)
+  }
+
+  const showing = () => (cur ? st.tracks.find((t) => t.type === 'sub' && t.id === st.sid) : undefined)
+
+  async function syncSubtitleTo(cueStart: number): Promise<number | null> {
+    if (!delay.current()) return null
+    const pos = num(await cmd('get_property', 'time-pos')) ?? st.positionS
+    return delay.set(offsetForCue(cueStart, pos))
+  }
+
+  function currentSubtitle() {
+    const track = showing()
+    const d = delay.current()
+    if (!cur || !track || !d) return null
+    return { videoId: cur.videoId, videoPath: cur.path, track, offset: d.offset }
+  }
+
+  async function subtitleCues(): Promise<ParsedCue[]> {
+    const track = showing()
+    if (!cur || !track?.key) throwAppError({ code: 'invalid_argument', message: 'Choose a subtitle first.' })
+    if (track.image) throwAppError({ code: 'invalid_argument', message: NEEDS_TEXT })
+    const known = cueCache.get(track.key)
+    if (known) return known
+    let src: SubtitleCueSource
+    const ext = track.external ? st.externals.find((e) => e.original && subtitleKeyForFile(e.original) === track.key) : undefined
+    if (ext) src = { kind: 'file', path: ext.original!, lang: ext.lang }
+    else if (!track.external && track.key.startsWith('embedded:') && track.codec && TEXT_CODECS.has(track.codec)) {
+      src = { kind: 'embedded', video: cur.path, ffIndex: Number(track.key.slice('embedded:'.length)), codec: track.codec, signal: cueAbort.signal }
+    } else throwAppError({ code: 'invalid_argument', message: NEEDS_TEXT })
+    const key = track.key
+    const p = deps.subtitles.cues(src)
+    cueCache.set(key, p)
+    // A failed read is tried again next time.
+    p.catch(() => cueCache.get(key) === p && cueCache.delete(key))
+    return p
   }
 
   return {
@@ -504,6 +585,11 @@ export function createPlayerService(deps: {
     shutdown: () => stop(),
     current: () => (cur ? { videoId: cur.videoId, titleKey: cur.title.key, path: cur.path } : null),
     notifyStyle,
-    addSubtitle
+    addSubtitle,
+    nudgeSubtitle: (deltaS) => delay.nudge(deltaS),
+    syncSubtitleTo,
+    resetSubtitleTiming: async () => void (await delay.set(0)),
+    currentSubtitle,
+    subtitleCues
   }
 }

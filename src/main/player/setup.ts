@@ -6,7 +6,9 @@ import { broadcast } from '../broadcast'
 import { registerDomain } from '../ipc'
 import { binaryPath } from '../paths'
 import { ensureUtf8 } from '../subtitles/decode'
+import { extractSubtitle } from '../subtitles/extract'
 import { findSubtitles } from '../subtitles/match'
+import { readSubtitleFile } from '../subtitles/parse'
 import { createStyleStore, type StyleStore } from '../subtitles/styleStore'
 import { launchMpv } from './launch'
 import { createOverlay } from './overlay'
@@ -25,6 +27,7 @@ export function setupPlayer(opts: {
   const overlay = createOverlay(main, opts.loadOverlay, opts.webPreferences)
   const styles = createStyleStore(opts.db, { now: Date.now, defaultLanguage: normalizeLang(app.getLocale()) ?? 'eng' })
   const decoded = join(opts.userDataPath, 'cache', 'subtitles')
+  const extracted = join(decoded, 'extracted')
   const player = createPlayerService({
     db: opts.db,
     launch: () => launchMpv({ mpvPath: binaryPath('mpv', opts.binaryBase), hwnd: main.getNativeWindowHandle().readBigUInt64LE(0) }),
@@ -32,7 +35,16 @@ export function setupPlayer(opts: {
     window: { setFullScreen: (on) => main.setFullScreen(on), isFullScreen: () => main.isFullScreen() },
     overlay,
     now: Date.now,
-    subtitles: { find: findSubtitles, load: (s) => ensureUtf8(s.path, decoded, s.lang), userData: opts.userDataPath },
+    subtitles: {
+      find: findSubtitles,
+      load: (s) => ensureUtf8(s.path, decoded, s.lang),
+      userData: opts.userDataPath,
+      cues: async (src) => {
+        if (src.kind === 'file') return readSubtitleFile(src.path, src.lang)
+        const path = await extractSubtitle({ ffmpegPath: binaryPath('ffmpeg', opts.binaryBase), cacheDir: extracted, ...src })
+        return readSubtitleFile(path, null)
+      }
+    },
     styles
   })
   registerDomain(ipcMain, 'player', player)

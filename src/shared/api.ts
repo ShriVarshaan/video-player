@@ -117,6 +117,8 @@ export type ApiEvents = {
   'subtitles.cue': Cue | null
   // The playing title's effective subtitle style.
   'subtitles.style': SubtitleStyle
+  // The showing subtitle's timing fix in seconds (null: no subtitle showing).
+  'subtitles.timing': { offset: number } | null
 }
 
 export const eventChannel = (name: keyof ApiEvents): string => `vp:event.${name}`

@@ -3,10 +3,12 @@ import { join } from 'node:path'
 import type { ApiEvents } from '@shared/api'
 import { openDb, type Db } from '../../src/main/db'
 import type { MpvClient } from '../../src/main/player/mpvIpc'
-import { createPlayerService, type MpvProcess, type PlayerService } from '../../src/main/player/service'
+import { createPlayerService, type MpvProcess, type PlayerService, type SubtitleCueSource } from '../../src/main/player/service'
 import { getPrefs, savePrefs } from '../../src/main/player/titlePrefs'
 import type { ExternalSub } from '../../src/main/subtitles/match'
 import { createStyleStore } from '../../src/main/subtitles/styleStore'
+import { getOffset, setOffset } from '../../src/main/subtitles/transforms'
+import { REACTION_LEAD_S } from '@shared/subtitleTiming'
 
 const TRACKS = [
   { id: 1, type: 'video', codec: 'h264' },
@@ -44,6 +46,7 @@ function fakeMpv(): Fake {
         if (trackGate) await trackGate
         return now
       }
+      if (args[0] === 'get_property') return mpvProps[String(args[1])] ?? null
       return null
     },
     observe: async (name, cb) => void observers.set(name, cb),
@@ -73,6 +76,8 @@ let db: Db
 let trackList: Record<string, unknown>[]
 let trackGate: Promise<void> | null
 let externals: ExternalSub[]
+let mpvProps: Record<string, unknown>
+let cueReads: SubtitleCueSource[]
 let fakes: Fake[]
 let events: { event: keyof ApiEvents; payload: unknown }[]
 let overlay: { show: ReturnType<typeof vi.fn<() => void>>; hide: ReturnType<typeof vi.fn<() => void>> }
@@ -122,6 +127,8 @@ beforeEach(() => {
   trackList = TRACKS
   trackGate = null
   externals = []
+  mpvProps = {}
+  cueReads = []
   fakes = []
   events = []
   overlay = { show: vi.fn<() => void>(), hide: vi.fn<() => void>() }
@@ -152,7 +159,11 @@ beforeEach(() => {
     subtitles: {
       find: async () => externals,
       load: async (s) => s.path,
-      userData: 'C:/data'
+      userData: 'C:/data',
+      cues: async (src) => {
+        cueReads.push(src)
+        return [{ start: 1, end: 4, lines: ['Wake up, Neo.'], italic: false, top: false }]
+      }
     },
     styles: createStyleStore(db, { now: () => 1, defaultLanguage: 'eng' })
   })
@@ -516,7 +527,7 @@ describe('subtitles (milestone 5)', () => {
     player = createPlayerService({
       db, launch: async () => (fakes.push(fakeMpv()), mpv().proc), emit: (event, payload) => events.push({ event, payload }),
       window: win, overlay, now: () => Date.now(),
-      subtitles: { find, load: async (s) => s.path, userData: 'C:/data' },
+      subtitles: { find, load: async (s) => s.path, userData: 'C:/data', cues: async () => [] },
       styles: createStyleStore(db, { now: () => 1, defaultLanguage: 'fre' })
     })
     await player.play({ key: 'tmdb:1396', videoId: 6, from: 'start' })
@@ -656,5 +667,158 @@ describe('subtitles (milestone 5)', () => {
     await loaded()
     // After the respawn English is id 3.
     expect(sent('set_property').filter((c) => c[1] === 'sid').at(-1)).toEqual(['set_property', 'sid', 3])
+  })
+})
+
+describe('subtitle timing (milestone 6)', () => {
+  const SUBS = [
+    { id: 1, type: 'video', codec: 'h264' },
+    { id: 1, type: 'audio', lang: 'eng', default: true, 'ff-index': 1 },
+    { id: 1, type: 'sub', lang: 'eng', 'ff-index': 3, codec: 'subrip' },
+    { id: 2, type: 'sub', lang: 'fre', 'ff-index': 4, codec: 'ass' },
+    { id: 9, type: 'sub', lang: 'ger', 'ff-index': 5, codec: 'hdmv_pgs_subtitle' }
+  ]
+  const delays = () => sent('set_property').filter((c) => c[1] === 'sub-delay').map((c) => c[2])
+  const pick = (id: number | null) => player.command({ type: 'subtitle', id })
+  const start = async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+  }
+
+  it('selecting a subtitle applies its stored delay before showing it', async () => {
+    setOffset(db, 2, 'embedded:3', 1.5, 0)
+    await start()
+    await pick(1)
+    const names = mpv().commands.map((c) => `${String(c[0])} ${String(c[1])} ${String(c[2])}`)
+    expect(delays().at(-1)).toBe(1.5)
+    expect(names.lastIndexOf('set_property sub-delay 1.5')).toBeLessThan(names.lastIndexOf('set_property sid 1'))
+    expect(emitted('subtitles.timing').at(-1)).toEqual({ offset: 1.5 })
+  })
+
+  it('Off sets the delay to 0', async () => {
+    setOffset(db, 2, 'embedded:3', 1.5, 0)
+    await start()
+    await pick(1)
+    await pick(null)
+    expect(delays().at(-1)).toBe(0)
+    expect(emitted('subtitles.timing').at(-1)).toBeNull()
+  })
+
+  it('each subtitle keeps its own delay', async () => {
+    await start()
+    await pick(1)
+    expect(await player.nudgeSubtitle(0.1)).toBe(0.1)
+    await pick(2)
+    expect(delays().at(-1)).toBe(0)
+    await pick(1)
+    expect(delays().at(-1)).toBe(0.1)
+  })
+
+  it('a new file resets the delay', async () => {
+    await start()
+    await pick(1)
+    await player.nudgeSubtitle(2)
+    await player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    await loaded(3000)
+    expect(delays().at(-1)).toBe(0)
+  })
+
+  it('crash restore re-applies the delay', async () => {
+    setOffset(db, 2, 'embedded:3', 1.5, 0)
+    await start()
+    await pick(1)
+    mpv().set('sid', 1)
+    mpv().crash()
+    await flush()
+    await loaded()
+    expect(delays().at(-1)).toBe(1.5)
+  })
+
+  it('flushes a pending nudge on stop', async () => {
+    await start()
+    await pick(1)
+    await player.nudgeSubtitle(0.5)
+    expect(getOffset(db, 2, 'embedded:3')).toBe(0)
+    await player.stop({})
+    expect(getOffset(db, 2, 'embedded:3')).toBe(0.5)
+  })
+
+  it('nudge with no subtitle does nothing', async () => {
+    await start()
+    const before = delays().length
+    expect(await player.nudgeSubtitle(0.5)).toBeNull()
+    expect(delays()).toHaveLength(before)
+  })
+
+  it("syncSubtitleTo lines the cue up with mpv's own position", async () => {
+    await start()
+    await pick(1)
+    mpvProps['time-pos'] = 9
+    expect(await player.syncSubtitleTo(5)).toBeCloseTo(4 - REACTION_LEAD_S)
+    expect(delays().at(-1)).toBeCloseTo(4 - REACTION_LEAD_S)
+  })
+
+  it('reset puts the delay back to 0', async () => {
+    setOffset(db, 2, 'embedded:3', 1.5, 0)
+    await start()
+    await pick(1)
+    await player.resetSubtitleTiming()
+    await player.stop({})
+    expect(getOffset(db, 2, 'embedded:3')).toBe(0)
+  })
+
+  it('a synced file stands in for the remembered English subtitle', async () => {
+    externals = [
+      { path: 'D:/L/matrix.en.srt', lang: 'eng', kind: 'plain', format: 'srt' },
+      { path: 'D:/L/matrix.en.synced.srt', lang: 'eng', kind: 'plain', format: 'srt', synced: true }
+    ]
+    savePrefs(db, 'movie:2', { subtitle: { lang: 'eng', kind: 'plain', title: 'matrix.en.srt' } }, 1)
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    // The synced file is the second one added: id 4.
+    expect(sent('set_property').filter((c) => c[1] === 'sid').at(-1)).toEqual(['set_property', 'sid', 4])
+  })
+
+  it('an exported subtitle is shown without changing the remembered choice', async () => {
+    const ref = { lang: 'eng', kind: 'plain' as const, title: 'English' }
+    savePrefs(db, 'movie:2', { subtitle: ref }, 1)
+    await start()
+    await player.addSubtitle({ path: 'D:/L/matrix.en.synced.srt', lang: 'eng', kind: 'plain', format: 'srt', synced: true }, { remember: false })
+    expect(sent('set_property').filter((c) => c[1] === 'sid').at(-1)).toEqual(['set_property', 'sid', 3])
+    expect(getPrefs(db, 'movie:2').subtitle).toEqual(ref)
+  })
+
+  it('currentSubtitle describes the showing track and its delay', async () => {
+    setOffset(db, 2, 'embedded:3', 1.5, 0)
+    await start()
+    expect(player.currentSubtitle()).toBeNull()
+    await pick(1)
+    expect(player.currentSubtitle()).toMatchObject({ videoId: 2, videoPath: 'D:/L/matrix.mkv', offset: 1.5, track: { id: 1, lang: 'eng', key: 'embedded:3' } })
+  })
+
+  it('reads cues: an embedded track by stream index, a file by its own path', async () => {
+    externals = [{ path: 'D:/L/matrix.en.srt', lang: 'eng', kind: 'plain', format: 'srt' }]
+    await start()
+    await pick(2)
+    expect(await player.subtitleCues()).toHaveLength(1)
+    expect(cueReads.at(-1)).toMatchObject({ kind: 'embedded', video: 'D:/L/matrix.mkv', ffIndex: 4, codec: 'ass' })
+    await pick(3)
+    await player.subtitleCues()
+    expect(cueReads.at(-1)).toMatchObject({ kind: 'file', path: 'D:/L/matrix.en.srt', lang: 'eng' })
+  })
+
+  it('reads a track once per file', async () => {
+    await start()
+    await pick(1)
+    await player.subtitleCues()
+    await player.subtitleCues()
+    expect(cueReads).toHaveLength(1)
+  })
+
+  it('subtitleCues rejects a picture track', async () => {
+    await start()
+    await pick(9)
+    await expect(player.subtitleCues()).rejects.toThrow('Sync to a line needs a text subtitle')
   })
 })
