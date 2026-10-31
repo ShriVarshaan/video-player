@@ -138,3 +138,15 @@ Added under the existing items (only when a subtitle is selected):
 - Synced files are named `Movie.en.synced.srt` (language and kind in the name), and one stands in for the subtitle of the same language and kind on that video; export doesn't change a show's remembered subtitle.
 - Export is allowed even at offset 0 (handy for turning an embedded subtitle into a file).
 - Offsets are capped at ±10 minutes.
+
+## As built (2026-10-31)
+
+Differences from the design, and why:
+- **No reaction-time lead yet** (`REACTION_LEAD_S = 0`): it has to be measured by pressing S on real films, which needs the user (see below).
+- **`sub-delay` is set before `sid`**, so a newly picked track never shows with the previous track's delay. `selectSubtitle` records the selection at once instead of waiting for mpv's `sid` observer, so the sync card and export know the track right away.
+- **Cue reading is injected** into `PlayerService` (`SubtitleSource.cues`), wired in `player/setup.ts` to `readSubtitleFile` / `extractSubtitle`, so the service stays unit-testable.
+- **`addSubtitle` finds the added track by its file key**, not "the last external track" (fixes a milestone-5 deferred item).
+- The sync card and the note open without animation (they come from key presses); the note only fades out.
+- **E2E windows open on the second display** when there is one (`toSecondDisplay` in `tests/e2e/pages.ts`), at the user's request.
+
+Needs the user's check: on a real film with a subtitle a few seconds off, use "Sync to a line" five times. If the result is always late by about the same amount, that amount becomes `REACTION_LEAD_S`. Also: hold G for two seconds (no stutter, right offset after reopening), and a real MKV with an embedded SRT/ASS track.

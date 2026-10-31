@@ -23,7 +23,7 @@ Electron main process (Node/TS)
  ├─ MetadataService  – TMDB movie + TV lookup, WebP image cache behind poster://, ffmpeg frame fallback
  ├─ PlayerService    – spawns mpv.exe with --wid=<main window HWND>, JSON IPC over a named pipe     [mpv-ipc]
  ├─ Subtitles        – find files next to videos, UTF-8 copies for mpv, style store, OpenSubtitles  [subtitle-formats]
- │                     (milestone 6 adds the app's own reader: offsets, sync-to-line, export)
+ │                     + the app's own reader, mpv sub-delay offsets, sync-to-line, synced export
  └─ SyncService      – Python sidecar over stdio JSON-lines                                          [subtitle-sync-ml]
 Renderer (React + TS + Vite)
  ├─ Menu + pages     – top-left drawer: Search · Home (the wall, title pages) · Settings (folders, TMDB key, about)
@@ -73,13 +73,13 @@ Python sidecar (PyInstaller onedir)
 - **ML sync:**
   - Fast: ffsubsync (VAD), recovering offset and framerate scale.
   - Deep: faster-whisper with word timestamps, matched to subtitle lines with rapidfuzz, then a RANSAC global fit, with piecewise segments for cuts.
-  - Output is `<movie>.synced.srt`. The original subtitle file is never overwritten.
-- **Manual sync:**
-  - G/H shift ±50 ms; Shift+G/H shift ±500 ms.
-  - Offset slider.
-  - "Sync to this line".
-  - Two-point sync for drift.
-  - Saved per movie and subtitle; exportable.
+  - Output is `<movie>.<lang>.synced.srt` (as manual export names it). The original subtitle file is never overwritten.
+- **Manual sync (milestone 6):**
+  - G/H shift ±50 ms; Shift+G/H shift ±500 ms. A short note shows the offset.
+  - "Sync to a line": a card shows the next line; press S when it's heard (←/→ other lines).
+  - Reset timing; Export synced .srt (`<movie>.<lang>[.sdh|.forced].synced.srt`, listed first as "Synced").
+  - Applied through mpv's `sub-delay`; saved per video and subtitle.
+  - No offset slider and no two-point sync (dropped with the user: drift is left to ML sync).
 
 ## Project layout
 ```
@@ -104,7 +104,7 @@ video-player/
 | 3 | **Infinite wall:** poster wall on Home, menu drawer (Search · Home · Settings), Settings page, bottom-left info card | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | ✅ done |
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | ✅ done |
 | 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
-| 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), hotkeys, panel, sync-to-line, two-point, export | `subtitle-formats` | |
+| 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, sync-to-line card, reset, synced export | `subtitle-formats` | |
 | 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |
 | 8 | **Search** | `netflix-search` | |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
