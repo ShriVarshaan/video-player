@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import wave
 from typing import Callable, List, Optional, Tuple
 
@@ -37,6 +38,31 @@ Progress = Callable[[str, Optional[float]], None]
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
+STALE_S = 10 * 60
+
+
+def clean_stale(tmp: Optional[str] = None) -> None:
+    """Deletes leftovers of syncs that were killed mid-way (a WAV can be
+    hundreds of MB). Recent ones are kept: they may belong to a running sync."""
+    tmp = tmp or tempfile.gettempdir()
+    cutoff = time.time() - STALE_S
+    try:
+        names = os.listdir(tmp)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(tmp, name)
+        try:
+            if os.path.getmtime(path) > cutoff:
+                continue
+            if name.startswith("vp-sync-") and os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+            elif name.startswith("vp-autosync-") and name.endswith(".srt"):
+                os.remove(path)
+        except OSError:
+            pass
+
+
 def snap_scale(scale: float) -> float:
     for r in RATIOS:
         if abs(scale - r) <= 0.0005 * r:
@@ -57,7 +83,10 @@ def _read_cues(path: str) -> List[Tuple[float, float]]:
 
 
 def _extract(ffmpeg: str, video: str, stream: int, out_wav: str, duration: Optional[float], progress: Progress, cancelled: threading.Event) -> None:
+    # first_pts=0 pads an audio stream that starts after the file does, so the
+    # WAV's time 0 is the film's time 0 (as mpv plays it).
     args = [ffmpeg, "-nostdin", "-v", "error", "-nostats", "-stats_period", "0.05", "-i", video, "-map", f"0:a:{stream}",
+            "-af", "aresample=async=1:first_pts=0",
             "-ac", "1", "-ar", str(RATE), "-f", "wav", "-y", out_wav, "-progress", "pipe:1"]
     proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
     finished = threading.Event()

@@ -19,6 +19,7 @@ export type AppErrorCode =
   | 'opensubtitles_storage_unavailable'
   | 'sync_unavailable'
   | 'sync_no_audio'
+  | 'sync_busy'
   | 'unknown'
 
 export const appErrorMessages: Record<AppErrorCode, string> = {
@@ -38,6 +39,7 @@ export const appErrorMessages: Record<AppErrorCode, string> = {
   opensubtitles_storage_unavailable: 'Windows could not encrypt the OpenSubtitles login, so it was not saved.',
   sync_unavailable: "Auto sync isn't available",
   sync_no_audio: 'This video has no audio to sync to',
+  sync_busy: 'Still stopping the last sync. Try again in a moment.',
   unknown: 'An unknown error occurred.'
 }
 

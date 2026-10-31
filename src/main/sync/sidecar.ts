@@ -32,6 +32,8 @@ type Pending = {
   onProgress: (p: SyncProgress) => void
 }
 
+const DISPOSE_GRACE_MS = 2000
+
 const CODES = new Set<string>(['NO_MATCH', 'NO_AUDIO', 'FFMPEG_FAILED', 'CANCELLED', 'BUSY', 'INTERNAL'])
 
 export function createSidecar(opts: {
@@ -83,6 +85,8 @@ export function createSidecar(opts: {
     })
     createInterface({ input: c.stdout! }).on('line', onLine)
     createInterface({ input: c.stderr! }).on('line', (l) => log(l))
+    // A helper dying mid-write must not become an uncaught stream error in main.
+    c.stdin?.on('error', (e) => log(`stdin: ${e.message}`))
     c.on('error', (e: NodeJS.ErrnoException) => {
       if (child === c) child = null
       log(`spawn failed: ${e.message}`)
@@ -114,11 +118,22 @@ export function createSidecar(opts: {
     cancel() {
       if (pending) send({ id: nextId++, method: 'cancel', params: { target: pending.id } })
     },
+    // Ask, don't kill: a cancel stops ffmpeg, and stdin closing lets the helper
+    // delete its temp files and exit. Killed only if it is still there later
+    // (TerminateProcess would skip that cleanup and leave a big WAV behind).
     dispose() {
       const c = child
       child = null
+      if (pending) c?.stdin?.write(JSON.stringify({ id: nextId++, method: 'cancel', params: { target: pending.id } }) + '\n')
       fail(new SidecarError('CANCELLED', 'The app is closing.'))
-      c?.kill()
+      if (!c) return
+      let exited = false
+      c.once('exit', () => (exited = true))
+      c.stdin?.end()
+      const timer = setTimeout(() => {
+        if (!exited) c.kill()
+      }, DISPOSE_GRACE_MS)
+      timer.unref?.()
     }
   }
 }

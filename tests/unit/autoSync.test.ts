@@ -227,6 +227,35 @@ describe('createAutoSync', () => {
     ])
   })
 
+  it('a cancel while the cues are still being read stops before the sidecar', async () => {
+    let release!: (c: ParsedCue[]) => void
+    player.subtitleCues = () => new Promise((r) => (release = r))
+    const auto = make()
+    const run = auto.start('file:x')
+    await new Promise((r) => setTimeout(r, 0))
+    auto.cancel()
+    release(cues)
+    expect(await run).toEqual({ status: 'cancelled' })
+    expect(sidecar.calls).toHaveLength(0)
+    expect(existsSync(join(dir, 'Movie.en.synced.srt'))).toBe(false)
+    expect(readdirSync(temp)).toEqual([])
+  })
+
+  it('a cancel does not carry over to the next start', async () => {
+    const auto = make()
+    auto.cancel()
+    expect((await auto.start('file:x')).status).toBe('synced')
+  })
+
+  it('BUSY (the last sync is still stopping) asks to try again', async () => {
+    sidecar.answer = async () => {
+      throw new SidecarError('BUSY', 'busy')
+    }
+    const e = await appCode(make().start('file:x'))
+    expect(e?.code).toBe('sync_busy')
+    expect(e?.message).toBe('Still stopping the last sync. Try again in a moment.')
+  })
+
   it('cancel asks the sidecar to stop', () => {
     make().cancel()
     expect(sidecar.cancel).toHaveBeenCalled()

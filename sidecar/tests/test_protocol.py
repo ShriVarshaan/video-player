@@ -150,3 +150,21 @@ def test_serve_finishes_running_job_at_eof():
     out = Out()
     serve(job, io.StringIO('{"id":1,"method":"sync","params":{}}\n'), out)
     assert out.lines() == [{"id": 1, "result": {"offset": 1.0, "scale": 1.0, "score": 9.0}}]
+
+
+def test_serve_lets_a_cancelled_job_clean_up_at_eof():
+    from vp_sync.protocol import serve
+
+    cleaned = threading.Event()
+
+    def job(params, progress, cancelled):
+        cancelled.wait(5)
+        time.sleep(0.2)  # e.g. removing the temp WAV
+        cleaned.set()
+        return {}
+
+    out = Out()
+    lines = '{"id":1,"method":"sync","params":{}}\n{"id":2,"method":"cancel","params":{"target":1}}\n'
+    serve(job, io.StringIO(lines), out)
+    assert cleaned.is_set()
+    assert [l["error"]["code"] for l in out.lines()] == ["CANCELLED"]

@@ -49,3 +49,9 @@ def test_enough_cues():
     assert not enough_cues(six, 300)
     assert enough_cues(twenty, 300)
     assert not enough_cues(late, 300)
+
+
+def test_score_has_no_bias_toward_shift_zero():
+    # Unrelated patterns: "as given" should stand out no more than any shift.
+    zs = [score(random_blocks(60_000, 100 + i), random_blocks(60_000, 200 + i))[0] for i in range(20)]
+    assert abs(float(np.mean(zs))) < 0.7

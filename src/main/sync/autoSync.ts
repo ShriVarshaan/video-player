@@ -32,6 +32,8 @@ export function createAutoSync(deps: {
   const { player, sidecar } = deps
   // A result waiting for the user's answer to "Replace?".
   let pending: { key: string; sub: Showing; cues: ParsedCue[]; t: Transform } | null = null
+  // The running start's own cancel flag: a cancel can come before the sidecar has the job.
+  let job: { cancelled: boolean } | null = null
 
   function showingWith(key: string): Showing {
     const sub = player.currentSubtitle()
@@ -55,12 +57,13 @@ export function createAutoSync(deps: {
     return { status: 'synced', ...t, saved: basename(r.saved), fallback: r.fallback }
   }
 
-  async function measure(sub: Showing, cues: ParsedCue[]): Promise<Transform | 'noMatch' | 'cancelled'> {
+  async function measure(sub: Showing, cues: ParsedCue[], me: { cancelled: boolean }): Promise<Transform | 'noMatch' | 'cancelled'> {
     const audio = player.currentAudio()
     if (!audio || audio.audioStream === null) throwAppError('sync_no_audio')
     const tmp = join(deps.tempDir, `vp-autosync-${randomBytes(6).toString('hex')}.srt`)
     await writeFile(tmp, writeSrt(cues, { scale: 1, offset: 0 }), 'utf8')
     try {
+      if (me.cancelled) return 'cancelled'
       const m = await sidecar.sync(
         { video: sub.videoPath, subtitle: tmp, audioStream: audio!.audioStream!, durationS: audio!.durationS },
         (p) => deps.emit({ key: sub.track.key!, ...p })
@@ -71,6 +74,7 @@ export function createAutoSync(deps: {
       if (e.code === 'NO_MATCH') return 'noMatch'
       if (e.code === 'CANCELLED') return 'cancelled'
       if (e.code === 'NO_AUDIO') throwAppError('sync_no_audio')
+      if (e.code === 'BUSY') throwAppError('sync_busy')
       console.error(`Auto sync failed (${e.code}): ${e.message}`)
       return throwAppError('sync_unavailable')
     } finally {
@@ -83,9 +87,12 @@ export function createAutoSync(deps: {
       const sub = showingWith(key)
       if (sub.track.image) throwAppError({ code: 'invalid_argument', message: "Picture subtitles can't be auto-synced" })
       pending = null
+      const me = { cancelled: false }
+      job = me
       // The file's own timing, whatever offset is stored for it.
       const cues = await player.subtitleCues()
-      const t = await measure(sub, cues)
+      if (me.cancelled) return { status: 'cancelled' }
+      const t = await measure(sub, cues, me)
       if (t === 'noMatch') return { status: 'noMatch' }
       if (t === 'cancelled' || !stillShowing(sub)) return { status: 'cancelled' }
       if (Math.abs(t.offset) < IN_SYNC_S && t.scale === 1) {
@@ -107,6 +114,7 @@ export function createAutoSync(deps: {
 
     cancel() {
       pending = null
+      if (job) job.cancelled = true
       sidecar.cancel()
     }
   }

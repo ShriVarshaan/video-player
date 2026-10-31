@@ -147,11 +147,48 @@ describe('createSidecar', () => {
     expect(opts.windowsHide).toBe(true)
   })
 
-  it('dispose kills the child', async () => {
+  it('dispose cancels the job and closes stdin, so the helper cleans up and exits', async () => {
     const s = setup()
     const { p, child } = await started(s)
-    s.sidecar.dispose()
-    expect(child.killed).toBe(true)
-    await expect(p).rejects.toMatchObject({ code: 'CANCELLED' })
+    let ended = false
+    child.stdin.on('finish', () => (ended = true))
+    vi.useFakeTimers()
+    try {
+      s.sidecar.dispose()
+      await expect(p).rejects.toMatchObject({ code: 'CANCELLED' })
+      expect(child.sent.at(-1)).toEqual({ id: 2, method: 'cancel', params: { target: 1 } })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(ended).toBe(true)
+      expect(child.killed).toBe(false)
+      child.emit('exit', 0, null)
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(child.killed).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a broken stdin pipe is logged, not thrown', async () => {
+    const s = setup()
+    const { p, child } = await started(s)
+    child.stdin.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }))
+    expect(s.log).toHaveBeenCalledWith(expect.stringContaining('EPIPE'))
+    child.reply({ id: 1, result: { offset: 0, scale: 1, score: 9 } })
+    await p
+  })
+
+  it('dispose kills a helper that has not exited after the grace period', async () => {
+    const s = setup()
+    const { child } = await started(s).then((r) => (r.p.catch(() => {}), r))
+    vi.useFakeTimers()
+    try {
+      s.sidecar.dispose()
+      await vi.advanceTimersByTimeAsync(1999)
+      expect(child.killed).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(child.killed).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

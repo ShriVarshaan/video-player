@@ -117,11 +117,15 @@ class Server:
 
 
     def finish(self) -> None:
-        """At end of input: let a running job reply before the process exits."""
+        """At end of input: let a running job reply, and a cancelled one delete
+        its temp files, before the process exits."""
         with self._state_lock:
             job = self._running
+            abandoned = self._abandoned
         if job is not None and job.thread is not None:
             job.thread.join()
+        if abandoned is not None:
+            abandoned.join(timeout=10)
 
 
 def serve(run_job: Job, inp: TextIO, out: TextIO) -> None:

@@ -139,3 +139,21 @@ def test_built_exe_syncs():
     lines = [json.loads(l) for l in p.stdout.decode("utf-8").splitlines() if l.strip()]
     assert any(l.get("event") == "progress" for l in lines)
     assert lines[-1]["result"]["offset"] == pytest.approx(-3.2, abs=0.1), p.stderr.decode("utf-8", "replace")[-2000:]
+
+
+def test_audio_starting_after_the_video_keeps_its_delay(tmp_path):
+    # Audio that starts 1.5 s into the file plays 1.5 s late in mpv: the
+    # truth moved 1.5 s later is in sync with it, so the answer is ~0.
+    late = tmp_path / "late.mkv"
+    subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(MEDIA / "speech.mkv"), "-itsoffset", "1.5",
+                    "-i", str(MEDIA / "speech.mkv"), "-map", "0:v", "-map", "1:a", "-c", "copy", str(late)], check=True)
+    with open(MEDIA / "speech.srt", encoding="utf-8") as f:
+        subs = list(srt.parse(f.read()))
+    from datetime import timedelta
+    for c in subs:
+        c.start += timedelta(seconds=1.5)
+        c.end += timedelta(seconds=1.5)
+    sub = tmp_path / "late.srt"
+    sub.write_text(srt.compose(subs), encoding="utf-8")
+    result = run({"video": str(late), "subtitle": str(sub), "audioStream": 0, "durationS": 452.5}, lambda *a: None, threading.Event())
+    assert abs(result["offset"]) < 0.1, result
