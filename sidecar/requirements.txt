@@ -1,0 +1,4 @@
+ffsubsync==0.5.1
+webrtcvad-wheels==2.0.14.post1
+numpy==2.5.4
+srt==3.5.3

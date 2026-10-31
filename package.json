@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
-    "fetch-vendor": "node scripts/fetch-vendor.mjs"
+    "fetch-vendor": "node scripts/fetch-vendor.mjs",
+    "setup-sidecar": "node scripts/setup-sidecar.mjs",
+    "test:sidecar": "sidecar\\.venv\\Scripts\\python -m pytest sidecar/tests -q"
   },
   "repository": {
     "type": "git",
