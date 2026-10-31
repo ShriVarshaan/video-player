@@ -1,6 +1,6 @@
 # Project Plan: Local Movie Player
 
-An endless poster wall, Apple TV-style subtitles, Netflix-style search, ML subtitle sync and volume boost.
+An endless poster wall, Apple TV-style subtitles, Netflix-style search, automatic subtitle sync and volume boost.
 
 ## Context
 A desktop player (Windows 11) for movies and TV shows stored on this laptop:
@@ -9,10 +9,10 @@ A desktop player (Windows 11) for movies and TV shows stored on this laptop:
 - It must play every popular format (mp4, mkv, avi, mov, webm, HEVC, AV1 and more).
 - Subtitles are styled like Apple TV.
 - Search works like Netflix.
-- Subtitles can be synced automatically with ML, or by hand with offsets.
+- Subtitles can be synced automatically to the speech in the audio, or by hand with offsets.
 - Volume can be boosted past 100 %, like VLC.
 
-**Decisions made:** Electron + mpv · TMDB metadata with a local fallback · ML sync uses speech detection (ffsubsync) first, with Whisper as a fallback.
+**Decisions made:** Electron + mpv · TMDB metadata with a local fallback · Auto sync uses speech detection only (ffsubsync + WebRTC VAD): no speech recognition, no Whisper, no model downloads. It fixes a fixed delay and framerate drift; cuts are out of scope (milestone 7, with the user).
 
 Detailed specs for each area are in the project skills in `.claude/skills/`. The skill named in each section below is the source of truth for that area.
 
@@ -24,14 +24,14 @@ Electron main process (Node/TS)
  ├─ PlayerService    – spawns mpv.exe with --wid=<main window HWND>, JSON IPC over a named pipe     [mpv-ipc]
  ├─ Subtitles        – find files next to videos, UTF-8 copies for mpv, style store, OpenSubtitles  [subtitle-formats]
  │                     + the app's own reader, mpv sub-delay offsets, sync-to-line, synced export
- └─ SyncService      – Python sidecar over stdio JSON-lines                                          [subtitle-sync-ml]
+ └─ Auto sync        – src/main/sync: Python sidecar over stdio JSON-lines, synced file via export   [subtitle-sync-ml]
 Renderer (React + TS + Vite)
  ├─ Menu + pages     – top-left drawer: Search · Home (the wall, title pages) · Settings (folders, TMDB key, about)
  ├─ InfiniteWall     – virtualized, wrapping 2D grid                                                  [infinite-wall]
  ├─ SearchOverlay    – Netflix-style search                                                           [netflix-search]
- └─ Overlay window   – transparent window over the app window: controls, track menus, next episode, subtitles, style and search panels; later sync panel
+ └─ Overlay window   – transparent window over the app window: controls, track menus, next episode, subtitles, style, search, timing and auto sync cards
 Python sidecar (PyInstaller onedir)
- └─ ffsubsync (VAD) + faster-whisper (deep sync)
+ └─ ffsubsync (WebRTC VAD) + our own confidence check; measures only, never writes subtitle files
 ```
 
 ### Key technical choices
@@ -70,28 +70,29 @@ Python sidecar (PyInstaller onedir)
   - Built-in `node:sqlite` (Electron 45 ships Node 24), so there is no native module to rebuild.
   - One database per Windows user at `%APPDATA%\video-player\library.db`. Nothing is stored in movie folders.
   - Schema version lives in `PRAGMA user_version`; migrations are in `src/main/db/migrations.ts`.
-- **ML sync:**
-  - Fast: ffsubsync (VAD), recovering offset and framerate scale.
-  - Deep: faster-whisper with word timestamps, matched to subtitle lines with rapidfuzz, then a RANSAC global fit, with piecewise segments for cuts.
-  - Output is `<movie>.<lang>.synced.srt` (as manual export names it). The original subtitle file is never overwritten.
+- **Auto sync (milestone 7)** (design: `docs/superpowers/specs/2026-10-31-milestone-7-auto-sync-design.md`):
+  - Only when asked: **Auto sync** in the player's subtitle menu, or **A**. Syncs the showing text subtitle to the selected audio track.
+  - Main writes the subtitle's own cues to a temp SRT; the sidecar extracts 16 kHz audio (with progress), runs ffsubsync for offset + framerate scale, and checks the match against its own speech mask (`NO_MATCH` below z 8.5, at the ±120 s edge, or with under 20 lines).
+  - Output is `<movie>.<lang>[.sdh|.forced].synced.srt` through the manual export path (asks before replacing, after the sync). The original subtitle file is never overwritten.
+  - "Already in sync" (under 0.05 s, no speed change) writes nothing and clears a stored offset.
 - **Manual sync (milestone 6):**
   - G/H shift ±50 ms; Shift+G/H shift ±500 ms. A short note shows the offset.
   - "Set offset…": a slider from −10 s to +10 s that moves the subtitles live.
   - "Sync to a line": a card shows the next line; press S when it's heard (←/→ other lines).
   - Reset timing; Export synced .srt (`<movie>.<lang>[.sdh|.forced].synced.srt`, listed first as "Synced").
   - Applied through mpv's `sub-delay`; saved per video and subtitle.
-  - No two-point sync (dropped with the user: drift is left to ML sync).
+  - No two-point sync (dropped with the user: drift is left to auto sync).
 
 ## Project layout
 ```
 video-player/
   package.json, electron-builder.yml, vite.config.ts, tsconfig.json
-  src/main/        index.ts, library/, metadata/, player/mpvIpc.ts, subtitles/, sync/sidecar.ts, db.ts, paths.ts
+  src/main/        index.ts, library/, metadata/, player/, subtitles/, sync/ (sidecar.ts, autoSync.ts), db/, paths.ts
   src/preload/     index.ts (contextBridge API)
   src/renderer/    App.tsx, wall/, search/, player/ (PlayerOverlay, SubtitleView, SyncPanel), settings/
   src/shared/      types.ts, ipc channels
-  sidecar/         vp_sync/, tests/, bench.py, requirements.txt, build.spec
-  scripts/         fetch-vendor.mjs, make-fixtures.mjs
+  sidecar/         vp_sync/, tests/, hooks/, requirements*.txt, build.spec (venv: sidecar/.venv, Python 3.12)
+  scripts/         fetch-vendor.mjs, make-fixtures.mjs, setup-sidecar.mjs
   vendor/          mpv, ffmpeg (fetched, gitignored; pinned in vendor/manifest.json)
   tests/           unit (vitest), e2e (Playwright-Electron), fixtures/
   docs/            PROJECT_PLAN.md
@@ -106,7 +107,7 @@ video-player/
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | ✅ done |
 | 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
 | 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, offset slider, sync-to-line card, reset, synced export | `subtitle-formats` | ✅ |
-| 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |
+| 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | |
 | 8 | **Search** | `netflix-search` | |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
 
@@ -119,7 +120,7 @@ Every milestone follows the same flow: `brainstorming` → `writing-plans` → `
   - offset maths
   - filename parsing
   - search ranking
-- **Sidecar (pytest):** on the TTS speech fixture, shifted (+3.2 s), drifted (×1.001, 23.976/25) and cut (+45 s) subtitles must recover with median cue error < 100 ms. Wrong-language subtitles must return `NO_MATCH`.
+- **Sidecar (pytest):** on the TTS speech fixture, shifted (+3.2 s, −7.5 s) and drifted (24/23.976, 23.976/25, 25/23.976) subtitles must recover with median cue error < 100 ms and p95 < 300 ms. A subtitle from another film and a 6-line subtitle must return `NO_MATCH`. The built exe syncs too.
 - **E2E (Playwright-Electron):**
   - the fixture library fills the wall
   - arrow keys move focus
@@ -130,5 +131,6 @@ Every milestone follows the same flow: `brainstorming` → `writing-plans` → `
   - HEVC/AV1/DTS files play
   - 200 % volume is clean
   - G/H offsets work
+  - auto sync on a real film: a subtitle a few seconds off and one made for the other framerate; a 2-hour film in under ~90 s without playback stutter
   - the wall holds 60 fps in the DevTools Performance panel
   - the pre-release smoke test in `release-windows` passes

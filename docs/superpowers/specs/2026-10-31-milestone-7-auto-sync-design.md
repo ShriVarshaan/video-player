@@ -129,3 +129,24 @@ Protocol (the skill's protocol, trimmed):
 
 - Time a real 2-hour film on this laptop: the aim is under ~90 s, with no playback stutter while it runs.
 - A real subtitle a few seconds off, and one made for the other framerate.
+
+## As built
+
+- **Accuracy on the speech fixtures:** about 10 ms median and p95 error on every correct copy (shift +3.2 s and −7.5 s; drift 24/23.976, 23.976/25 and 25/23.976).
+- **Confidence check:** NO_MATCH when any of these hold:
+  - ffsubsync reports failure;
+  - |offset| > 115 s;
+  - fewer than 20 lines fall inside the audio;
+  - z < **8.5**;
+  - the best shift is more than 0.5 s off.
+
+  z is the correlation of the retimed subtitle against our own WebRTC speech mask, measured in robust standard deviations above the median over ±120 s. Fixture scores were 13.3–13.9 for correct copies and 3.7 for the wrong-film subtitle. ffsubsync on its own said "success" for the wrong subtitle, so the extra check matters.
+- **Speed:** the 7.5 min clip syncs in about 0.25 s. Audio extraction of the 90 min looped clip takes about 2.3 s, which suggests a 2-hour film takes seconds, not minutes. This still needs the user's check on a real film.
+- **Bundle:** 58 MB (PyInstaller onedir). auditok (GPLv3) is excluded; licences are listed in `docs/third-party-sidecar.md`.
+- **Deviations from the plan:**
+  - `subtitles/showSynced.ts` is shared by manual export and auto sync.
+  - A local PyInstaller hook for webrtcvad-wheels.
+  - `speech-long.mkv` added for E2E tests that act during a sync.
+  - The fixture is about 7.5 min, not 5.
+  - The "second run asks before replacing" E2E re-syncs the original track. Re-syncing the synced track itself answers "Already in sync · offset cleared", as the design says.
+- **Real films may score lower than TTS** (music, effects, SDH lines with no speech). If correct syncs get rejected, re-measure on real films before moving the threshold.

@@ -5,10 +5,10 @@ A Windows desktop player for local movie and TV folders. It has:
 - a show page per TV show (season/episode picker; Play episode / Continue watching + Restart episode)
 - Apple TV-style subtitles
 - Netflix-style search
-- ML subtitle sync (VAD first, Whisper as fallback) plus manual offsets
+- auto subtitle sync to the speech in the audio (ffsubsync + WebRTC VAD; no speech recognition) plus manual offsets
 - VLC-style volume boost to 200%
 
-**Stack:** Electron 45 + React 19/TypeScript (electron-vite) · mpv (child process, `--wid` embed, JSON IPC) · FFmpeg/ffprobe · SQLite (built-in `node:sqlite`) · TMDB · Python sidecar (ffsubsync, faster-whisper).
+**Stack:** Electron 45 + React 19/TypeScript (electron-vite) · mpv (child process, `--wid` embed, JSON IPC) · FFmpeg/ffprobe · SQLite (built-in `node:sqlite`) · TMDB · Python 3.12 sidecar (ffsubsync, WebRTC VAD) packaged with PyInstaller.
 
 The full plan, with architecture, milestones and verification, is in [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md). Keep it up to date when decisions change. Skill details are in `required_skills.md`, which is local only and gitignored.
 
@@ -29,6 +29,9 @@ npm run dev                   # app with hot reload
 npm run typecheck             # tsc for main/preload and renderer
 npm test                      # Vitest unit + integration (uses vendor ffmpeg)
 npm run test:e2e              # builds, then Playwright-Electron
+npm run setup-sidecar         # sidecar/.venv (py -3.12) + pinned requirements
+npm run test:sidecar          # pytest (speech fixtures need make-fixtures)
+npm run build-sidecar         # PyInstaller → sidecar/dist/vp-sync/ (~58 MB)
 ```
 - The library DB is `%APPDATA%\video-player\library.db` (one per Windows user). `--user-data-dir=<dir>` points the app elsewhere; E2E tests always do.
 - `VP_TMDB_MODE=fixtures` (dev builds only) reads `tests/fixtures/tmdb/*.json` instead of the network. Those fixtures are real TMDB responses; re-record with `TMDB_TOKEN=… node scripts/record-tmdb-fixtures.mjs`.
@@ -38,10 +41,11 @@ npm run test:e2e              # builds, then Playwright-Electron
 ## Codebase map
 
 - `src/shared/` — `api.ts` (the one IPC contract: `API`, `apiMethods`, `ApiEvents`), `appError.ts`, `library.ts` types (incl. `WallItem`), `normalize.ts`, `hash.ts` (FNV-1a).
-- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg); `player/` (`mpvIpc` client, `launch` spawn + Win32 raise via koffi, `service` = `PlayerService`, `overlay` window, `titlePrefs`, `resume`, `tracks` incl. the subtitle pick and `preferSynced`, `subtitleDelay` = stored offset → mpv `sub-delay`); `subtitles/` (`match` finds files next to a video, `decode` UTF-8 copies for mpv, `cue` mpv line → `Cue`, `parse` the app's own SRT/VTT/ASS reader, `extract` embedded text tracks via ffmpeg, `srt` writer, `export` synced files, `transforms` stored offsets, `styleStore` global + per-title style, `openSubtitles` client, `osHash`, `download`, `setup.ts` = the `subtitles` IPC domain); `broadcast.ts` sends events to every window.
+- `src/main/` — `index.ts` wiring; `db/` (open + migrations via `PRAGMA user_version`; append new migrations, never edit old ones); `ipc.ts` (`registerDomain`); `library/` (parse, scan, watch, queue, queries, show progress, service, `setup.ts` Electron wiring); `metadata/` (TMDB client, credential, scoring, matching); `images/` (WebP cache, `poster://` URLs); `media/` (ffprobe, quick hash, ffmpeg); `player/` (`mpvIpc` client, `launch` spawn + Win32 raise via koffi, `service` = `PlayerService`, `overlay` window, `titlePrefs`, `resume`, `tracks` incl. the subtitle pick and `preferSynced`, `subtitleDelay` = stored offset → mpv `sub-delay`); `subtitles/` (`match` finds files next to a video, `decode` UTF-8 copies for mpv, `cue` mpv line → `Cue`, `parse` the app's own SRT/VTT/ASS reader, `extract` embedded text tracks via ffmpeg, `srt` writer, `export` synced files, `transforms` stored offsets, `styleStore` global + per-title style, `openSubtitles` client, `osHash`, `download`, `setup.ts` = the `subtitles` IPC domain); `sync/` (`sidecar` = the JSON-lines client, `autoSync` = the job: temp SRT → measure → `subtitles/showSynced.ts`, which manual export shares); `broadcast.ts` sends events to every window.
+- `sidecar/` — Python auto sync helper: `vp_sync/` (`protocol`, `sync`, `signals`), `tests/`, `build.spec`. In dev main runs `sidecar/.venv/Scripts/python.exe -m vp_sync`; packaged, `resources/sidecar/vp-sync/vp-sync.exe` (`paths.ts` → `sidecarCommand`).
 - `src/preload/index.ts` builds `window.api` from `apiMethods`. To add an endpoint: add it to `API` and `apiMethods`, then register a handler with `registerDomain`. Channel names are derived, never hand-written.
 - `src/renderer/src/` — `App` (page state: home / search / settings, plus a title page over Home and a black cover while playing), `nav/Menu` (top-left drawer), `pages/` (`Title`, `Settings`, `SearchSoon` until milestone 8), `wall/` (pure `mapping`/`geometry`/`physics`/`camera`, unit-tested in Node; `engine.ts` = imperative tile pool + rAF loop; `Wall.tsx` React shell, `InfoCard`, `Backdrop`).
-- `src/renderer/overlay/` — second renderer entry (`overlay.html`) for the player controls: `Overlay`, `ControlBar`, `TrackMenu`, `NextCard`, `SubtitleView` (+ pure `subtitleLayout`), `StylePanel`, `SearchPanel`, `SyncCard` (S: sync to a line), `OffsetPanel` (offset slider), `TimingNote`, `ConfirmCard`. Subtitle timing maths shared by both sides is `src/shared/subtitleTiming.ts`. `src/renderer/src/components/SubtitleStyleControls` is shared by the style panel and Settings → Subtitles. Use `components/Select` for dropdowns, never a native `<select>`: Windows draws its list unstyled.
+- `src/renderer/overlay/` — second renderer entry (`overlay.html`) for the player controls: `Overlay`, `ControlBar`, `TrackMenu`, `NextCard`, `SubtitleView` (+ pure `subtitleLayout`), `StylePanel`, `SearchPanel`, `SyncCard` (S: sync to a line), `OffsetPanel` (offset slider), `TimingNote`, `ConfirmCard`, `AutoSyncCard` (A: auto sync). Subtitle timing maths shared by both sides is `src/shared/subtitleTiming.ts`. `src/renderer/src/components/SubtitleStyleControls` is shared by the style panel and Settings → Subtitles. Use `components/Select` for dropdowns, never a native `<select>`: Windows draws its list unstyled.
 
 ## Gotchas learned so far
 
@@ -54,6 +58,7 @@ npm run test:e2e              # builds, then Playwright-Electron
 - The player overlay window exists (hidden) from startup. In E2E, pick the main window by URL (`!url.endsWith('overlay.html')`), never `getAllWindows()[0]`, and close the app with `closeApp(app)` from `pages.ts`: Playwright's `app.close()` stalls while mpv is quitting. Right after launch the overlay's URL is still empty, so it can't be told apart by URL yet. Every spec calls `toSecondDisplay(app)` after `firstWindow()` so test windows stay off the user's primary monitor.
 - mpv's `sub-codepage=auto` garbles cp1252/cp1256 subtitles, so files go to mpv as UTF-8 copies (`subtitles/decode.ts`). Text subtitles are drawn by the overlay (`sub-visibility=no`), never by mpv.
 - E2E player tests: faded controls take no clicks (move the mouse first), and a seek sent before mpv has opened the file is dropped (wait for the position to move first).
+- Auto sync E2E needs `sidecar/.venv` and the speech fixtures (it skips without them). `speech.mkv` syncs in ~0.25 s, too fast to act during the card: tests that cancel or press keys mid-sync use `speech-long.mkv`. English audio means subtitles start off: pick one before pressing A.
 - The vendor ffmpeg is an LGPL build: no x264/x265 encoders (fixtures use mpeg4/VP9), but it has libwebp and librsvg. TMDB SVG logos rasterize badly, so PNG logos are preferred.
 
 ## Skill routing
@@ -72,7 +77,7 @@ Project skills live in `.claude/skills/`. Before starting the matching kind of w
 | Electron main/preload/windows | `electron` |
 | mpv process, player/overlay windows, playback controls, tracks, volume boost | `mpv-ipc` |
 | Subtitle parsing, encodings, auto-matching, offsets, manual sync, export, Apple TV renderer | `subtitle-formats` |
-| Python sidecar, auto sync (ffsubsync / Whisper), sync accuracy | `subtitle-sync-ml` |
+| Python sidecar, auto sync (ffsubsync, speech detection only), sync accuracy | `subtitle-sync-ml` |
 | Home-screen poster wall | `infinite-wall` |
 | Search overlay and ranking | `netflix-search` |
 | Test media, fixtures, running test suites | `test-media-fixtures` |

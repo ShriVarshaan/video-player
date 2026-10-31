@@ -64,7 +64,7 @@ Build steps: `npm run build`, then `npx electron-builder --win`. The installer l
 | mpv (shinchiro build) | GPL-2.0+ (build includes GPL parts) | Ship the license text and give a link to the exact source and build scripts. It runs as a separate executable over IPC. |
 | FFmpeg (LGPL shared) | LGPL-2.1+ | Ship the license, link to the source, keep the DLLs replaceable (shared build). |
 | Electron, React, Fuse.js etc. | MIT and others | Include the license texts (`license-checker --production --summary`). |
-| ffsubsync, faster-whisper, CTranslate2, Whisper weights | MIT | Include the license texts. |
+| Auto sync sidecar: ffsubsync, webrtcvad, numpy and the rest listed in `docs/third-party-sidecar.md` | MIT, BSD, Apache-2.0, MPL, PSF | Include each license text. No GPL code: auditok is excluded from the bundle. |
 | TMDB | API terms | Show *"This product uses the TMDB API but is not endorsed or certified by TMDB."* with the TMDB logo in About. |
 
 This is engineering guidance, not legal advice. Flag to the user before any public or commercial distribution.
