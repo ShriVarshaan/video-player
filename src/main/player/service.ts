@@ -35,6 +35,7 @@ export type PlayerService = API['player'] & {
   addSubtitle(sub: ExternalSub, opts?: { remember?: boolean }): Promise<void>
   // Timing of the showing subtitle (milestone 6). null: no subtitle showing.
   nudgeSubtitle(deltaS: number): Promise<number | null>
+  setSubtitleOffset(offset: number): Promise<number | null>
   syncSubtitleTo(cueStart: number): Promise<number | null>
   resetSubtitleTiming(): Promise<void>
   currentSubtitle(): { videoId: number; videoPath: string; track: Track; offset: number } | null
@@ -592,6 +593,7 @@ export function createPlayerService(deps: {
     notifyStyle,
     addSubtitle,
     nudgeSubtitle: async (deltaS) => (showing() ? delay.nudge(deltaS) : null),
+    setSubtitleOffset: async (offset) => (showing() ? delay.set(offset) : null),
     syncSubtitleTo,
     resetSubtitleTiming: async () => void (await delay.set(0)),
     currentSubtitle,

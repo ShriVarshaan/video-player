@@ -73,6 +73,8 @@ export type API = {
     // Timing of the showing subtitle (milestone 6). offset null: no subtitle showing.
     nudge: (params: { deltaS: number }) => Promise<{ offset: number | null }>
     resetTiming: (params: Record<string, never>) => Promise<void>
+    // The offset slider: an exact offset for the subtitle with this key (Track.key).
+    setTiming: (params: { offset: number; key: string }) => Promise<{ offset: number | null }>
     // The showing text subtitle's lines, for "Sync to a line" (embedded ones may take a moment).
     // key: the subtitle these lines belong to (Track.key); the calls below refuse another one.
     syncCues: (params: Record<string, never>) => Promise<{ cues: { start: number; text: string }[]; offset: number; key: string }>
@@ -110,6 +112,7 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
     testAccount: true,
     nudge: true,
     resetTiming: true,
+    setTiming: true,
     syncCues: true,
     syncToCue: true,
     exportSynced: true

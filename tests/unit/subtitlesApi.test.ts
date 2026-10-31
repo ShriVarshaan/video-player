@@ -103,6 +103,26 @@ describe('exportSynced', () => {
   })
 })
 
+describe('setTiming (offset slider)', () => {
+  it('sets the showing subtitle to an exact offset', async () => {
+    player.setSubtitleOffset = vi.fn(async (o: number) => o)
+    expect(await api.setTiming({ offset: -3.25, key: 'file:x' })).toEqual({ offset: -3.25 })
+    expect(player.setSubtitleOffset).toHaveBeenCalledWith(-3.25)
+  })
+  it('refuses another subtitle and nonsense values', async () => {
+    player.setSubtitleOffset = vi.fn(async (o: number) => o)
+    await expect(api.setTiming({ offset: 1, key: 'file:other' })).rejects.toThrow('The subtitle changed')
+    await expect(api.setTiming({ offset: Number.NaN, key: 'file:x' })).rejects.toThrow()
+    await expect(api.setTiming({ offset: 1e6, key: 'file:x' })).rejects.toThrow()
+    expect(player.setSubtitleOffset).not.toHaveBeenCalled()
+  })
+  it('works for a picture subtitle too', async () => {
+    player.setSubtitleOffset = vi.fn(async (o: number) => o)
+    player.currentSubtitle = () => ({ videoId: 2, videoPath: join(dir, 'Movie.mkv'), track: { ...track, image: true }, offset: 0 })
+    expect(await api.setTiming({ offset: 2, key: 'file:x' })).toEqual({ offset: 2 })
+  })
+})
+
 describe('review fixes', () => {
   it('syncCues names the track; syncToCue and export refuse another track', async () => {
     expect((await api.syncCues({})).key).toBe('file:x')

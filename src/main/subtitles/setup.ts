@@ -148,6 +148,16 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
       return { offset: await player.nudgeSubtitle(deltaS) }
     },
     resetTiming: async () => player.resetSubtitleTiming(),
+    // Picture subtitles too: only mpv's sub-delay changes.
+    setTiming: async ({ offset, key }) => {
+      if (typeof offset !== 'number' || !Number.isFinite(offset) || Math.abs(offset) > MAX_OFFSET_S) {
+        throwAppError({ code: 'invalid_argument', message: 'That is not a timing change.' })
+      }
+      const sub = player.currentSubtitle()
+      if (!sub) throwAppError({ code: 'invalid_argument', message: 'Choose a subtitle first.' })
+      if (typeof key !== 'string' || key !== sub.track.key) throwAppError({ code: 'invalid_argument', message: 'The subtitle changed. Try again.' })
+      return { offset: await player.setSubtitleOffset(offset) }
+    },
     syncCues: async () => {
       const sub = textSubtitle()
       const cues = await player.subtitleCues()

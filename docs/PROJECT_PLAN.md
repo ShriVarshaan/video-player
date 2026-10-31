@@ -76,10 +76,11 @@ Python sidecar (PyInstaller onedir)
   - Output is `<movie>.<lang>.synced.srt` (as manual export names it). The original subtitle file is never overwritten.
 - **Manual sync (milestone 6):**
   - G/H shift ±50 ms; Shift+G/H shift ±500 ms. A short note shows the offset.
+  - "Set offset…": a slider from −10 s to +10 s that moves the subtitles live.
   - "Sync to a line": a card shows the next line; press S when it's heard (←/→ other lines).
   - Reset timing; Export synced .srt (`<movie>.<lang>[.sdh|.forced].synced.srt`, listed first as "Synced").
   - Applied through mpv's `sub-delay`; saved per video and subtitle.
-  - No offset slider and no two-point sync (dropped with the user: drift is left to ML sync).
+  - No two-point sync (dropped with the user: drift is left to ML sync).
 
 ## Project layout
 ```
@@ -104,7 +105,7 @@ video-player/
 | 3 | **Infinite wall:** poster wall on Home, menu drawer (Search · Home · Settings), Settings page, bottom-left info card | `infinite-wall`, `animation-performance`, `apple-design`, `vercel-react-best-practices` | ✅ done |
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | ✅ done |
 | 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
-| 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, sync-to-line card, reset, synced export | `subtitle-formats` | |
+| 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, offset slider, sync-to-line card, reset, synced export | `subtitle-formats` | |
 | 7 | **ML sync:** sidecar fast path → deep path → progress UI → packaging | `subtitle-sync-ml`, `test-media-fixtures` | |
 | 8 | **Search** | `netflix-search` | |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
@@ -115,7 +116,7 @@ Every milestone follows the same flow: `brainstorming` → `writing-plans` → `
 - **Unit (Vitest):**
   - tile→movie mapping, with no adjacent duplicates for n = 1–60
   - subtitle parsing and encodings
-  - offset and two-point maths
+  - offset maths
   - filename parsing
   - search ranking
 - **Sidecar (pytest):** on the TTS speech fixture, shifted (+3.2 s), drifted (×1.001, 23.976/25) and cut (+45 s) subtitles must recover with median cue error < 100 ms. Wrong-language subtitles must return `NO_MATCH`.

@@ -7,6 +7,7 @@ import { formatTime } from '@shared/time'
 import { ConfirmCard } from './ConfirmCard'
 import { ControlBar, type Menu, type SubtitleAction } from './ControlBar'
 import { NextCard } from './NextCard'
+import { OffsetPanel } from './OffsetPanel'
 import { SearchPanel } from './SearchPanel'
 import { StylePanel } from './StylePanel'
 import { SubtitleView } from './SubtitleView'
@@ -29,6 +30,7 @@ export function Overlay() {
   // Subtitle timing (milestone 6): the showing subtitle's fix, the sync card, the note, the replace prompt.
   const [offset, setOffset] = useState<number | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [offsetOpen, setOffsetOpen] = useState(false)
   const [note, setNote] = useState<{ text: string; n: number } | null>(null)
   const [confirm, setConfirm] = useState<{ name: string; key: string } | null>(null)
   const stateRef = useRef<PlayerState | null>(null)
@@ -54,6 +56,7 @@ export function Overlay() {
         // The sync card and the replace prompt are about one subtitle: another one closes them.
         if (prev?.videoId !== s.videoId || prev?.subtitleId !== s.subtitleId) {
           setSyncing(false)
+          setOffsetOpen(false)
           setConfirm(null)
         }
         clock.current = { pos: s.positionS, at: performance.now(), paused: s.paused, duration: s.durationS ?? 0 }
@@ -74,6 +77,7 @@ export function Overlay() {
         setMenu(null)
         setCue(null)
         setSyncing(false)
+        setOffsetOpen(false)
         setConfirm(null)
         setNote(null)
       })
@@ -114,6 +118,7 @@ export function Overlay() {
   }, [hasState, wake])
   useEffect(() => () => void (hideTimer.current && clearTimeout(hideTimer.current)), [])
   const hidden = idle && !keepVisible
+  const showingKey = state?.subtitles.find((t) => t.id === state.subtitleId)?.key ?? null
 
   // Where the control bar starts while it shows, so low subtitles can sit above it.
   const hasControls = state !== null && !hidden
@@ -170,6 +175,7 @@ export function Overlay() {
     (a: SubtitleAction) => {
       if (a === 'sync') return startSync()
       setMenu(null)
+      if (a === 'offset') return setOffsetOpen(true)
       if (a === 'reset') void window.api.subtitles.resetTiming({}).then(() => sayOffset(0), sayError)
       else {
         const s = stateRef.current
@@ -307,6 +313,9 @@ export function Overlay() {
         </p>
       )}
       {next && <NextCard key={next.videoId} next={next} onPlay={playNext} onCancel={() => setNext(null)} />}
+      {state && offsetOpen && showingKey && (
+        <OffsetPanel offset={offset ?? 0} subtitleKey={showingKey} onClose={() => setOffsetOpen(false)} />
+      )}
       {state && syncing && <SyncCard getPosition={getPosition} onSynced={sayOffset} onClose={closeSync} />}
       {state && confirm && (
         <ConfirmCard name={confirm.name} onReplace={() => void exportSynced(true, confirm.key)} onCancel={() => setConfirm(null)} />

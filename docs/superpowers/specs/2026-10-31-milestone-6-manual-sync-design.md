@@ -139,6 +139,13 @@ Added under the existing items (only when a subtitle is selected):
 - Export is allowed even at offset 0 (handy for turning an embedded subtitle into a file).
 - Offsets are capped at ±10 minutes.
 
+## Addition: set the offset with a slider (decided with the user, 2026-10-31)
+
+- **"Set offset…"** in the Subtitles menu, for any selected subtitle (picture-based too: the shift goes through mpv). A small glass panel: the offset at the top right (`formatOffset`), a slider from −10 s to +10 s, **Reset** and **Done**. The film keeps playing and the subtitles move live while dragging.
+- Keys: ←/→ 0.05 s, Shift+←/→ 0.5 s, Home → 0, Esc or Enter closes. The player's keys don't act while it is open.
+- An offset already beyond ±10 s (from "Sync to a line") shows its real value with the thumb at the end; dragging replaces it with a value in range. (±10 s is my call.)
+- Saved like G/H (per video and subtitle, debounced). New IPC `subtitles.setTiming({ offset, key })`, refused when the subtitle changed or the value isn't finite within ±600 s.
+
 ## As built (2026-10-31)
 
 Differences from the design, and why:

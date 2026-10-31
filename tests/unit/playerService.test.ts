@@ -884,6 +884,17 @@ describe('subtitle timing review fixes (milestone 6)', () => {
     expect((emitted('player.state').at(-1) as { subtitleId: number | null }).subtitleId).toBe(1)
   })
 
+  it('setSubtitleOffset sets an exact offset, applied and saved', async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.command({ type: 'subtitle', id: 1 })
+    expect(await player.setSubtitleOffset(-3.25)).toBe(-3.25)
+    expect(sent('set_property').filter((c) => c[1] === 'sub-delay').at(-1)).toEqual(['set_property', 'sub-delay', -3.25])
+    await player.stop({})
+    expect(getOffset(db, 2, 'embedded:3')).toBe(-3.25)
+  })
+
   it('nudges need a subtitle showing in this file', async () => {
     trackList = SUBS
     await player.play({ key: 'movie:2' })

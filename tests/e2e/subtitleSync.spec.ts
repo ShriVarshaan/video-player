@@ -123,6 +123,37 @@ test('Esc on the sync card changes nothing', async () => {
   await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 3000 })
 })
 
+test('the offset slider moves the subtitles live', async () => {
+  ;({ app, win, userData } = await launchApp(dir))
+  const overlay = await play('The Matrix')
+  await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 8000 })
+  await menuAction(overlay, 'Set offset…')
+  const panel = overlay.getByTestId('offset-panel')
+  const slider = panel.getByRole('slider', { name: 'Subtitle offset' })
+  await expect(slider).toBeFocused()
+  for (let i = 0; i < 4; i++) await overlay.keyboard.press('Shift+ArrowRight')
+  await expect(panel.getByTestId('offset-value')).toHaveText('+2.00 s')
+  await overlay.keyboard.press('ArrowLeft')
+  await expect(panel.getByTestId('offset-value')).toHaveText('+1.95 s')
+  await overlay.keyboard.press('ArrowRight')
+  await overlay.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(overlay.getByTestId('player-heading')).toContainText('The Matrix') // Esc closed the panel only
+  await holdAt(overlay, 2.5)
+  await expect(line(overlay)).toHaveCount(0)
+  await holdAt(overlay, 3.5)
+  await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 3000 })
+
+  await menuAction(overlay, 'Set offset…')
+  await expect(overlay.getByTestId('offset-value')).toHaveText('+2.00 s')
+  await overlay.keyboard.press('Home')
+  await expect(overlay.getByTestId('offset-value')).toHaveText('in sync')
+  await overlay.getByRole('button', { name: 'Done' }).click()
+  await expect(overlay.getByTestId('offset-panel')).toHaveCount(0)
+  await holdAt(overlay, 1.5)
+  await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 3000 })
+})
+
 test('changing the subtitle track closes the sync card (review)', async () => {
   ;({ app, win, userData } = await launchApp(dir))
   const overlay = await play('The Matrix')

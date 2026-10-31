@@ -81,6 +81,7 @@ Positive `offset` means subtitles appear **later**. **mpv applies it**: `PlayerS
 | `G` / `H` | `offset -= 0.05` / `offset += 0.05` (any selected subtitle, picture ones too) |
 | `Shift+G` / `Shift+H` | ±0.5 s |
 | **Sync to a line** (`S` or the menu; the card shows the first cue with `start + offset > position`; ←/→ other lines; `S`/Enter when heard) | `offset = time-pos − REACTION_LEAD_S − cue.start` (main reads mpv's `time-pos` at the key press) |
+| **Set offset…** (`OffsetPanel`: slider −10…+10 s, live; ←/→ 0.05 s, Shift 0.5 s, Home → 0) | `offset = value` via `subtitles.setTiming({ offset, key })`; works for picture subtitles too |
 | Reset timing | `offset = 0` |
 
 - Offsets are clamped to ±600 s and rounded to the ms. `REACTION_LEAD_S` is 0 until measured on real films.
