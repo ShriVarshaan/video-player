@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '@shared/player'
 import { languageName, pickSubtitle, pickTrack, refOf, subtitlePrefFor, toTracks } from '../../src/main/player/tracks'
+import { subtitleKeyForFile } from '../../src/main/subtitles/transforms'
 
 const mpvList = [
   { id: 1, type: 'video', codec: 'h264' },
@@ -70,7 +71,10 @@ const t = (id: number, lang: string | null, kind: Track['kind'], title: string |
   image: false,
   default: false,
   external: false,
-  fileName: null
+  fileName: null,
+  key: type === 'sub' ? `embedded:${id}` : null,
+  codec: null,
+  synced: false
 })
 
 describe('pickTrack', () => {
@@ -145,6 +149,27 @@ describe('toTracks with subtitle files', () => {
     const [embedded, file] = toTracks(list, [{ path: 'C:/M/Movie.srt', lang: 'fre', kind: 'sdh', format: 'srt' }])
     expect(embedded).toMatchObject({ external: false, fileName: null })
     expect(file).toMatchObject({ id: 2, lang: 'fre', kind: 'sdh', label: 'French (SDH)', external: true, fileName: 'Movie.srt' })
+  })
+})
+
+describe('toTracks keys, codecs and synced files (milestone 6)', () => {
+  const list = [
+    { id: 1, type: 'audio', lang: 'eng', 'ff-index': 1, codec: 'aac' },
+    { id: 1, type: 'sub', lang: 'eng', 'ff-index': 3, codec: 'subrip' },
+    { id: 2, type: 'sub', external: true, 'external-filename': 'C:\\cache\\abc.srt', title: 'Movie.en.synced.srt', codec: 'subrip' }
+  ]
+  const [audio, embedded, file] = toTracks(list, [
+    { path: 'C:/cache/abc.srt', original: 'D:/M/Movie.en.synced.srt', lang: 'eng', kind: 'sdh', format: 'srt', synced: true }
+  ])
+
+  it('keys an embedded subtitle by its stream index and a file by its original path', () => {
+    expect(audio!.key).toBeNull()
+    expect(embedded).toMatchObject({ key: 'embedded:3', codec: 'subrip', synced: false })
+    expect(file!.key).toBe(subtitleKeyForFile('D:/M/Movie.en.synced.srt'))
+  })
+
+  it('labels a synced file', () => {
+    expect(file).toMatchObject({ label: 'English (SDH) · Synced', synced: true })
   })
 })
 

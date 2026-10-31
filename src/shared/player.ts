@@ -17,6 +17,10 @@ export type Track = {
   default: boolean
   external: boolean // a subtitle file next to the video (or downloaded), not inside it
   fileName: string | null
+  // Subtitles: which stored timing fix belongs to this track ('file:…' / 'embedded:…'); null for audio.
+  key: string | null
+  codec: string | null
+  synced: boolean // a .synced.srt the app exported
 }
 
 // Remembered per title (movie or whole show), never app-wide.

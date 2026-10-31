@@ -10,7 +10,7 @@ import type { MpvClient } from './mpvIpc'
 import { savePosition } from './resume'
 import { getPrefs, savePrefs } from './titlePrefs'
 import { toCue } from '../subtitles/cue'
-import type { ExternalSub } from '../subtitles/match'
+import type { ExternalSub, LoadedSub } from '../subtitles/match'
 import type { StyleStore } from '../subtitles/styleStore'
 import { originalLanguage } from '../subtitles/titleInfo'
 import { pickSubtitle, pickTrack, refOf, subtitlePrefFor, toTracks } from './tracks'
@@ -105,7 +105,7 @@ export function createPlayerService(deps: {
     aid: null as number | null,
     sid: null as number | null,
     // Subtitle files added to this file, with the path mpv was given.
-    externals: [] as ExternalSub[]
+    externals: [] as LoadedSub[]
   }
   let lastCue = 'null'
 
@@ -142,7 +142,7 @@ export function createPlayerService(deps: {
       if (cur !== mine) return
       const path = await deps.subtitles.load(sub).catch(() => null)
       if (!path) continue
-      st.externals.push({ ...sub, path })
+      st.externals.push({ ...sub, path, original: sub.path })
       await cmd('sub-add', path, 'auto', basename(sub.path), sub.lang ?? '')
     }
   }
@@ -485,7 +485,7 @@ export function createPlayerService(deps: {
     await mine.setup?.catch(() => {})
     const path = await deps.subtitles.load(sub)
     if (cur !== mine) return
-    st.externals.push({ ...sub, path })
+    st.externals.push({ ...sub, path, original: sub.path })
     emitCue(null)
     await cmd('sub-add', path, 'select', basename(sub.path), sub.lang ?? '')
     st.tracks = toTracks(await cmd('get_property', 'track-list'), st.externals)

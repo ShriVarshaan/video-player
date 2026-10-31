@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ensureUtf8 } from '../../src/main/subtitles/decode'
-import { findSubtitles, parseSubName } from '../../src/main/subtitles/match'
+import { findSubtitles, isSyncedName, parseSubName } from '../../src/main/subtitles/match'
 
 let dir: string
 beforeEach(() => {
@@ -28,6 +28,32 @@ describe('parseSubName', () => {
     expect(parseSubName('Movie_fr_hi.srt', 'Movie')).toEqual({ lang: 'fre', kind: 'sdh' })
     expect(parseSubName('Movie.cc.srt', 'Movie')).toEqual({ lang: null, kind: 'sdh' })
     expect(parseSubName('Movie.srt', 'Movie')).toEqual({ lang: null, kind: 'plain' })
+  })
+
+  it('skips the word synced', () => {
+    expect(parseSubName('Movie.en.synced.srt', 'Movie')).toEqual({ lang: 'eng', kind: 'plain' })
+    expect(parseSubName('Movie.fr.sdh.synced.srt', 'Movie')).toEqual({ lang: 'fre', kind: 'sdh' })
+    expect(parseSubName('Movie.synced.srt', 'Movie')).toEqual({ lang: null, kind: 'plain' })
+  })
+})
+
+describe('isSyncedName', () => {
+  it('is true only for .synced.<ext> files', () => {
+    expect(isSyncedName('Movie.en.synced.srt')).toBe(true)
+    expect(isSyncedName('Movie.SYNCED.srt')).toBe(true)
+    expect(isSyncedName('Movie.en.srt')).toBe(false)
+    expect(isSyncedName('Synced Lives.en.srt')).toBe(false)
+  })
+})
+
+describe('findSubtitles and synced files', () => {
+  it('marks synced files and reads their language', async () => {
+    const v = movie()
+    touch('Movie.Name.2019.en.synced.srt')
+    touch('Movie.Name.2019.en.srt')
+    const subs = await findSubtitles(v, { userLang: 'spa' })
+    const by = Object.fromEntries(subs.map((s) => [basename(s.path), [s.lang, s.synced]]))
+    expect(by).toEqual({ 'Movie.Name.2019.en.synced.srt': ['eng', true], 'Movie.Name.2019.en.srt': ['eng', false] })
   })
 })
 

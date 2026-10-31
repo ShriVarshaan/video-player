@@ -1,7 +1,8 @@
 import { basename } from 'node:path'
 import { languageName } from '@shared/lang'
 import type { Track, TrackKind, TrackRef } from '@shared/player'
-import type { ExternalSub } from '../subtitles/match'
+import type { LoadedSub } from '../subtitles/match'
+import { subtitleKeyForEmbedded, subtitleKeyForFile } from '../subtitles/transforms'
 
 export { languageName }
 
@@ -22,7 +23,7 @@ const samePath = (a: string, b: string) => slashes(a).toLowerCase() === slashes(
 
 // mpv's track-list → the audio and subtitle tracks the menus show. Subtitle
 // files take their language and kind from the file name (see subtitles/match).
-export function toTracks(trackList: unknown, externals: ExternalSub[] = []): Track[] {
+export function toTracks(trackList: unknown, externals: LoadedSub[] = []): Track[] {
   if (!Array.isArray(trackList)) return []
   const out: Track[] = []
   for (const raw of trackList as Record<string, unknown>[]) {
@@ -38,6 +39,10 @@ export function toTracks(trackList: unknown, externals: ExternalSub[] = []): Tra
     let label: string
     if (lang) label = languageName(lang) + (type === 'audio' ? channels(raw['demux-channel-count']) : KIND_SUFFIX[kind])
     else label = title ?? `Track ${id}`
+    const synced = ext?.synced === true
+    if (synced) label += ' · Synced'
+    const ff = raw['ff-index']
+    const key = type !== 'sub' ? null : ext ? subtitleKeyForFile(ext.original ?? ext.path) : typeof ff === 'number' ? subtitleKeyForEmbedded(ff) : null
     out.push({
       id,
       type,
@@ -48,7 +53,10 @@ export function toTracks(trackList: unknown, externals: ExternalSub[] = []): Tra
       image: type === 'sub' && IMAGE_CODECS.has(String(raw['codec'])),
       default: raw['default'] === true,
       external: raw['external'] === true,
-      fileName: raw['external'] === true && file ? (title ?? basename(slashes(file))) : null
+      fileName: raw['external'] === true && file ? (title ?? basename(slashes(file))) : null,
+      key,
+      codec: typeof raw['codec'] === 'string' ? raw['codec'] : null,
+      synced
     })
   }
   return out

@@ -6,7 +6,12 @@ import { isVideoFile, parseVideoPath } from '../library/parseName'
 
 export type SubFormat = 'srt' | 'vtt' | 'ass' | 'ssa'
 
-export type ExternalSub = { path: string; lang: string | null; kind: TrackKind; format: SubFormat }
+// synced: a <video>[.lang].synced.srt the app exported (milestone 6).
+export type ExternalSub = { path: string; lang: string | null; kind: TrackKind; format: SubFormat; synced?: boolean }
+// An ExternalSub as added to mpv: path is what mpv reads (maybe a UTF-8 copy), original the user's file.
+export type LoadedSub = ExternalSub & { original?: string }
+
+export const isSyncedName = (fileName: string): boolean => /\.synced\.[a-z0-9]+$/i.test(fileName)
 
 const FORMATS = new Set<string>(['srt', 'vtt', 'ass', 'ssa'])
 const FORCED = new Set(['forced', 'foreign'])
@@ -39,6 +44,7 @@ export function parseSubName(fileName: string, videoBase: string): { lang: strin
   let kind: TrackKind = 'plain'
   for (const [i, word] of (own ? words : words.slice(0, 3)).entries()) {
     const w = word.toLowerCase()
+    if (w === 'synced') continue
     if (FORCED.has(w)) kind = 'forced'
     else if (SDH.has(w)) kind = kind === 'forced' ? kind : 'sdh'
     else if (own || w.length > 2 || i === 0) lang ??= normalizeLang(w)
@@ -94,7 +100,7 @@ export async function findSubtitles(
       if (!format || seen.has(fold(path)) || !(place.any || belongs(name))) continue
       seen.add(fold(path))
       const { lang, kind } = parseSubName(name, videoBase)
-      out.push({ path, lang: lang ?? opts.userLang, kind, format })
+      out.push({ path, lang: lang ?? opts.userLang, kind, format, synced: isSyncedName(name) })
     }
   }
   return out
