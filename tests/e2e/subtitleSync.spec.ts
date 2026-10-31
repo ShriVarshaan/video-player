@@ -123,6 +123,16 @@ test('Esc on the sync card changes nothing', async () => {
   await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 3000 })
 })
 
+test('changing the subtitle track closes the sync card (review)', async () => {
+  ;({ app, win, userData } = await launchApp(dir))
+  const overlay = await play('The Matrix')
+  await holdAt(overlay, 0.5)
+  await overlay.keyboard.press('s')
+  await expect(overlay.getByTestId('sync-line')).toHaveText('Wake up, Neo.')
+  await send(overlay, { type: 'subtitle', id: null })
+  await expect(overlay.getByTestId('sync-card')).toHaveCount(0)
+})
+
 test('export writes a synced file next to the film and shows it', async () => {
   const original = readFileSync(join(dir, `${MATRIX}.en.srt`))
   const synced = join(dir, `${MATRIX}.en.synced.srt`)

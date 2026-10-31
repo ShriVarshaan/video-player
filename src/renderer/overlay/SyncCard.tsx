@@ -17,6 +17,7 @@ export function SyncCard({
   onClose: () => void
 }) {
   const [cues, setCues] = useState<Cue[] | null>(null)
+  const [key, setKey] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [i, setI] = useState(-1)
 
@@ -26,6 +27,7 @@ export function SyncCard({
       (d) => {
         if (!live) return
         setCues(d.cues)
+        setKey(d.key)
         setI(firstCueAfter(d.cues.map((c) => c.start), d.offset, getPosition()))
       },
       (e: unknown) => live && setError(parseAppError(e)?.message ?? "Couldn't read this subtitle")
@@ -46,7 +48,7 @@ export function SyncCard({
       else if (e.key === 'ArrowRight') setI(Math.min(cues.length - 1, i + 1))
       else if ((e.key === 's' || e.key === 'S' || e.key === 'Enter') && !e.repeat && !sent) {
         sent = true
-        void window.api.subtitles.syncToCue({ start: cues[i]!.start }).then(
+        void window.api.subtitles.syncToCue({ start: cues[i]!.start, key }).then(
           ({ offset }) => {
             if (offset !== null) onSynced(offset)
             onClose()
@@ -57,7 +59,7 @@ export function SyncCard({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [cues, i, error, onClose, onSynced])
+  }, [cues, i, key, error, onClose, onSynced])
 
   const line = cues && i >= 0 ? cues[i]!.text : null
   return (

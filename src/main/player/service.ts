@@ -144,7 +144,7 @@ export function createPlayerService(deps: {
   })
 
   function newFile() {
-    delay.flush()
+    delay.clear()
     cueAbort.abort()
     cueAbort = new AbortController()
     cueCache = new Map()
@@ -515,7 +515,8 @@ export function createPlayerService(deps: {
         await selectSubtitle(c.id)
         // Off over nothing changes nothing; Off over a showing track is remembered.
         if (choice || showing) savePrefs(db, key, { subtitle: subtitlePrefFor(choice, showing !== undefined) }, deps.now())
-        return
+        // Paused, nothing else would tell the overlay (its menu, the sync card) of the change.
+        return emitState(true)
       }
       case 'fullScreen':
         deps.window.setFullScreen(c.on)
@@ -529,13 +530,17 @@ export function createPlayerService(deps: {
     await mine.setup?.catch(() => {})
     const path = await deps.subtitles.load(sub)
     if (cur !== mine) return
+    const key = subtitleKeyForFile(sub.path)
+    // The file may have been written again (a re-export): its old track and its old
+    // lines go, so the menu lists it once and the sync card reads the new text.
+    cueCache.delete(key)
+    for (const old of st.tracks.filter((t) => t.type === 'sub' && t.key === key)) await cmd('sub-remove', old.id)
+    st.externals = st.externals.filter((e) => !e.original || subtitleKeyForFile(e.original) !== key)
     st.externals.push({ ...sub, path, original: sub.path })
     emitCue(null)
     await cmd('sub-add', path, 'select', basename(sub.path), sub.lang ?? '')
     st.tracks = toTracks(await cmd('get_property', 'track-list'), st.externals)
-    // The track of this very file (a re-export can add the same name twice: the newest).
-    const key = subtitleKeyForFile(sub.path)
-    const added = st.tracks.filter((t) => t.type === 'sub' && t.key === key).at(-1)
+    const added = st.tracks.find((t) => t.type === 'sub' && t.key === key)
     if (added) {
       await selectSubtitle(added.id)
       if (opts.remember !== false) savePrefs(db, mine.title.key, { subtitle: refOf(added) }, deps.now())
@@ -546,7 +551,7 @@ export function createPlayerService(deps: {
   const showing = () => (cur ? st.tracks.find((t) => t.type === 'sub' && t.id === st.sid) : undefined)
 
   async function syncSubtitleTo(cueStart: number): Promise<number | null> {
-    if (!delay.current()) return null
+    if (!showing() || !delay.current()) return null
     const pos = num(await cmd('get_property', 'time-pos')) ?? st.positionS
     return delay.set(offsetForCue(cueStart, pos))
   }
@@ -586,7 +591,7 @@ export function createPlayerService(deps: {
     current: () => (cur ? { videoId: cur.videoId, titleKey: cur.title.key, path: cur.path } : null),
     notifyStyle,
     addSubtitle,
-    nudgeSubtitle: (deltaS) => delay.nudge(deltaS),
+    nudgeSubtitle: async (deltaS) => (showing() ? delay.nudge(deltaS) : null),
     syncSubtitleTo,
     resetSubtitleTiming: async () => void (await delay.set(0)),
     currentSubtitle,

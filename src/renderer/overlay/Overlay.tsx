@@ -30,7 +30,7 @@ export function Overlay() {
   const [offset, setOffset] = useState<number | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [note, setNote] = useState<{ text: string; n: number } | null>(null)
-  const [confirm, setConfirm] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<{ name: string; key: string } | null>(null)
   const stateRef = useRef<PlayerState | null>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const fillRef = useRef<HTMLElement>(null)
@@ -50,6 +50,9 @@ export function Overlay() {
         if (prev?.videoId !== s.videoId) {
           setNext(null)
           setError(null)
+        }
+        // The sync card and the replace prompt are about one subtitle: another one closes them.
+        if (prev?.videoId !== s.videoId || prev?.subtitleId !== s.subtitleId) {
           setSyncing(false)
           setConfirm(null)
         }
@@ -138,12 +141,13 @@ export function Overlay() {
     [sayOffset, sayError]
   )
 
+  // key: the subtitle being exported; main refuses if another one is showing by then.
   const exportSynced = useCallback(
-    async (replace: boolean) => {
+    async (replace: boolean, key: string) => {
       setConfirm(null)
       try {
-        const r = await window.api.subtitles.exportSynced({ replace })
-        if ('exists' in r) setConfirm(r.exists)
+        const r = await window.api.subtitles.exportSynced({ replace, key })
+        if ('exists' in r) setConfirm({ name: r.exists, key })
         else say(r.fallback ? `Saved ${r.saved} in the app's folder` : `Saved ${r.saved}`)
       } catch (e) {
         sayError(e)
@@ -167,7 +171,11 @@ export function Overlay() {
       if (a === 'sync') return startSync()
       setMenu(null)
       if (a === 'reset') void window.api.subtitles.resetTiming({}).then(() => sayOffset(0), sayError)
-      else void exportSynced(false)
+      else {
+        const s = stateRef.current
+        const key = s?.subtitles.find((t) => t.id === s.subtitleId)?.key
+        if (key) void exportSynced(false, key)
+      }
     },
     [startSync, sayOffset, sayError, exportSynced]
   )
@@ -300,7 +308,9 @@ export function Overlay() {
       )}
       {next && <NextCard key={next.videoId} next={next} onPlay={playNext} onCancel={() => setNext(null)} />}
       {state && syncing && <SyncCard getPosition={getPosition} onSynced={sayOffset} onClose={closeSync} />}
-      {state && confirm && <ConfirmCard name={confirm} onReplace={() => void exportSynced(true)} onCancel={() => setConfirm(null)} />}
+      {state && confirm && (
+        <ConfirmCard name={confirm.name} onReplace={() => void exportSynced(true, confirm.key)} onCancel={() => setConfirm(null)} />
+      )}
       <TimingNote message={note} />
     </div>
   )

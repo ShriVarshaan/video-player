@@ -174,3 +174,18 @@ describe('decodeSubtitle', () => {
     expect(decodeSubtitle(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Hé', 'utf16le')]), null)).toBe('Hé')
   })
 })
+
+describe('SRT with blank lines inside a cue (review)', () => {
+  it('keeps the text after the blank line with its cue', () => {
+    const cues = parseSubtitle('1\n00:00:01,000 --> 00:00:03,000\nLine A\n\nLine B\n\n2\n00:00:04,000 --> 00:00:05,000\nNext\n')
+    expect(cues.map((c) => c.lines)).toEqual([['Line A', 'Line B'], ['Next']])
+  })
+  it('does not take the next index number as text', () => {
+    const cues = parseSubtitle('1\n00:00:01,000 --> 00:00:03,000\nA\n\n\n12\n00:00:04,000 --> 00:00:05,000\nB\n')
+    expect(cues.map((c) => c.lines)).toEqual([['A'], ['B']])
+  })
+  it('keeps a number that is part of the text in a file without index lines', () => {
+    const cues = parseSubtitle('00:00:01,000 --> 00:00:03,000\nThe year was\n1984\n\n00:00:04,000 --> 00:00:05,000\nNext\n')
+    expect(cues.map((c) => c.lines)).toEqual([['The year was', '1984'], ['Next']])
+  })
+})

@@ -149,4 +149,23 @@ Differences from the design, and why:
 - The sync card and the note open without animation (they come from key presses); the note only fades out.
 - **E2E windows open on the second display** when there is one (`toSecondDisplay` in `tests/e2e/pages.ts`), at the user's request.
 
+Fixed after the final review:
+- A second export of a synced file re-reads its new lines and replaces its old track, instead of reusing stale lines and listing the file twice.
+- A file change clears the timing selection, so a G/H or "Sync to a line" during loading can't land on the previous video's subtitle.
+- The sync card and the Replace prompt close when the subtitle changes, and main refuses a sync or export for a subtitle other than the one the card or prompt was opened for (`key`). Picking a subtitle now updates the overlay at once, even while paused.
+- SRT cues keep text after a blank line inside the cue.
+- An embedded track's language tag is normalised before it goes into the synced file's name, and only a plain code is allowed (no path characters).
+
+Deferred (minor, from the final review):
+- `addSubtitle` adds with `select` before applying the new track's delay, so a re-exported file can show doubly shifted for a few ms.
+- The sync card's double-S guard resets if ← or → is pressed between S and the reply.
+- Esc during "Reading subtitles…" doesn't stop ffmpeg (the result is cached; CPU only).
+- The Replace prompt's keys only work while focus is inside it.
+- Export's offset reset bypasses the delay module: a still-pending debounced save for the same key could write the old offset back.
+- Read-only folder with an existing synced file: Replace writes a second copy in the app's folder, and the folder copy keeps winning.
+- The overlay keeps the last offset after the player closes, until the next selection.
+- `writeSrt` italicises a whole cue if any part was italic; an exported commentary track reads back as plain.
+- mpv keeps `sub-visibility` across `loadfile`, so a picture-based default track in the next file can show briefly before the pick.
+- E2E: `subtitleStyle.spec.ts` "style changes… stay with that title" lost one key press once in a full run (16/16 when repeated).
+
 Needs the user's check: on a real film with a subtitle a few seconds off, use "Sync to a line" five times. If the result is always late by about the same amount, that amount becomes `REACTION_LEAD_S`. Also: hold G for two seconds (no stutter, right offset after reopening), and a real MKV with an embedded SRT/ASS track.

@@ -10,7 +10,10 @@ import { writeSrt } from './srt'
 export function syncedName(videoPath: string, lang: string | null, kind: TrackKind): string {
   const base = basename(videoPath, extname(videoPath))
   const flag = kind === 'sdh' ? '.sdh' : kind === 'forced' ? '.forced' : ''
-  return `${base}${lang ? `.${toOpenSubtitles(lang)}` : ''}${flag}.synced.srt`
+  // Only a plain code ("en", "pt-br") goes in the name: a track's tag comes from the file.
+  const code = lang ? toOpenSubtitles(lang) : ''
+  const word = /^[a-z]{2,3}(-[a-z]{2})?$/i.test(code) ? `.${code}` : ''
+  return `${base}${word}${flag}.synced.srt`
 }
 
 const exists = (p: string) => access(p).then(

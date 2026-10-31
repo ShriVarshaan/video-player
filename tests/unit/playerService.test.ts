@@ -33,13 +33,18 @@ function fakeMpv(): Fake {
   const listeners = new Map<string, Set<(m: Record<string, unknown>) => void>>()
   let onExit: (expected: boolean) => void = () => {}
   const added: Record<string, unknown>[] = []
+  let nextSubId = 3
   const client: MpvClient = {
     command: async (...args) => {
       commands.push(args)
       if (args[0] === 'sub-add') {
-        added.push({ id: 3 + added.length, type: 'sub', external: true, 'external-filename': args[1], title: args[3], lang: args[4] || undefined, codec: 'subrip' })
+        added.push({ id: nextSubId++, type: 'sub', external: true, 'external-filename': args[1], title: args[3], lang: args[4] || undefined, codec: 'subrip' })
       }
-      if (args[0] === 'loadfile') added.length = 0
+      if (args[0] === 'sub-remove') added.splice(added.findIndex((t) => t['id'] === args[1]) >>> 0, 1)
+      if (args[0] === 'loadfile') {
+        added.length = 0
+        nextSubId = 3
+      }
       if (args[0] === 'get_property' && args[1] === 'track-list') {
         // mpv answers with the tracks as they were when the request arrived.
         const now = [...trackList, ...added]
@@ -820,5 +825,71 @@ describe('subtitle timing (milestone 6)', () => {
     await start()
     await pick(9)
     await expect(player.subtitleCues()).rejects.toThrow('Sync to a line needs a text subtitle')
+  })
+})
+
+describe('subtitle timing review fixes (milestone 6)', () => {
+  const SUBS = [
+    { id: 1, type: 'video', codec: 'h264' },
+    { id: 1, type: 'audio', lang: 'eng', default: true, 'ff-index': 1 },
+    { id: 1, type: 'sub', lang: 'eng', 'ff-index': 3, codec: 'subrip' }
+  ]
+  const synced = { path: 'D:/L/matrix.en.synced.srt', lang: 'eng', kind: 'plain' as const, format: 'srt' as const, synced: true }
+  const subTracks = () => (emitted('player.state').at(-1) as { subtitles: { id: number; key: string | null }[] }).subtitles
+
+  it('re-reads a subtitle file after it is written again (second export)', async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.addSubtitle(synced, { remember: false })
+    await player.subtitleCues()
+    await player.addSubtitle(synced, { remember: false })
+    await player.subtitleCues()
+    expect(cueReads).toHaveLength(2)
+  })
+
+  it('a re-added file replaces its old track instead of listing it twice', async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.addSubtitle(synced, { remember: false })
+    await player.addSubtitle(synced, { remember: false })
+    expect(sent('sub-remove')).toEqual([['sub-remove', 3]])
+    vi.advanceTimersByTime(50)
+    const key = subTracks().find((t) => t.id === 4)?.key
+    expect(subTracks().filter((t) => t.key === key)).toHaveLength(1)
+  })
+
+  it('a nudge while the next file loads goes nowhere, and the old fix stays as it was', async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.command({ type: 'subtitle', id: 1 })
+    await player.nudgeSubtitle(0.5)
+    await player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    expect(emitted('subtitles.timing').at(-1)).toBeNull()
+    expect(await player.nudgeSubtitle(0.05)).toBeNull()
+    mpvProps['time-pos'] = 30
+    expect(await player.syncSubtitleTo(5)).toBeNull()
+    vi.advanceTimersByTime(1000)
+    expect(getOffset(db, 2, 'embedded:3')).toBe(0.5)
+  })
+
+  it('a subtitle pick reaches the overlay at once, even while paused', async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    mpv().set('pause', true)
+    await player.command({ type: 'subtitle', id: 1 })
+    expect((emitted('player.state').at(-1) as { subtitleId: number | null }).subtitleId).toBe(1)
+  })
+
+  it('nudges need a subtitle showing in this file', async () => {
+    trackList = SUBS
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.command({ type: 'subtitle', id: 1 })
+    mpv().set('sid', false)
+    expect(await player.nudgeSubtitle(0.05)).toBeNull()
   })
 })

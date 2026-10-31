@@ -66,12 +66,13 @@ describe('syncCues and syncToCue', () => {
         { start: 1, text: 'Wake up,\nNeo.' },
         { start: 5, text: 'Follow the white rabbit.' }
       ],
-      offset: 2
+      offset: 2,
+      key: 'file:x'
     })
   })
   it('syncs to a cue start', async () => {
-    expect(await api.syncToCue({ start: 5 })).toEqual({ offset: 4 })
-    await expect(api.syncToCue({ start: Number.NaN })).rejects.toThrow()
+    expect(await api.syncToCue({ start: 5, key: 'file:x' })).toEqual({ offset: 4 })
+    await expect(api.syncToCue({ start: Number.NaN, key: 'file:x' })).rejects.toThrow()
   })
   it('says when nothing is showing', async () => {
     player.currentSubtitle = () => null
@@ -82,7 +83,7 @@ describe('syncCues and syncToCue', () => {
 describe('exportSynced', () => {
   it('asks first when the synced file is there, and writes nothing', async () => {
     writeFileSync(join(dir, 'Movie.en.synced.srt'), 'old')
-    expect(await api.exportSynced({ replace: false })).toEqual({ exists: 'Movie.en.synced.srt' })
+    expect(await api.exportSynced({ replace: false, key: 'file:x' })).toEqual({ exists: 'Movie.en.synced.srt' })
     expect(readFileSync(join(dir, 'Movie.en.synced.srt'), 'utf8')).toBe('old')
     expect(player.addSubtitle).not.toHaveBeenCalled()
   })
@@ -90,7 +91,7 @@ describe('exportSynced', () => {
   it('writes, clears the new file’s stored offset and shows it without remembering it', async () => {
     const saved = join(dir, 'Movie.en.synced.srt')
     setOffset(db, 2, subtitleKeyForFile(saved), 3, 0)
-    expect(await api.exportSynced({ replace: true })).toEqual({ saved: 'Movie.en.synced.srt', fallback: false })
+    expect(await api.exportSynced({ replace: true, key: 'file:x' })).toEqual({ saved: 'Movie.en.synced.srt', fallback: false })
     expect(readFileSync(saved, 'utf8')).toContain('00:00:03,000 --> 00:00:06,000')
     expect(getOffset(db, 2, subtitleKeyForFile(saved))).toBe(0)
     expect(player.addSubtitle).toHaveBeenCalledWith({ path: saved, lang: 'eng', kind: 'plain', format: 'srt', synced: true }, { remember: false })
@@ -98,6 +99,26 @@ describe('exportSynced', () => {
 
   it('refuses a picture subtitle', async () => {
     player.currentSubtitle = () => ({ videoId: 2, videoPath: join(dir, 'Movie.mkv'), track: { ...track, image: true }, offset: 0 })
-    await expect(api.exportSynced({ replace: false })).rejects.toThrow('Sync to a line needs a text subtitle')
+    await expect(api.exportSynced({ replace: false, key: 'file:x' })).rejects.toThrow('Sync to a line needs a text subtitle')
+  })
+})
+
+describe('review fixes', () => {
+  it('syncCues names the track; syncToCue and export refuse another track', async () => {
+    expect((await api.syncCues({})).key).toBe('file:x')
+    await expect(api.syncToCue({ start: 5, key: 'file:other' })).rejects.toThrow('The subtitle changed')
+    await expect(api.exportSynced({ replace: true, key: 'file:other' })).rejects.toThrow('The subtitle changed')
+    expect(player.addSubtitle).not.toHaveBeenCalled()
+    expect(await api.syncToCue({ start: 5, key: 'file:x' })).toEqual({ offset: 4 })
+  })
+
+  it('names the synced file from a normalised language tag', async () => {
+    player.currentSubtitle = () => ({ videoId: 2, videoPath: join(dir, 'Movie.mkv'), track: { ...track, lang: 'English' }, offset: 0 })
+    expect(await api.exportSynced({ replace: false, key: 'file:x' })).toEqual({ saved: 'Movie.en.synced.srt', fallback: false })
+  })
+
+  it('never lets a language tag lead outside the folder', async () => {
+    player.currentSubtitle = () => ({ videoId: 2, videoPath: join(dir, 'Movie.mkv'), track: { ...track, lang: '..\\..\\evil' }, offset: 0 })
+    expect(await api.exportSynced({ replace: false, key: 'file:x' })).toEqual({ saved: 'Movie.synced.srt', fallback: false })
   })
 })

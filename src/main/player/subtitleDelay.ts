@@ -42,6 +42,14 @@ export function createSubtitleDelay(deps: {
       await deps.setDelay(cur?.offset ?? 0)
       deps.emit(cur?.offset ?? null)
     },
+    // The file is changing: save what is pending and forget the selection, so nothing
+    // lands on the old file's subtitle before the new one's pick.
+    clear(): void {
+      flush()
+      cur = null
+      deps.emit(null)
+      void deps.setDelay(0)
+    },
     nudge: (deltaS: number) => apply((cur?.offset ?? 0) + deltaS),
     set: (offset: number) => apply(offset),
     current: () => (cur ? { ...cur } : null),

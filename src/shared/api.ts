@@ -74,11 +74,12 @@ export type API = {
     nudge: (params: { deltaS: number }) => Promise<{ offset: number | null }>
     resetTiming: (params: Record<string, never>) => Promise<void>
     // The showing text subtitle's lines, for "Sync to a line" (embedded ones may take a moment).
-    syncCues: (params: Record<string, never>) => Promise<{ cues: { start: number; text: string }[]; offset: number }>
+    // key: the subtitle these lines belong to (Track.key); the calls below refuse another one.
+    syncCues: (params: Record<string, never>) => Promise<{ cues: { start: number; text: string }[]; offset: number; key: string }>
     // The line starting at start is being heard now.
-    syncToCue: (params: { start: number }) => Promise<{ offset: number | null }>
+    syncToCue: (params: { start: number; key: string }) => Promise<{ offset: number | null }>
     // Writes <video>.<lang>.synced.srt and shows it; { exists } asks before replacing. Names, not paths.
-    exportSynced: (params: { replace: boolean }) => Promise<{ saved: string; fallback: boolean } | { exists: string }>
+    exportSynced: (params: { replace: boolean; key: string }) => Promise<{ saved: string; fallback: boolean } | { exists: string }>
   }
 }
 

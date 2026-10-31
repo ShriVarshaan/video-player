@@ -151,18 +151,20 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
     syncCues: async () => {
       const sub = textSubtitle()
       const cues = await player.subtitleCues()
-      return { cues: cues.map((c) => ({ start: c.start, text: c.lines.join('\n') })), offset: sub.offset }
+      return { cues: cues.map((c) => ({ start: c.start, text: c.lines.join('\n') })), offset: sub.offset, key: sub.track.key! }
     },
-    syncToCue: async ({ start }) => {
+    syncToCue: async ({ start, key }) => {
       if (typeof start !== 'number' || !Number.isFinite(start)) throwAppError({ code: 'invalid_argument', message: 'Pick a line.' })
+      sameSubtitle(key)
       return { offset: await player.syncSubtitleTo(start) }
     },
-    exportSynced: async ({ replace }) => {
-      const sub = textSubtitle()
+    exportSynced: async ({ replace, key }) => {
+      const sub = sameSubtitle(key)
       const cues = await player.subtitleCues()
+      const lang = normalizeLang(sub.track.lang)
       const r = await exportSynced({
         videoPath: sub.videoPath,
-        lang: sub.track.lang,
+        lang,
         kind: sub.track.kind,
         cues,
         offset: sub.offset,
@@ -172,7 +174,7 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
       if ('exists' in r) return { exists: basename(r.exists) }
       // The shift is baked into the new file: it starts with no fix of its own.
       setOffset(db, sub.videoId, subtitleKeyForFile(r.saved), 0, Date.now())
-      const added: ExternalSub = { path: r.saved, lang: sub.track.lang, kind: sub.track.kind, format: 'srt', synced: true }
+      const added: ExternalSub = { path: r.saved, lang, kind: sub.track.kind, format: 'srt', synced: true }
       if (player.current()?.videoId === sub.videoId) await player.addSubtitle(added, { remember: false })
       return { saved: basename(r.saved), fallback: r.fallback }
     }
@@ -183,6 +185,13 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
     const sub = player.currentSubtitle()
     if (!sub) throwAppError({ code: 'invalid_argument', message: 'Choose a subtitle first.' })
     if (sub.track.image) throwAppError({ code: 'invalid_argument', message: 'Sync to a line needs a text subtitle' })
+    return sub
+  }
+
+  // The subtitle the user was looking at (its key) must still be the one showing.
+  function sameSubtitle(key: unknown) {
+    const sub = textSubtitle()
+    if (typeof key !== 'string' || key !== sub.track.key) throwAppError({ code: 'invalid_argument', message: 'The subtitle changed. Try again.' })
     return sub
   }
 }

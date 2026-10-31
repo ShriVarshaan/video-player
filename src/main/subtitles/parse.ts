@@ -45,15 +45,27 @@ function blocks(text: string): string[][] {
   return text.split(/\n\s*\n/).map((b) => b.split('\n')).filter((b) => b.some((l) => l.trim()))
 }
 
+// Cues run from one timing line to the next, so a blank line inside a cue keeps
+// its text. The index number just before a timing line is not text.
 function parseSrt(text: string): Raw[] {
   const out: Raw[] = []
-  for (const block of blocks(text)) {
-    const i = block.findIndex((l) => TIMING.test(l))
-    if (i < 0) continue
-    const t = timing(block[i]!)!
-    const c = cleanTags(block.slice(i + 1).join('\n'))
-    out.push({ start: t.start, end: t.end, ...c })
+  let cur: { start: number; end: number; lines: string[] } | null = null
+  const finish = () => {
+    if (!cur) return
+    const lines = [...cur.lines]
+    while (lines.length && !lines.at(-1)!.trim()) lines.pop()
+    // An index stands alone after a blank line; "1984" right under text is text.
+    if (lines.length && /^\s*\d+\s*$/.test(lines.at(-1)!) && (lines.length === 1 || !lines.at(-2)!.trim())) lines.pop()
+    out.push({ start: cur.start, end: cur.end, ...cleanTags(lines.join('\n')) })
   }
+  for (const line of text.split('\n')) {
+    const t = TIMING.test(line) ? timing(line) : null
+    if (t) {
+      finish()
+      cur = { start: t.start, end: t.end, lines: [] }
+    } else if (cur) cur.lines.push(line)
+  }
+  finish()
   return out
 }
 

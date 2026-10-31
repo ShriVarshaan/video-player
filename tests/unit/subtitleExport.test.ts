@@ -72,3 +72,10 @@ describe('exportSynced', () => {
     expect(readFileSync(join(fallbackDir, 'Movie.en.synced.srt'), 'utf8')).toContain('Wake up, Neo.')
   })
 })
+
+describe('syncedName with odd language codes', () => {
+  it('drops anything that is not a plain language code', () => {
+    expect(syncedName('D:/m/Movie.mkv', '..\\..\\x', 'plain')).toBe('Movie.synced.srt')
+    expect(syncedName('D:/m/Movie.mkv', 'a/b', 'sdh')).toBe('Movie.sdh.synced.srt')
+  })
+})
