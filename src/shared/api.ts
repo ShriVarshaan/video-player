@@ -70,6 +70,15 @@ export type API = {
     accountStatus: (params: Record<string, never>) => Promise<{ configured: boolean; username: string | null }>
     setAccount: (params: { apiKey: string; username: string; password: string }) => Promise<void>
     testAccount: (params: Record<string, never>) => Promise<{ username: string; remaining: number }>
+    // Timing of the showing subtitle (milestone 6). offset null: no subtitle showing.
+    nudge: (params: { deltaS: number }) => Promise<{ offset: number | null }>
+    resetTiming: (params: Record<string, never>) => Promise<void>
+    // The showing text subtitle's lines, for "Sync to a line" (embedded ones may take a moment).
+    syncCues: (params: Record<string, never>) => Promise<{ cues: { start: number; text: string }[]; offset: number }>
+    // The line starting at start is being heard now.
+    syncToCue: (params: { start: number }) => Promise<{ offset: number | null }>
+    // Writes <video>.<lang>.synced.srt and shows it; { exists } asks before replacing. Names, not paths.
+    exportSynced: (params: { replace: boolean }) => Promise<{ saved: string; fallback: boolean } | { exists: string }>
   }
 }
 
@@ -97,7 +106,12 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
     download: true,
     accountStatus: true,
     setAccount: true,
-    testAccount: true
+    testAccount: true,
+    nudge: true,
+    resetTiming: true,
+    syncCues: true,
+    syncToCue: true,
+    exportSynced: true
   }
 }
 

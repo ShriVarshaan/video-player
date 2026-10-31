@@ -1,5 +1,6 @@
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { ipcMain, safeStorage } from 'electron'
+import { MAX_OFFSET_S } from '@shared/subtitleTiming'
 import type { API } from '@shared/api'
 import { throwAppError } from '@shared/appError'
 import { normalizeLang, toOpenSubtitles } from '@shared/lang'
@@ -10,7 +11,9 @@ import { registerDomain } from '../ipc'
 import { createSecretStore, type SecretStore } from '../metadata/credential'
 import type { PlayerService } from '../player/service'
 import { saveDownload } from './download'
-import type { SubFormat } from './match'
+import { exportSynced } from './export'
+import type { ExternalSub, SubFormat } from './match'
+import { setOffset, subtitleKeyForFile } from './transforms'
 
 const FORMATS: SubFormat[] = ['srt', 'vtt', 'ass', 'ssa']
 import { createOpenSubtitles, type OpenSubtitles, type OpenSubtitlesSecrets, type SubtitleQuery } from './openSubtitles'
@@ -136,7 +139,51 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
       deps.account.set(JSON.stringify({ apiKey: clean[0], username: clean[1], password: clean[2] }))
       os.reset()
     },
-    testAccount: async () => os.account()
+    testAccount: async () => os.account(),
+
+    nudge: async ({ deltaS }) => {
+      if (typeof deltaS !== 'number' || !Number.isFinite(deltaS) || Math.abs(deltaS) > MAX_OFFSET_S) {
+        throwAppError({ code: 'invalid_argument', message: 'That is not a timing change.' })
+      }
+      return { offset: await player.nudgeSubtitle(deltaS) }
+    },
+    resetTiming: async () => player.resetSubtitleTiming(),
+    syncCues: async () => {
+      const sub = textSubtitle()
+      const cues = await player.subtitleCues()
+      return { cues: cues.map((c) => ({ start: c.start, text: c.lines.join('\n') })), offset: sub.offset }
+    },
+    syncToCue: async ({ start }) => {
+      if (typeof start !== 'number' || !Number.isFinite(start)) throwAppError({ code: 'invalid_argument', message: 'Pick a line.' })
+      return { offset: await player.syncSubtitleTo(start) }
+    },
+    exportSynced: async ({ replace }) => {
+      const sub = textSubtitle()
+      const cues = await player.subtitleCues()
+      const r = await exportSynced({
+        videoPath: sub.videoPath,
+        lang: sub.track.lang,
+        kind: sub.track.kind,
+        cues,
+        offset: sub.offset,
+        replace: replace === true,
+        fallbackDir: join(deps.userDataPath, 'subtitles', String(sub.videoId))
+      })
+      if ('exists' in r) return { exists: basename(r.exists) }
+      // The shift is baked into the new file: it starts with no fix of its own.
+      setOffset(db, sub.videoId, subtitleKeyForFile(r.saved), 0, Date.now())
+      const added: ExternalSub = { path: r.saved, lang: sub.track.lang, kind: sub.track.kind, format: 'srt', synced: true }
+      if (player.current()?.videoId === sub.videoId) await player.addSubtitle(added, { remember: false })
+      return { saved: basename(r.saved), fallback: r.fallback }
+    }
+  }
+
+  // The showing subtitle, which must be one the app can read as text.
+  function textSubtitle() {
+    const sub = player.currentSubtitle()
+    if (!sub) throwAppError({ code: 'invalid_argument', message: 'Choose a subtitle first.' })
+    if (sub.track.image) throwAppError({ code: 'invalid_argument', message: 'Sync to a line needs a text subtitle' })
+    return sub
   }
 }
 
