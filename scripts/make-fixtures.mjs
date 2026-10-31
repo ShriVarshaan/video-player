@@ -4,7 +4,7 @@
 // The vendor ffmpeg is an LGPL build, so there is no x264/x265: clips use
 // mpeg4, VP9 and AV1 instead (test-media-fixtures).
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -92,5 +92,156 @@ make(join(media, 'tracks.mkv'), (f) => {
     f
   ])
 })
+
+// ---- Speech track with ground truth, for auto sync (test-media-fixtures). ----
+// 80 TTS lines (Windows SAPI) placed at known times over low pink noise. Each
+// cue starts and ends where its WAV is actually loud, so speech.srt is exact.
+
+const speechTruth = join(media, 'speech.srt')
+const speechVideo = join(media, 'speech.mkv')
+
+// Small seeded generator so the fixture is the same on every machine.
+function rng(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// The one SRT formatter for every speech variant: displayed = scale * t + offset.
+function toSrt(cues, scale = 1, offset = 0) {
+  const stamp = (s) => {
+    const ms = Math.max(0, Math.round(s * 1000))
+    const p = (n, w = 2) => String(n).padStart(w, '0')
+    return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`
+  }
+  return cues
+    .map((c, i) => `${i + 1}\r\n${stamp(scale * c.start + offset)} --> ${stamp(scale * c.end + offset)}\r\n${c.text}\r\n`)
+    .join('\r\n')
+}
+
+// 16-bit PCM WAV → { rate, samples } (SAPI writes plain mono PCM).
+function readWav(file) {
+  const b = readFileSync(file)
+  let pos = 12
+  let rate = 0
+  let channels = 1
+  while (pos + 8 <= b.length) {
+    const id = b.toString('ascii', pos, pos + 4)
+    const size = b.readUInt32LE(pos + 4)
+    if (id === 'fmt ') {
+      channels = b.readUInt16LE(pos + 10)
+      rate = b.readUInt32LE(pos + 12)
+      if (b.readUInt16LE(pos + 22) !== 16) throw new Error(`${file}: not 16-bit PCM`)
+    } else if (id === 'data') {
+      const n = Math.floor(size / 2 / channels)
+      const samples = new Int16Array(n)
+      for (let i = 0; i < n; i++) samples[i] = b.readInt16LE(pos + 8 + i * 2 * channels)
+      return { rate, samples }
+    }
+    pos += 8 + size + (size % 2)
+  }
+  throw new Error(`${file}: no data chunk`)
+}
+
+// Where the line is actually audible inside its WAV (SAPI pads both ends).
+function loudSpan(samples, rate) {
+  const win = Math.round(rate * 0.01)
+  const loud = []
+  for (let i = 0; i + win <= samples.length; i += win) {
+    let peak = 0
+    for (let j = i; j < i + win; j++) peak = Math.max(peak, Math.abs(samples[j]))
+    loud.push(peak > 600)
+  }
+  const first = loud.indexOf(true)
+  const last = loud.lastIndexOf(true)
+  return { from: (first * win) / rate, to: ((last + 1) * win) / rate }
+}
+
+function makeSpeech() {
+  const all = readFileSync(join(root, 'tests', 'fixtures', 'lines.txt'), 'utf8').split(/\r?\n/).filter(Boolean)
+  const lines = all.slice(0, 80)
+  const tmp = join(media, 'speech-tmp')
+  mkdirSync(tmp, { recursive: true })
+  const list = join(tmp, 'lines.txt')
+  writeFileSync(list, lines.join('\n'), 'utf8')
+  console.log('speaking 80 lines with Windows TTS…')
+  const ps = [
+    'Add-Type -AssemblyName System.Speech',
+    `$lines = Get-Content -Encoding UTF8 '${list}'`,
+    '$i = 0',
+    'foreach ($l in $lines) {',
+    '  $s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
+    `  $s.SetOutputToWaveFile((Join-Path '${tmp}' ('line_{0:000}.wav' -f $i)))`,
+    '  $s.Speak($l); $s.Dispose(); $i++',
+    '}'
+  ].join('\n')
+  execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { stdio: 'inherit' })
+
+  const random = rng(7)
+  const parts = lines.map((text, i) => ({ text, ...readWav(join(tmp, `line_${String(i).padStart(3, '0')}.wav`)) }))
+  const rate = parts[0].rate
+  if (parts.some((p) => p.rate !== rate)) throw new Error('TTS lines differ in sample rate')
+  let t = 2
+  const cues = []
+  const placed = []
+  for (const p of parts) {
+    const span = loudSpan(p.samples, rate)
+    placed.push({ at: t, samples: p.samples })
+    cues.push({ start: t + span.from, end: t + span.to, text: p.text })
+    t += p.samples.length / rate + 0.8 + random() * 3.2
+  }
+  const total = Math.ceil(t + 2)
+  const mix = new Int16Array(total * rate)
+  for (const { at, samples } of placed) mix.set(samples, Math.round(at * rate))
+  const raw = join(tmp, 'speech.pcm')
+  writeFileSync(raw, Buffer.from(mix.buffer))
+  run([
+    '-f', 's16le', '-ar', String(rate), '-ac', '1', '-i', raw,
+    '-f', 'lavfi', '-i', `anoisesrc=color=pink:amplitude=0.02:sample_rate=${rate}:duration=${total}`,
+    '-f', 'lavfi', '-i', `testsrc2=size=320x180:rate=24:duration=${total}`,
+    '-filter_complex', '[0:a][1:a]amix=inputs=2:normalize=0[a]',
+    '-map', '2:v', '-map', '[a]', '-c:v', 'mpeg4', '-q:v', '8', '-c:a', 'aac', '-b:a', '96k',
+    '-metadata:s:a:0', 'language=eng',
+    speechVideo
+  ])
+  writeFileSync(speechTruth, toSrt(cues))
+
+  // Variants of the truth, each a known transform.
+  const variants = {
+    'speech.shift+3.2.srt': [1, 3.2],
+    'speech.shift-7.5.srt': [1, -7.5],
+    'speech.drift1001.srt': [24 / 23.976, 0],
+    'speech.pal.srt': [23.976 / 25, 0],
+    'speech.ntsc.srt': [25 / 23.976, 0]
+  }
+  for (const [name, [scale, offset]] of Object.entries(variants)) writeFileSync(join(media, name), toSrt(cues, scale, offset))
+  writeFileSync(join(media, 'speech.few.srt'), toSrt(cues.slice(0, 6)))
+
+  // A subtitle for some other film: other lines, timings from another seed.
+  const other = rng(99)
+  const spare = all.slice(80)
+  const wrong = []
+  let w = 1 + other() * 4
+  for (let i = 0; i < cues.length; i++) {
+    const len = 1 + other() * 2.5
+    wrong.push({ start: w, end: w + len, text: spare[i % spare.length] })
+    w += len + 0.5 + other() * 5
+  }
+  writeFileSync(join(media, 'speech.wrong.srt'), toSrt(wrong.filter((c) => c.end < total)))
+  rmSync(tmp, { recursive: true, force: true })
+}
+
+if (process.platform === 'win32' && !existsSync(speechVideo)) makeSpeech()
+else if (!existsSync(speechVideo)) console.warn('skipping speech.mkv: Windows TTS needed')
+
+// The same picture with no audio stream at all.
+make(join(media, 'speech-noaudio.mkv'), (f) =>
+  run(['-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24:duration=10', '-c:v', 'mpeg4', '-q:v', '8', f])
+)
 
 console.log('fixtures ready')

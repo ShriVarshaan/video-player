@@ -38,22 +38,26 @@ Add-Type -AssemblyName System.Speech
 $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
 $s.SetOutputToWaveFile("line_007.wav"); $s.Speak("Where were you last night?"); $s.Dispose()
 ```
-1. Take about 80 lines from `tests/fixtures/lines.txt`, which is committed: varied, natural sentences of 3–12 words.
-2. Make one WAV per line. Place each at a known start, with random gaps of 0.8–4 s, by building an ffmpeg `concat` list with `anullsrc` silences between lines.
-3. Mix in low pink noise (`anoisesrc=color=pink:amplitude=0.02`) so the VAD isn't trivially easy.
-4. Write `speech.srt` with the exact start/end of each line (measure each WAV's duration with ffprobe). This is the **ground truth**.
-5. Mux onto a `testsrc2` video, about 5 min long, as `speech.mkv`.
+`scripts/make-fixtures.mjs` builds this (seeded, so it's the same on every machine):
+1. The first 80 lines of `tests/fixtures/lines.txt` (committed; the other 20 feed `speech.wrong.srt`).
+2. One SAPI WAV per line, placed in a PCM buffer in Node at known starts with seeded gaps of 0.8–4 s.
+3. Low pink noise mixed in (`anoisesrc=color=pink:amplitude=0.02`) so the VAD isn't trivially easy.
+4. `speech.srt`, the **ground truth**: each cue spans where its WAV is actually loud (SAPI pads both ends).
+5. Muxed onto a 320×180 `testsrc2` video, about 7.5 min, as `speech.mkv`. `speech-noaudio.mkv` is 10 s of video with no audio stream.
 
-Variants, made by applying a transform to `speech.srt`. Reuse the TS or Python SRT writer; don't hand-roll a new one.
+Variants are written from the same cue list by the script's one SRT formatter (displayed = scale·t + offset):
 
 | File | Transform |
 |---|---|
 | `speech.shift+3.2.srt` | offset +3.2 s |
 | `speech.shift-7.5.srt` | offset −7.5 s |
-| `speech.drift1001.srt` | scale 1.001 |
+| `speech.drift1001.srt` | scale 24/23.976 |
 | `speech.pal.srt` | scale 23.976/25 |
-| `speech.cut45.srt` | +45 s offset for cues after the halfway point (simulates a different edition) |
-| `speech.wronglang.srt` | French lines, so deep sync must return `NO_MATCH` |
+| `speech.ntsc.srt` | scale 25/23.976 |
+| `speech.few.srt` | the first 6 cues only: too few to sync |
+| `speech.wrong.srt` | other lines with timings from another seed: auto sync must return `NO_MATCH` |
+
+There's no cut variant: auto sync only fixes a fixed delay and drift (milestone 7).
 
 ## Subtitle edge cases (text fixtures, committed in `tests/fixtures/subs/`)
 - `cp1252.srt` with accents, `utf16le_bom.srt`, `utf8_bom.srt`
