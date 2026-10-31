@@ -62,7 +62,16 @@ export function toTracks(trackList: unknown, externals: LoadedSub[] = []): Track
   return out
 }
 
-export const refOf = (t: Track): TrackRef => ({ lang: t.lang, kind: t.kind, title: t.title })
+// ffmpeg's audio-relative index (0:a:<n>) of mpv's audio track aid: mpv numbers
+// each type's tracks in stream order, so it's the position among the file's own.
+export function audioStreamIndex(audio: Track[], audioId: number | null): number | null {
+  if (audioId === null) return null
+  const own = audio.filter((t) => t.type === 'audio' && !t.external)
+  const i = own.findIndex((t) => t.id === audioId)
+  return i < 0 ? null : i
+}
+
+export const refOf =(t: Track): TrackRef => ({ lang: t.lang, kind: t.kind, title: t.title })
 
 // The remembered track in this file: same language and kind (the very same title
 // first, so a chosen file beats an embedded track of its language), then same language

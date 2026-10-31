@@ -18,7 +18,7 @@ import { TEXT_CODECS } from '../subtitles/extract'
 import { subtitleKeyForFile } from '../subtitles/transforms'
 import { offsetForCue } from '@shared/subtitleTiming'
 import { createSubtitleDelay } from './subtitleDelay'
-import { pickSubtitle, pickTrack, preferSynced, refOf, subtitlePrefFor, toTracks } from './tracks'
+import { audioStreamIndex, pickSubtitle, pickTrack, preferSynced, refOf, subtitlePrefFor, toTracks } from './tracks'
 
 // One running mpv. onExit's flag is true when we asked it to quit.
 export type MpvProcess = { client: MpvClient; onExit(cb: (expected: boolean) => void): void; quit(): Promise<void> }
@@ -41,6 +41,8 @@ export type PlayerService = API['player'] & {
   currentSubtitle(): { videoId: number; videoPath: string; track: Track; offset: number } | null
   // The showing text subtitle's lines, read by the app itself.
   subtitleCues(): Promise<ParsedCue[]>
+  // The selected audio track as ffmpeg's 0:a:<n> (null: none or external), for auto sync.
+  currentAudio(): { audioStream: number | null; durationS: number | null } | null
 }
 
 // Where the app reads a subtitle's lines from.
@@ -597,6 +599,8 @@ export function createPlayerService(deps: {
     syncSubtitleTo,
     resetSubtitleTiming: async () => void (await delay.set(0)),
     currentSubtitle,
-    subtitleCues
+    subtitleCues,
+    currentAudio: () =>
+      cur ? { audioStream: audioStreamIndex(st.tracks.filter((t) => t.type === 'audio'), st.aid), durationS: st.durationS } : null
   }
 }

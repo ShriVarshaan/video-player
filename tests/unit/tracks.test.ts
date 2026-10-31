@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '@shared/player'
-import { languageName, pickSubtitle, pickTrack, preferSynced, refOf, subtitlePrefFor, toTracks } from '../../src/main/player/tracks'
+import { audioStreamIndex, languageName, pickSubtitle, pickTrack, preferSynced, refOf, subtitlePrefFor, toTracks } from '../../src/main/player/tracks'
 import { subtitleKeyForFile } from '../../src/main/subtitles/transforms'
 
 const mpvList = [
@@ -201,5 +201,20 @@ describe('subtitlePrefFor', () => {
     const sdh = t(2, 'eng', 'sdh', 'English SDH')
     expect(subtitlePrefFor(sdh, true)).toEqual({ lang: 'eng', kind: 'sdh', title: 'English SDH' })
     expect(refOf(sdh)).toEqual({ lang: 'eng', kind: 'sdh', title: 'English SDH' })
+  })
+})
+
+describe('audioStreamIndex', () => {
+  const audio = (id: number, external = false): Track => ({ ...t(id, 'eng', 'plain', null, 'audio'), external })
+
+  it('is the position among the file’s own audio tracks', () => {
+    expect(audioStreamIndex([audio(1), audio(2)], 2)).toBe(1)
+    expect(audioStreamIndex([audio(1), audio(2)], 1)).toBe(0)
+  })
+
+  it('is null for an external track, no track, or nothing selected', () => {
+    expect(audioStreamIndex([audio(1), audio(2, true)], 2)).toBeNull()
+    expect(audioStreamIndex([], 1)).toBeNull()
+    expect(audioStreamIndex([audio(1)], null)).toBeNull()
   })
 })

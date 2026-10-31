@@ -2,6 +2,7 @@
 // apiMethods; the compiler then points at the missing handler and bridge.
 
 import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
+import type { AutoSyncOutcome, AutoSyncProgress } from './autoSync'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from './player'
 import type { SubtitleResult } from './subtitleSearch'
 import type { SubtitleStyle } from './subtitleStyle'
@@ -82,6 +83,11 @@ export type API = {
     syncToCue: (params: { start: number; key: string }) => Promise<{ offset: number | null }>
     // Writes <video>.<lang>.synced.srt and shows it; { exists } asks before replacing. Names, not paths.
     exportSynced: (params: { replace: boolean; key: string }) => Promise<{ saved: string; fallback: boolean } | { exists: string }>
+    // Auto sync (milestone 7) of the subtitle with this key to the playing audio; progress comes as events.
+    autoSync: (params: { key: string }) => Promise<AutoSyncOutcome>
+    // After { status: 'exists' }: writes the held result over the existing synced file.
+    autoSyncReplace: (params: { key: string }) => Promise<AutoSyncOutcome>
+    autoSyncCancel: (params: Record<string, never>) => Promise<void>
   }
 }
 
@@ -115,7 +121,10 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
     setTiming: true,
     syncCues: true,
     syncToCue: true,
-    exportSynced: true
+    exportSynced: true,
+    autoSync: true,
+    autoSyncReplace: true,
+    autoSyncCancel: true
   }
 }
 
@@ -137,6 +146,8 @@ export type ApiEvents = {
   'subtitles.style': SubtitleStyle
   // The showing subtitle's timing fix in seconds (null: no subtitle showing).
   'subtitles.timing': { offset: number } | null
+  // A running auto sync's stage and progress (pct null: no estimate).
+  'subtitles.autoSyncProgress': AutoSyncProgress
 }
 
 export const eventChannel = (name: keyof ApiEvents): string => `vp:event.${name}`

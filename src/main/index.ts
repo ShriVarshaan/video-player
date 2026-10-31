@@ -11,9 +11,10 @@ import { killAllMpv } from './player/launch'
 import { setupPlayer } from './player/setup'
 import { setupSubtitles } from './subtitles/setup'
 import type { PlayerService } from './player/service'
-import { binaryPath, userDataDir } from './paths'
+import { binaryPath, sidecarCommand, userDataDir } from './paths'
 import { createSettings } from './settings'
 import { startOrQuit } from './startup'
+import { createSidecar, type Sidecar } from './sync/sidecar'
 
 // Must run before 'ready' (and the single-instance lock) so everything sees it.
 app.setPath('userData', userDataDir(process.argv, app.getPath('appData')))
@@ -23,6 +24,7 @@ let db: Db | null = null
 let library: LibraryService | null = null
 let mainWindow: BrowserWindow | null = null
 let player: PlayerService | null = null
+let sidecar: Sidecar | null = null
 
 // One process per userData dir, so two instances never open the database at once.
 if (!app.requestSingleInstanceLock()) {
@@ -113,7 +115,9 @@ function start(): void {
   mainWindow = main
   const playback = setupPlayer({ db, binaryBase, userDataPath, main, loadOverlay: (w) => loadPage(w, 'overlay'), webPreferences })
   player = playback.player
-  setupSubtitles({ db, ...playback, userDataPath, devRoot: app.isPackaged ? null : join(__dirname, '..', '..'), version })
+  // Auto sync's Python helper: started on the first sync, not now.
+  sidecar = createSidecar({ command: sidecarCommand(binaryBase, app.isPackaged, existsSync), ffmpeg: binaryPath('ffmpeg', binaryBase) })
+  setupSubtitles({ db, ...playback, userDataPath, devRoot: app.isPackaged ? null : join(__dirname, '..', '..'), version, sidecar })
   // Closing the window mid-film saves the position and stops mpv first.
   let saved = false
   main.on('close', (event) => {
@@ -143,6 +147,7 @@ process.on('exit', killAllMpv)
 
 app.on('will-quit', () => {
   library?.stopWatching()
+  sidecar?.dispose()
   db?.close()
   db = null
 })

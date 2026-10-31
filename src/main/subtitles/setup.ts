@@ -1,5 +1,5 @@
 import { basename, join } from 'node:path'
-import { ipcMain, safeStorage } from 'electron'
+import { app, ipcMain, safeStorage } from 'electron'
 import { MAX_OFFSET_S } from '@shared/subtitleTiming'
 import type { API } from '@shared/api'
 import { throwAppError } from '@shared/appError'
@@ -7,13 +7,15 @@ import { normalizeLang, toOpenSubtitles } from '@shared/lang'
 import type { SubtitleResult } from '@shared/subtitleSearch'
 import { sanitizePatch, sanitizeStyle } from '@shared/subtitleStyle'
 import type { Db } from '../db'
+import { broadcast } from '../broadcast'
 import { registerDomain } from '../ipc'
 import { createSecretStore, type SecretStore } from '../metadata/credential'
 import type { PlayerService } from '../player/service'
 import { saveDownload } from './download'
-import { exportSynced } from './export'
-import type { ExternalSub, SubFormat } from './match'
-import { setOffset, subtitleKeyForFile } from './transforms'
+import type { SubFormat } from './match'
+import { writeAndShowSynced } from './showSynced'
+import { createAutoSync, type AutoSync } from '../sync/autoSync'
+import type { Sidecar } from '../sync/sidecar'
 
 const FORMATS: SubFormat[] = ['srt', 'vtt', 'ass', 'ssa']
 import { createOpenSubtitles, type OpenSubtitles, type OpenSubtitlesSecrets, type SubtitleQuery } from './openSubtitles'
@@ -34,6 +36,7 @@ export type SubtitlesDeps = {
   os: OpenSubtitles
   account: SecretStore // JSON of OpenSubtitlesSecrets
   userDataPath: string
+  autoSync?: AutoSync
 }
 
 export function readAccount(store: SecretStore): OpenSubtitlesSecrets | null {
@@ -171,22 +174,20 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
     exportSynced: async ({ replace, key }) => {
       const sub = sameSubtitle(key)
       const cues = await player.subtitleCues()
-      const lang = normalizeLang(sub.track.lang)
-      const r = await exportSynced({
-        videoPath: sub.videoPath,
-        lang,
-        kind: sub.track.kind,
-        cues,
-        transform: { scale: 1, offset: sub.offset },
-        replace: replace === true,
-        fallbackDir: join(deps.userDataPath, 'subtitles', String(sub.videoId))
-      })
+      const r = await writeAndShowSynced(deps, sub, cues, { scale: 1, offset: sub.offset }, replace === true)
       if ('exists' in r) return { exists: basename(r.exists) }
-      // The shift is baked into the new file: it starts with no fix of its own.
-      setOffset(db, sub.videoId, subtitleKeyForFile(r.saved), 0, Date.now())
-      const added: ExternalSub = { path: r.saved, lang, kind: sub.track.kind, format: 'srt', synced: true }
-      if (player.current()?.videoId === sub.videoId) await player.addSubtitle(added, { remember: false })
       return { saved: basename(r.saved), fallback: r.fallback }
+    },
+    autoSync: async ({ key }) => {
+      if (!deps.autoSync) throwAppError('sync_unavailable')
+      return deps.autoSync!.start(keyOf(key))
+    },
+    autoSyncReplace: async ({ key }) => {
+      if (!deps.autoSync) throwAppError('sync_unavailable')
+      return deps.autoSync!.replace(keyOf(key))
+    },
+    autoSyncCancel: async () => {
+      deps.autoSync?.cancel()
     }
   }
 
@@ -214,6 +215,7 @@ export function setupSubtitles(opts: {
   // Project root in development (for OpenSubtitles fixtures); null when packaged.
   devRoot: string | null
   version: string
+  sidecar: Sidecar
 }): void {
   const account = createSecretStore(opts.db, safeStorage, 'opensubtitles.account', 'opensubtitles_storage_unavailable')
   // VP_OPENSUBS_MODE=fixtures (tests) reads tests/fixtures/opensubtitles instead of the network.
@@ -224,5 +226,13 @@ export function setupSubtitles(opts: {
     fixturesDir: join(opts.devRoot ?? '', 'tests', 'fixtures', 'opensubtitles'),
     userAgent: `VideoPlayer v${opts.version}`
   })
-  registerDomain(ipcMain, 'subtitles', createSubtitlesApi({ ...opts, os, account }))
+  const autoSync = createAutoSync({
+    player: opts.player,
+    sidecar: opts.sidecar,
+    db: opts.db,
+    userDataPath: opts.userDataPath,
+    tempDir: app.getPath('temp'),
+    emit: (p) => broadcast('subtitles.autoSyncProgress', p)
+  })
+  registerDomain(ipcMain, 'subtitles', createSubtitlesApi({ ...opts, os, account, autoSync }))
 }
