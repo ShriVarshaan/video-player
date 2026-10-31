@@ -107,7 +107,7 @@ video-player/
 | 4 | **Playback:** mpv embed + IPC, overlay window, controls, track pickers, volume boost, resume, show page (season/episode picker, Play / Continue / Restart) | `mpv-ipc`, `apple-design`, `emil-design-eng` | ✅ done |
 | 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
 | 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, offset slider, sync-to-line card, reset, synced export | `subtitle-formats` | ✅ |
-| 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | |
+| 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | ✅ |
 | 8 | **Search** | `netflix-search` | |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
 

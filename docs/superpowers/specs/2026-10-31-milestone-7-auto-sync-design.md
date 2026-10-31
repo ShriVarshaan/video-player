@@ -150,3 +150,21 @@ Protocol (the skill's protocol, trimmed):
   - The fixture is about 7.5 min, not 5.
   - The "second run asks before replacing" E2E re-syncs the original track. Re-syncing the synced track itself answers "Already in sync · offset cleared", as the design says.
 - **Real films may score lower than TTS** (music, effects, SDH lines with no speech). If correct syncs get rejected, re-measure on real films before moving the threshold.
+
+Fixed after the final review:
+- Audio that starts after the video is padded, so the sync keeps that gap (`aresample=async=1:first_pts=0`).
+- Esc while the cues are still being read cancels before the helper starts.
+- Quitting asks the helper to cancel and exit (a kill comes only after 2 s), and the helper deletes stale temp WAVs at startup.
+- A busy helper says "Still stopping the last sync. Try again in a moment."
+- A broken stdin pipe is logged instead of crashing main.
+
+Deferred (minor, from the final review):
+- `audioStreamIndex` maps by position, not `ff-index`. External audio, or audio switched off, gives the "no audio" note.
+- A cancel during "Matching" only abandons ffsubsync; the next sync waits for it without saying so.
+- The whole PCM is held in memory and VAD runs twice (about 0.5–0.7 GB peak for 2 h). Revisit if the real-film timing check is slow.
+- The S and A cards can be open at once, and Esc then goes to the auto sync card.
+- For a picture subtitle, the "can't be auto-synced" text is a note, not the menu item's label.
+- A non-object `params` crashes the sidecar loop (main never sends one).
+- The match-score bias toward shift 0 was measured as negligible (mean z 0.1–0.3); kept as a guard test.
+
+Needs the user's check: a real film with a subtitle a few seconds off, one made for the other framerate, and the time for a 2-hour film (with no playback stutter). If correct syncs get "Couldn't sync…", re-measure the threshold on real films.
