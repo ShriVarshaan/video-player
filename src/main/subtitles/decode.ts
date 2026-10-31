@@ -36,6 +36,14 @@ function encodingOf(buf: Buffer, lang: string | null): string {
   return 'windows-1252'
 }
 
+// A subtitle file's bytes as text: BOM, then valid UTF-8, then the language's code
+// page, then a confident guess, then windows-1252. Any BOM is dropped.
+export function decodeSubtitle(buf: Buffer, lang: string | null): string {
+  const bom = buf[0] === 0xff || buf[0] === 0xfe
+  const text = !bom && isUtf8(buf) ? buf.toString('utf8') : iconv.decode(buf, encodingOf(buf, lang))
+  return text.replace(/^﻿/, '')
+}
+
 // mpv's own detection garbles legacy code pages (see mpv-ipc), so it gets a
 // UTF-8 copy in cacheDir. The user's file is never changed.
 export async function ensureUtf8(path: string, cacheDir: string, lang: string | null): Promise<string> {
