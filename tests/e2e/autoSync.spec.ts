@@ -77,6 +77,10 @@ test('the menu item runs it too, and a second run asks before replacing', async 
   // Back on the original file: syncing it again lands on the same synced name.
   await openSubtitles(overlay)
   await overlay.getByRole('menuitemradio', { name: /^English(?!.*Synced)/ }).click()
+  // A before the pick reaches the overlay is refused ("The subtitle changed").
+  await openSubtitles(overlay)
+  await expect(checked(overlay)).not.toContainText('Synced')
+  await overlay.keyboard.press('Escape')
   await overlay.keyboard.press('a')
   const confirm = overlay.getByTestId('confirm-replace')
   await expect(confirm).toBeVisible({ timeout: 30_000 })
