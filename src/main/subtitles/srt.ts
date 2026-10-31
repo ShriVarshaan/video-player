@@ -1,3 +1,4 @@
+import type { Transform } from '@shared/subtitleTiming'
 import type { ParsedCue } from './parse'
 
 function stamp(s: number): string {
@@ -6,14 +7,14 @@ function stamp(s: number): string {
   return `${pad(Math.floor(ms / 3_600_000))}:${pad(Math.floor(ms / 60_000) % 60)}:${pad(Math.floor(ms / 1000) % 60)},${pad(ms % 1000, 3)}`
 }
 
-// Cues → an SRT file (CRLF, no BOM, numbered from 1) with the offset applied.
+// Cues → an SRT file (CRLF, no BOM, numbered from 1) with the transform applied.
 // Cues that would end at or before 0 are dropped; starts are clamped to 0.
-export function writeSrt(cues: ParsedCue[], offset: number): string {
+export function writeSrt(cues: ParsedCue[], t: Transform): string {
   let n = 0
   let out = ''
   for (const c of cues) {
-    const start = c.start + offset
-    const end = c.end + offset
+    const start = t.scale * c.start + t.offset
+    const end = t.scale * c.end + t.offset
     if (end <= 0) continue
     let text = c.lines.join('\r\n')
     if (c.italic) text = `<i>${text}</i>`

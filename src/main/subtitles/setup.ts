@@ -177,7 +177,7 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
         lang,
         kind: sub.track.kind,
         cues,
-        offset: sub.offset,
+        transform: { scale: 1, offset: sub.offset },
         replace: replace === true,
         fallbackDir: join(deps.userDataPath, 'subtitles', String(sub.videoId))
       })

@@ -2,6 +2,9 @@
 // a positive offset shows subtitles later. Manual sync only changes the offset.
 
 export const MAX_OFFSET_S = 600
+
+// Subtitle timing fix: displayed = scale * t + offset (positive offset = later).
+export type Transform = { scale: number; offset: number }
 export const NUDGE_S = 0.05
 export const NUDGE_BIG_S = 0.5
 // Taken off "press S when you hear it": people press a little after the line starts.

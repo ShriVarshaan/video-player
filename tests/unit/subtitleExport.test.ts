@@ -37,7 +37,7 @@ describe('syncedName', () => {
 
 describe('exportSynced', () => {
   const run = (replace: boolean, c = cues, offset = 2) =>
-    exportSynced({ videoPath: join(dir, 'Movie.mkv'), lang: 'eng', kind: 'plain', cues: c, offset, replace, fallbackDir })
+    exportSynced({ videoPath: join(dir, 'Movie.mkv'), lang: 'eng', kind: 'plain', cues: c, transform: { scale: 1, offset }, replace, fallbackDir })
 
   it('writes the shifted SRT next to the video and leaves the source alone', async () => {
     writeFileSync(join(dir, 'Movie.en.srt'), SRC)
@@ -45,6 +45,11 @@ describe('exportSynced', () => {
     expect(r).toEqual({ saved: join(dir, 'Movie.en.synced.srt'), fallback: false })
     expect(readFileSync(join(dir, 'Movie.en.synced.srt'), 'utf8')).toBe('1\r\n00:00:03,000 --> 00:00:06,000\r\nWake up, Neo.\r\n\r\n')
     expect(readFileSync(join(dir, 'Movie.en.srt'), 'utf8')).toBe(SRC)
+  })
+
+  it('writes a scaled file', async () => {
+    await exportSynced({ videoPath: join(dir, 'Movie.mkv'), lang: 'eng', kind: 'plain', cues, transform: { scale: 2, offset: 0.5 }, replace: false, fallbackDir })
+    expect(readFileSync(join(dir, 'Movie.en.synced.srt'), 'utf8')).toBe('1\r\n00:00:02,500 --> 00:00:08,500\r\nWake up, Neo.\r\n\r\n')
   })
 
   it('asks before replacing an existing synced file', async () => {
@@ -67,7 +72,7 @@ describe('exportSynced', () => {
     const ro = join(dir, 'ro')
     mkdirSync(ro)
     execFileSync('icacls', [ro, '/deny', `${process.env['USERNAME']}:(W,AD)`, '/Q'])
-    const r = await exportSynced({ videoPath: join(ro, 'Movie.mkv'), lang: 'eng', kind: 'plain', cues, offset: 0, replace: false, fallbackDir })
+    const r = await exportSynced({ videoPath: join(ro, 'Movie.mkv'), lang: 'eng', kind: 'plain', cues, transform: { scale: 1, offset: 0 }, replace: false, fallbackDir })
     expect(r).toEqual({ saved: join(fallbackDir, 'Movie.en.synced.srt'), fallback: true })
     expect(readFileSync(join(fallbackDir, 'Movie.en.synced.srt'), 'utf8')).toContain('Wake up, Neo.')
   })
