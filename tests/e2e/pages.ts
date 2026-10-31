@@ -60,6 +60,26 @@ export const overlayVisible = (app: ElectronApplication) =>
 export const position = (overlay: Page) =>
   overlay.getByTestId('player-time').evaluate((el) => Number((el as HTMLElement).dataset['position']))
 
+// Keeps test windows off the primary display when there is another one, so test runs
+// don't cover the user's work. Every window moves: at first the overlay's URL is still
+// empty, so it can't be told from the main window (it re-fits the main one when shown).
+export async function toSecondDisplay(app: ElectronApplication) {
+  await app.evaluate(({ BrowserWindow, screen }) => {
+    const other = screen.getAllDisplays().find((d) => d.id !== screen.getPrimaryDisplay().id)
+    if (!other) return
+    const { x, y, width, height } = other.workArea
+    for (const win of BrowserWindow.getAllWindows()) {
+      // setBounds, not setPosition: crossing to a display with another scale would resize it.
+      const [w, h] = win.getSize() as [number, number]
+      const cw = Math.min(w, width)
+      const ch = Math.min(h, height)
+      const bounds = { x: Math.round(x + (width - cw) / 2), y: Math.round(y + (height - ch) / 2), width: cw, height: ch }
+      win.setBounds(bounds)
+      win.setBounds(bounds) // again, now on the new display's scale
+    }
+  })
+}
+
 // Launches the app on a fresh (or given) user-data dir, in TMDB and OpenSubtitles fixture mode, and
 // adds the folder through Settings when one is given.
 export async function launchApp(folder: string | null, userData = mkdtempSync(join(tmpdir(), 'vp-e2e-'))) {
@@ -68,6 +88,7 @@ export async function launchApp(folder: string | null, userData = mkdtempSync(jo
     env: { ...process.env, VP_TMDB_MODE: 'fixtures', VP_OPENSUBS_MODE: 'fixtures' }
   })
   const win = await app.firstWindow()
+  await toSecondDisplay(app)
   if (folder) {
     await app.evaluate(({ dialog }, path) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog

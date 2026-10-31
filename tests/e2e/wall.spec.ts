@@ -3,7 +3,7 @@ import { copyFileSync, cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { clickAnyTile, focusTile, goTo, wallTitles } from './pages'
+import { clickAnyTile, focusTile, goTo, wallTitles, toSecondDisplay } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 const ALL_TITLES = ['Amélie', 'Breaking Bad', 'Inception', 'Some Unknown Home Video', 'The Matrix']
@@ -19,6 +19,7 @@ async function launch(folder: string | null) {
     env: { ...process.env, VP_TMDB_MODE: 'fixtures' }
   })
   win = await app.firstWindow()
+  await toSecondDisplay(app)
   if (!folder) return
   await app.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog

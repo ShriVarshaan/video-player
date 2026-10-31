@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { focusTile, goTo, wallTitles } from './pages'
+import { focusTile, goTo, wallTitles, toSecondDisplay } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 let userData: string
@@ -22,6 +22,7 @@ test.beforeEach(async () => {
     env: { ...process.env, VP_TMDB_MODE: 'fixtures' }
   })
   win = await app.firstWindow()
+  await toSecondDisplay(app)
   await app.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog
   }, LIBRARY)

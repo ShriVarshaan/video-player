@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { goTo } from './pages'
+import { goTo, toSecondDisplay } from './pages'
 
 let userData: string
 let app: ElectronApplication
@@ -12,6 +12,7 @@ test.beforeEach(async () => {
   userData = mkdtempSync(join(tmpdir(), 'vp-e2e-nav-'))
   app = await electron.launch({ args: ['out/main/index.js', `--user-data-dir=${userData}`] })
   win = await app.firstWindow()
+  await toSecondDisplay(app)
 })
 
 test.afterEach(async () => {
