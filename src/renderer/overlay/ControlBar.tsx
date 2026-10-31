@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { PlayerCommand, PlayerState, Track } from '@shared/player'
+import { formatOffset } from '@shared/subtitleTiming'
 import { formatTime } from '@shared/time'
 import { TrackMenu, type MenuItem } from './TrackMenu'
 
@@ -24,17 +25,21 @@ const ICONS = {
   exitFull: 'M8 5h2v5H5V8h3V5Zm6 0h2v3h3v2h-5V5ZM5 14h5v5H8v-3H5v-2Zm9 0h5v2h-3v3h-2v-5Z'
 }
 
+// Subtitle timing commands in the Subtitles menu.
+export type SubtitleAction = 'sync' | 'reset' | 'export'
+
 // Subtitle files say so; when two tracks share a label, files show their name instead.
-function subtitleItems(subs: Track[]): MenuItem[] {
+// The showing subtitle's row carries its timing fix ("+0.35 s") when it has one.
+function subtitleItems(subs: Track[], selected: number | null, offset: number | null): MenuItem[] {
   const count = new Map<string, number>()
   for (const t of subs) count.set(t.label, (count.get(t.label) ?? 0) + 1)
   // Synced files the app exported come first.
   const ordered = [...subs.filter((t) => t.synced), ...subs.filter((t) => !t.synced)]
-  return ordered.map((t) => ({
-    id: t.id,
-    label: t.label,
-    detail: t.external ? ((count.get(t.label) ?? 0) > 1 ? t.fileName : 'External') : null
-  }))
+  return ordered.map((t) => {
+    const file = t.external ? ((count.get(t.label) ?? 0) > 1 ? t.fileName : 'External') : null
+    const timing = t.id === selected && offset ? formatOffset(offset) : null
+    return { id: t.id, label: t.label, detail: [file, timing].filter(Boolean).join(' · ') || null }
+  })
 }
 
 // The bottom bar: seek bar, then play/skip, volume, time, Audio, Subtitles, full screen.
@@ -44,14 +49,26 @@ export function ControlBar({
   timeRef,
   fillRef,
   menu,
-  onMenu
+  onMenu,
+  offset,
+  onSubtitleAction
 }: {
   state: PlayerState
   timeRef: React.RefObject<HTMLSpanElement | null>
   fillRef: React.RefObject<HTMLElement | null>
   menu: Menu
   onMenu: (m: Menu) => void
+  offset: number | null
+  onSubtitleAction: (a: SubtitleAction) => void
 }) {
+  const showing = state.subtitles.find((t) => t.id === state.subtitleId)
+  const timingActions = !showing
+    ? []
+    : [
+        ...(showing.image ? [] : [{ label: 'Sync to a line…', onPick: () => onSubtitleAction('sync') }]),
+        ...(offset ? [{ label: 'Reset timing', onPick: () => onSubtitleAction('reset') }] : []),
+        ...(showing.image ? [] : [{ label: 'Export synced .srt', onPick: () => onSubtitleAction('export') }])
+      ]
   const track = useRef<HTMLDivElement>(null)
   const [preview, setPreview] = useState<number | null>(null)
   const duration = state.durationS ?? 0
@@ -194,7 +211,7 @@ export function ControlBar({
           {menu === 'subtitles' && (
             <TrackMenu
               label="Subtitles"
-              items={[{ id: null, label: 'Off' }, ...subtitleItems(state.subtitles)]}
+              items={[{ id: null, label: 'Off' }, ...subtitleItems(state.subtitles, state.subtitleId, offset)]}
               selected={state.subtitleId}
               onPick={(id) => {
                 send({ type: 'subtitle', id })
@@ -203,7 +220,8 @@ export function ControlBar({
               onClose={() => onMenu(null)}
               actions={[
                 { label: 'Search online…', onPick: () => onMenu('search') },
-                { label: 'Style…', onPick: () => onMenu('style') }
+                { label: 'Style…', onPick: () => onMenu('style') },
+                ...timingActions
               ]}
             />
           )}

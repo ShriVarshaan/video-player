@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from '@shared/player'
+import { parseAppError } from '@shared/appError'
 import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
+import { NUDGE_BIG_S, NUDGE_S, formatOffset } from '@shared/subtitleTiming'
 import { formatTime } from '@shared/time'
-import { ControlBar, type Menu } from './ControlBar'
+import { ConfirmCard } from './ConfirmCard'
+import { ControlBar, type Menu, type SubtitleAction } from './ControlBar'
 import { NextCard } from './NextCard'
 import { SearchPanel } from './SearchPanel'
 import { StylePanel } from './StylePanel'
 import { SubtitleView } from './SubtitleView'
+import { SyncCard } from './SyncCard'
+import { TimingNote } from './TimingNote'
 
 const HIDE_AFTER_MS = 2500
 const send = (c: PlayerCommand) => void window.api.player.command(c)
@@ -21,6 +26,11 @@ export function Overlay() {
   const [cue, setCue] = useState<Cue | null>(null)
   const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_STYLE)
   const [controlsTop, setControlsTop] = useState<number | null>(null)
+  // Subtitle timing (milestone 6): the showing subtitle's fix, the sync card, the note, the replace prompt.
+  const [offset, setOffset] = useState<number | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [note, setNote] = useState<{ text: string; n: number } | null>(null)
+  const [confirm, setConfirm] = useState<string | null>(null)
   const stateRef = useRef<PlayerState | null>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
   const fillRef = useRef<HTMLElement>(null)
@@ -40,6 +50,8 @@ export function Overlay() {
         if (prev?.videoId !== s.videoId) {
           setNext(null)
           setError(null)
+          setSyncing(false)
+          setConfirm(null)
         }
         clock.current = { pos: s.positionS, at: performance.now(), paused: s.paused, duration: s.durationS ?? 0 }
         const v = volume.current
@@ -48,6 +60,7 @@ export function Overlay() {
       window.api.on('player.ended', ({ next: n }) => setNext(n)),
       window.api.on('subtitles.cue', setCue),
       window.api.on('subtitles.style', setSubStyle),
+      window.api.on('subtitles.timing', (t) => setOffset(t?.offset ?? null)),
       window.api.on('player.error', ({ message }) => setError(message)),
       window.api.on('player.closed', () => {
         stateRef.current = null
@@ -57,6 +70,9 @@ export function Overlay() {
         setNext(null)
         setMenu(null)
         setCue(null)
+        setSyncing(false)
+        setConfirm(null)
+        setNote(null)
       })
     ]
     return () => offs.forEach((off) => off())
@@ -105,6 +121,56 @@ export function Overlay() {
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [hasControls])
+
+  const say = useCallback((text: string) => setNote((n) => ({ text, n: (n?.n ?? 0) + 1 })), [])
+  const sayOffset = useCallback((o: number) => say(`Subtitles ${formatOffset(o)}`), [say])
+  const sayError = useCallback((e: unknown) => say(parseAppError(e)?.message ?? 'Something went wrong'), [say])
+  const getPosition = useCallback(() => {
+    const c = clock.current
+    return c.pos + (c.paused ? 0 : (performance.now() - c.at) / 1000)
+  }, [])
+  const closeSync = useCallback(() => setSyncing(false), [])
+
+  const nudge = useCallback(
+    (deltaS: number) => {
+      void window.api.subtitles.nudge({ deltaS }).then(({ offset: o }) => o !== null && sayOffset(o), sayError)
+    },
+    [sayOffset, sayError]
+  )
+
+  const exportSynced = useCallback(
+    async (replace: boolean) => {
+      setConfirm(null)
+      try {
+        const r = await window.api.subtitles.exportSynced({ replace })
+        if ('exists' in r) setConfirm(r.exists)
+        else say(r.fallback ? `Saved ${r.saved} in the app's folder` : `Saved ${r.saved}`)
+      } catch (e) {
+        sayError(e)
+      }
+    },
+    [say, sayError]
+  )
+
+  // "Sync to a line" needs words the app can read; a picture subtitle only gets G/H.
+  const startSync = useCallback(() => {
+    const s = stateRef.current
+    const track = s?.subtitles.find((t) => t.id === s.subtitleId)
+    if (!track) return
+    if (track.image) return say('Sync to a line needs a text subtitle')
+    setMenu(null)
+    setSyncing(true)
+  }, [say])
+
+  const onSubtitleAction = useCallback(
+    (a: SubtitleAction) => {
+      if (a === 'sync') return startSync()
+      setMenu(null)
+      if (a === 'reset') void window.api.subtitles.resetTiming({}).then(() => sayOffset(0), sayError)
+      else void exportSynced(false)
+    },
+    [startSync, sayOffset, sayError, exportSynced]
+  )
 
   const close = useCallback(() => {
     if (closing.current) return
@@ -155,6 +221,21 @@ export function Overlay() {
         case 'F':
           send({ type: 'fullScreen', on: !s.fullScreen })
           break
+        // Subtitle timing: G earlier, H later; Shift for big steps. S: sync to a line.
+        case 'g':
+        case 'h':
+        case 'G':
+        case 'H': {
+          if (s.subtitleId === null) return
+          const step = e.shiftKey ? NUDGE_BIG_S : NUDGE_S
+          nudge(e.key.toLowerCase() === 'g' ? -step : step)
+          break
+        }
+        case 's':
+        case 'S':
+          if (s.subtitleId === null || e.repeat) return
+          startSync()
+          break
         default:
           return
       }
@@ -162,7 +243,7 @@ export function Overlay() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [menu, close, wake])
+  }, [menu, close, wake, nudge, startSync])
 
   const playNext = useCallback(() => {
     const s = stateRef.current
@@ -198,7 +279,17 @@ export function Overlay() {
             {state?.heading ?? ''}
           </span>
         </div>
-        {state && <ControlBar state={state} timeRef={timeRef} fillRef={fillRef} menu={menu} onMenu={setMenu} />}
+        {state && (
+          <ControlBar
+            state={state}
+            timeRef={timeRef}
+            fillRef={fillRef}
+            menu={menu}
+            onMenu={setMenu}
+            offset={offset}
+            onSubtitleAction={onSubtitleAction}
+          />
+        )}
       </div>
       {state && menu === 'style' && <StylePanel titleKey={state.titleKey} style={subStyle} onClose={() => setMenu(null)} />}
       {state && menu === 'search' && <SearchPanel key={state.videoId} onClose={() => setMenu(null)} />}
@@ -208,6 +299,9 @@ export function Overlay() {
         </p>
       )}
       {next && <NextCard key={next.videoId} next={next} onPlay={playNext} onCancel={() => setNext(null)} />}
+      {state && syncing && <SyncCard getPosition={getPosition} onSynced={sayOffset} onClose={closeSync} />}
+      {state && confirm && <ConfirmCard name={confirm} onReplace={() => void exportSynced(true)} onCancel={() => setConfirm(null)} />}
+      <TimingNote message={note} />
     </div>
   )
 }
