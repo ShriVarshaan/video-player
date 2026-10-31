@@ -28,7 +28,9 @@ const ICONS = {
 function subtitleItems(subs: Track[]): MenuItem[] {
   const count = new Map<string, number>()
   for (const t of subs) count.set(t.label, (count.get(t.label) ?? 0) + 1)
-  return subs.map((t) => ({
+  // Synced files the app exported come first.
+  const ordered = [...subs.filter((t) => t.synced), ...subs.filter((t) => !t.synced)]
+  return ordered.map((t) => ({
     id: t.id,
     label: t.label,
     detail: t.external ? ((count.get(t.label) ?? 0) > 1 ? t.fileName : 'External') : null

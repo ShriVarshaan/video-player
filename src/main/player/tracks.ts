@@ -109,6 +109,13 @@ export function pickSubtitle(subs: Track[], pref: TrackRef | 'off' | null, ctx: 
   return (ctx.audioLang && subs.find((t) => t.kind === 'forced' && t.lang === ctx.audioLang)) || null
 }
 
+// A synced file the app exported stands in for the subtitle of the same language
+// and kind it was made from, whatever picked that subtitle.
+export function preferSynced(subs: Track[], picked: Track | null): Track | null {
+  if (!picked || picked.synced) return picked
+  return subs.find((t) => t.synced && t.lang === picked.lang && t.kind === picked.kind) ?? picked
+}
+
 // Choosing Off is remembered when it hid a track the app turned on by itself
 // (a forced track or an automatic pick); otherwise nothing is.
 export function subtitlePrefFor(choice: Track | null, autoShowing: boolean): TrackRef | 'off' | null {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '@shared/player'
-import { languageName, pickSubtitle, pickTrack, refOf, subtitlePrefFor, toTracks } from '../../src/main/player/tracks'
+import { languageName, pickSubtitle, pickTrack, preferSynced, refOf, subtitlePrefFor, toTracks } from '../../src/main/player/tracks'
 import { subtitleKeyForFile } from '../../src/main/subtitles/transforms'
 
 const mpvList = [
@@ -149,6 +149,25 @@ describe('toTracks with subtitle files', () => {
     const [embedded, file] = toTracks(list, [{ path: 'C:/M/Movie.srt', lang: 'fre', kind: 'sdh', format: 'srt' }])
     expect(embedded).toMatchObject({ external: false, fileName: null })
     expect(file).toMatchObject({ id: 2, lang: 'fre', kind: 'sdh', label: 'French (SDH)', external: true, fileName: 'Movie.srt' })
+  })
+})
+
+describe('preferSynced', () => {
+  const plain = { ...t(1, 'eng', 'plain'), external: true }
+  const synced = { ...t(2, 'eng', 'plain'), external: true, synced: true }
+  const syncedSdh = { ...t(3, 'eng', 'sdh'), external: true, synced: true }
+  const french = t(4, 'fre', 'plain')
+
+  it('swaps a pick for the synced file of the same language and kind', () => {
+    expect(preferSynced([plain, synced, syncedSdh, french], plain)?.id).toBe(2)
+  })
+  it('never crosses kinds or languages', () => {
+    expect(preferSynced([plain, syncedSdh, french], plain)?.id).toBe(1)
+    expect(preferSynced([plain, synced, french], french)?.id).toBe(4)
+  })
+  it('leaves nothing as nothing and a synced pick as it is', () => {
+    expect(preferSynced([plain, synced], null)).toBeNull()
+    expect(preferSynced([plain, synced], synced)?.id).toBe(2)
   })
 })
 
