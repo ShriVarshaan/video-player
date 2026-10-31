@@ -23,7 +23,7 @@ const binaryBase = app.isPackaged ? process.resourcesPath : join(__dirname, '..'
 Don't use `app.getAppPath()` in development: it's `out/main` when Electron is launched with a file path (Playwright does this). `paths.ts` is the only place that knows binary locations. Pass the ffmpeg path to the sidecar in the `VP_FFMPEG` environment variable.
 
 ## 3. Sidecar
-`sidecar\.venv\Scripts\pyinstaller sidecar/build.spec --noconfirm` produces `sidecar/dist/vp-sync/`. Details are in `subtitle-sync-ml`. Smoke-test it on its own: `echo {"id":1,"method":"ping"} | sidecar\dist\vp-sync\vp-sync.exe`.
+`npm run setup-sidecar` (once), then `npm run build-sidecar` produces `sidecar/dist/vp-sync/` (about 58 MB). Details are in `subtitle-sync-ml`. Smoke-test it on its own: `echo {"id":1,"method":"ping"} | sidecar\dist\vp-sync\vp-sync.exe`; `npm run test:sidecar` also runs `test_built_exe_syncs` when the build exists. `sidecar/hooks/hook-webrtcvad.py` overrides the contrib hook, which looks for the wrong distribution name. The bundled packages and their licences are listed in `docs/third-party-sidecar.md` (auditok, GPLv3, is excluded).
 
 ## 4. electron-builder (`electron-builder.yml`)
 ```yaml

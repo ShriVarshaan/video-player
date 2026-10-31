@@ -126,3 +126,16 @@ def test_snap_scale():
     assert snap_scale(1.04271) == pytest.approx(25 / 23.976)
     assert snap_scale(1.0003) == 1.0
     assert snap_scale(1.02) == 1.02
+
+
+BUILT = SIDECAR / "dist" / "vp-sync" / "vp-sync.exe"
+
+
+@pytest.mark.skipif(not BUILT.exists(), reason="run `npm run build-sidecar` first")
+def test_built_exe_syncs():
+    req = {"id": 1, "method": "sync", "params": params("speech.shift+3.2.srt")}
+    env = {**os.environ, "VP_FFMPEG": str(FFMPEG)}
+    p = subprocess.run([str(BUILT)], input=(json.dumps(req) + "\n").encode("utf-8"), capture_output=True, env=env, timeout=180)
+    lines = [json.loads(l) for l in p.stdout.decode("utf-8").splitlines() if l.strip()]
+    assert any(l.get("event") == "progress" for l in lines)
+    assert lines[-1]["result"]["offset"] == pytest.approx(-3.2, abs=0.1), p.stderr.decode("utf-8", "replace")[-2000:]

@@ -15,7 +15,8 @@
     "test:e2e": "npm run build && playwright test",
     "fetch-vendor": "node scripts/fetch-vendor.mjs",
     "setup-sidecar": "node scripts/setup-sidecar.mjs",
-    "test:sidecar": "sidecar\\.venv\\Scripts\\python -m pytest sidecar/tests -q"
+    "test:sidecar": "sidecar\\.venv\\Scripts\\python -m pytest sidecar/tests -q",
+    "build-sidecar": "sidecar\\.venv\\Scripts\\pyinstaller sidecar/build.spec --noconfirm --distpath sidecar/dist --workpath sidecar/build"
   },
   "repository": {
     "type": "git",
