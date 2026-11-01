@@ -38,6 +38,7 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
+    "fuse.js": "^7.5.0",
     "iconv-lite": "^0.6.3",
     "jschardet": "^3.1.4",
     "koffi": "3.3.5",
