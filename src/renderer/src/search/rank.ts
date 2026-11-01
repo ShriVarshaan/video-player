@@ -85,6 +85,13 @@ export function search(index: SearchIndex, raw: string): SearchDoc[] {
   const p = parseQuery(raw)
   if (p.empty) return []
   if (p.scope) return scoped(index, p.scope)
+  if (p.decade !== null) {
+    const d = p.decade
+    return index.docs
+      .filter((x) => x.doc.year !== null && x.doc.year >= d && x.doc.year <= d + 9)
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((x) => x.doc)
+  }
 
   const text = ranked(index, p.text)
   if (p.year === null) return text.map((h) => h.d.doc)

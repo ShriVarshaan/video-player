@@ -99,6 +99,11 @@ describe('search ranking', () => {
     expect(parseQuery('cast:').empty).toBe(true)
   })
 
+  it('decade filter', () => {
+    expect(titles('2010s').sort()).toEqual(['1917', 'Blade Runner 2049', 'Inception', 'Interstellar', 'Prince of Persia', 'Tomb Raider'])
+    expect(parseQuery('1990s').decade).toBe(1990)
+  })
+
   it('finds an unmatched file by its parsed title', () => {
     expect(titles('home video')[0]).toBe('Some Unknown Home Video')
   })
