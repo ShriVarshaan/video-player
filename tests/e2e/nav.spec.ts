@@ -63,7 +63,7 @@ test('switches between Settings, Search and Home', async () => {
   await expect(win.getByRole('navigation', { name: 'Main' })).toBeHidden()
 
   await goTo(win, 'Search')
-  await expect(win.getByRole('heading', { name: 'Search' })).toBeVisible()
+  await expect(win.getByRole('searchbox')).toBeVisible()
 
   await goTo(win, 'Home')
   await expect(win.getByTestId('wall-home')).toBeVisible()
