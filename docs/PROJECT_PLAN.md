@@ -57,9 +57,11 @@ Python sidecar (PyInstaller onedir)
   - Design: `docs/superpowers/specs/2026-10-29-milestone-3-wall-design.md`. Main sends ready-to-draw `WallItem`s (`library.wall`) in a stable order.
   - The info card is fixed at the bottom left (Apple TV style). Play stays disabled until milestone 4.
 - **Navigation:** a menu button at the top left opens a text-only drawer (Search, Home, Settings). The wall stays mounted and paused on other pages, so it keeps its place.
-- **Netflix-style search:**
-  - A full-screen overlay with the query bar, an "Explore titles related to" row of chips, and a grid of 16:9 cards.
-  - Fuse.js over title, cast, director, genres and year, with keyboard navigation through the grid.
+- **Netflix-style search (milestone 8)** (design: `docs/superpowers/specs/2026-11-01-milestone-8-search-design.md`):
+  - An overlay over the dimmed wall. Typing on the wall, `/`, Ctrl+F or the menu opens it. A query bar, an "Explore titles related to" chip row, and a grid of wide 16:9 cards.
+  - **Titles first**, because the user usually knows the title: exact, then starts-with (leading articles ignored), then word-start, then fuzzy title, people and genre matches (Fuse.js over `library.searchDocs`). A 4-digit number is both title text and a year.
+  - The first card is selected; **Enter opens the title page** (never plays). Back from that page returns to the search. Episode titles aren't searched.
+  - With nothing typed: "Continue watching" and "Recently added" rows.
 - **Library and metadata** (design: `docs/superpowers/specs/2026-10-29-milestone-2-library-design.md`):
   - Folder scan plus ffprobe, and `parse-torrent-title` plus our own rules to tell movies from episodes (`S01E02`, `1x02`, `Show/Season 1/02 - Title`).
   - Episodes group into shows → seasons → episodes. One TMDB search per show.
@@ -108,7 +110,7 @@ video-player/
 | 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
 | 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, offset slider, sync-to-line card, reset, synced export | `subtitle-formats` | ✅ |
 | 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | ✅ |
-| 8 | **Search** | `netflix-search` | |
+| 8 | **Search:** overlay with titles-first ranking, chips, 16:9 cards, empty-state rows, back-to-search | `netflix-search` | |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
 
 Every milestone follows the same flow: `brainstorming` → `writing-plans` → `executing-plans` with `test-driven-development` → `verification-before-completion` → `requesting-code-review` / `/code-review`.

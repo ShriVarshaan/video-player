@@ -132,3 +132,14 @@ Cards are buttons with `aria-label="Title (Year)"`; the input is `role="searchbo
 - How the overlay is mounted in `App` (a state beside `page`/`titleKey`).
 - The `searchDocs` SQL.
 - Where the logo URL comes from. The image cache already serves `poster://logo/...`, but no screen draws logos yet, so the cards are the first. A card with no logo shows the title in text.
+
+## As built
+
+- Data: `library.searchDocs`, built by `listSearchDocs` in `src/main/library/queries.ts`, which shares `showGroups()` with the wall query.
+- Search code: `src/renderer/src/search/`. The pure parts are `query`, `rank`, `chips`, `rows` and `gridNav`; the UI is `SearchOverlay`, `SearchCard` and `useSearchDocs`.
+- **Scoped chips** match the whole folded name or whole words of it, so `director:nolan` works and `genre:dram` doesn't.
+- **A query with a year** is ordered as: strong title matches (tiers 0–2), then that year's titles matching the rest, then loose matches.
+- **A decade chip** (`2010s`) filters to that decade.
+- **Cards** are `role="option"` in a listbox (so `aria-selected` is valid), not buttons.
+- **`App`** keeps search as its own overlay state, plus `fromSearch` so back from a title page returns to the search. The menu still lists "Search".
+- **In fixture mode** every TMDB image is the same placeholder, so cards look identical in screenshots. Logos are fetched on demand by the image cache.
