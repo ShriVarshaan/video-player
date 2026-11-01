@@ -7,9 +7,9 @@ import { VelocityTracker } from './physics'
 
 export type WallCallbacks = {
   onFocus: (item: WallItem | null) => void
-  onActivate: (item: WallItem) => void // Space / i: show the info card now
+  onActivate: (item: WallItem) => void // Space: show the info card now
   onOpen: (item: WallItem) => void // Enter / click: open the title page
-  onSearch: () => void
+  onSearch: (initial: string) => void // the typed letter ('' for / and Ctrl+F)
 }
 
 type Slot = {
@@ -384,7 +384,7 @@ export class WallEngine {
       this.kick()
       return
     }
-    if ((e.key === 'Enter' || e.key === ' ' || e.key === 'i') && !onOtherButton) {
+    if ((e.key === 'Enter' || e.key === ' ') && !onOtherButton) {
       if (e.repeat) return e.preventDefault()
       const item = this.focusedItem()
       if (item) {
@@ -397,7 +397,7 @@ export class WallEngine {
     const typing = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && /\S/.test(e.key)
     if (e.key === '/' || (e.ctrlKey && e.key.toLowerCase() === 'f') || typing) {
       e.preventDefault()
-      this.cb.onSearch()
+      this.cb.onSearch(typing && e.key !== '/' ? e.key : '')
     }
   }
 

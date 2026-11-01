@@ -49,8 +49,8 @@ Edge cases:
 | Mouse drag / touch | Pointer capture. Ignore the first 6 px so clicks still work. Track velocity over the last 100 ms. On release, glide with frame-rate-independent decay `v *= Math.pow(0.94, dt / 16.67)` and stop below 5 px/s. |
 | Wheel / trackpad | Pan directly by `deltaX/deltaY` (Shift swaps the axes). Mark the listener as `passive`. |
 | Hover | Focus follows the mouse after 80 ms of rest, but never during a glide. |
-| Enter / click | Open the title page (`onOpen(key)`). Space and `i` open the info card at once. The card's button plays the title directly (`player.play({ key })`); the engine ignores pointer presses on buttons so card clicks never reach the tile behind. |
-| `/`, Ctrl+F, or typing a letter | Open search (`netflix-search`). Until milestone 8 this goes to the Search stand-in page. |
+| Enter / click | Open the title page (`onOpen(key)`). Space opens the info card at once (`i` no longer does: it starts a search like any letter). The card's button plays the title directly (`player.play({ key })`); the engine ignores pointer presses on buttons so card clicks never reach the tile behind. |
+| `/`, Ctrl+F, or typing a letter | Open the search overlay (`netflix-search`); `onSearch(initial)` carries the typed letter (`''` for `/` and Ctrl+F). |
 | Menu open / other page | The wall pauses: no rAF loop, no input. Keys are handled on `window` but ignored inside `nav` and inputs. |
 | Idle drift | After 8 s without input, drift at about 10 px/s diagonally. Stop instantly on any input. Disabled under `prefers-reduced-motion`. |
 

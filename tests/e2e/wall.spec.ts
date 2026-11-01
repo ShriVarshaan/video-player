@@ -98,9 +98,10 @@ test.describe('with the fixture library', () => {
     await expect(card.getByRole('button', { name: 'Play episode' })).toBeEnabled()
   })
 
-  test('typing a letter opens Search', async () => {
-    await win.keyboard.press('k')
-    await expect(win.getByRole('heading', { name: 'Search' })).toBeVisible()
+  test('typing a letter opens Search with that letter (i too, not the info card)', async () => {
+    await win.keyboard.press('i')
+    await expect(win.getByRole('searchbox')).toHaveValue('i')
+    await expect(win.getByTestId('info-card')).toHaveCount(0)
   })
 
   test('keeps focus on the same title when the library changes', async () => {

@@ -11,7 +11,7 @@ const CARD_DELAY = 400 // ms focus must rest before the card and backdrop change
 type Props = {
   active: boolean // false while the menu is open or another page is shown
   onOpen: (key: string) => void // Enter / click: the title page
-  onSearch: () => void
+  onSearch: (initial: string) => void
   onSettings: () => void
 }
 
@@ -33,7 +33,7 @@ export function Wall({ active, onOpen, onSearch, onSettings }: Props) {
       onFocus: setFocused,
       onActivate: setCard,
       onOpen: (item) => open.current(item.key),
-      onSearch: () => search.current()
+      onSearch: (initial) => search.current(initial)
     })
     engine.current = e
     return () => e.destroy()
