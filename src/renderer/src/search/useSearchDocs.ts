@@ -10,13 +10,18 @@ export type DocsStore = {
   dispose(): void
 }
 
+// Kept while the app runs: reopening search (and back from a title page) starts
+// with the last documents at once, and refreshes them in the background.
+let cache: SearchDoc[] | null = null
+
 export function createDocsStore(fetchDocs: () => Promise<SearchDoc[]>, onChanged: (cb: () => void) => () => void): DocsStore {
-  let docs: SearchDoc[] | null = null
+  let docs: SearchDoc[] | null = cache
   const listeners = new Set<() => void>()
   let live = true
   const load = () =>
     fetchDocs().then(
       (d) => {
+        cache = d
         if (!live) return
         docs = d
         listeners.forEach((l) => l())
@@ -42,7 +47,7 @@ export function createDocsStore(fetchDocs: () => Promise<SearchDoc[]>, onChanged
 // The store lives inside the effect, so StrictMode's mount → unmount → mount
 // never leaves a disposed one behind.
 export function useSearchDocs(): SearchDoc[] | null {
-  const [docs, setDocs] = useState<SearchDoc[] | null>(null)
+  const [docs, setDocs] = useState<SearchDoc[] | null>(() => cache)
   useEffect(() => {
     const store = createDocsStore(() => window.api.library.searchDocs({}), (cb) => window.api.on('library.changed', cb))
     const off = store.subscribe(() => setDocs(store.get()))

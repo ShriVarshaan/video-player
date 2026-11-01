@@ -6,6 +6,7 @@ import { parseQuery } from './query'
 import { buildIndex, search } from './rank'
 import { emptyRows } from './rows'
 import { SearchCard } from './SearchCard'
+import { nextSelection } from './selection'
 import { useSearchDocs } from './useSearchDocs'
 import './search.css'
 
@@ -34,7 +35,6 @@ export function SearchOverlay({ initial, restore, active, onOpen, onClose }: Pro
   const input = useRef<HTMLInputElement>(null)
   const grid = useRef<HTMLDivElement>(null)
   const chipsRef = useRef<HTMLDivElement>(null)
-  const restoring = useRef(restore !== null)
 
   useEffect(() => {
     const t = setTimeout(() => setSettled(query), DEBOUNCE_MS)
@@ -49,15 +49,17 @@ export function SearchOverlay({ initial, restore, active, onOpen, onClose }: Pro
     [parsed.empty, results, deferred, docs]
   )
 
-  // New results select their first card, except when coming back from a title page.
+  // A new query selects its first card. A library refresh, and coming back from
+  // a title page, keep the card the user was on while it is still there.
+  const lastQuery = useRef<string | null>(restore ? deferred : null)
   useEffect(() => {
-    if (restoring.current && docs) {
-      restoring.current = false
-      if (selectedKey && results.some((d) => d.key === selectedKey)) return
-    }
-    setSelectedKey(results[0]?.key ?? null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results])
+    if (docs === null) return // nothing to choose from yet: keep what we have
+    const queryChanged = lastQuery.current !== deferred
+    lastQuery.current = deferred
+    setSelectedKey((prev) => nextSelection(prev, results, queryChanged))
+    // A refresh can remove the focused card: don't leave focus on nothing.
+    if (!document.activeElement || document.activeElement === document.body) input.current?.focus()
+  }, [results, deferred, docs])
 
   useLayoutEffect(() => {
     const el = input.current
@@ -82,7 +84,9 @@ export function SearchOverlay({ initial, restore, active, onOpen, onClose }: Pro
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
-      if (target?.closest('nav')) return
+      // Only keys meant for search: not the menu button or drawer, not mid-IME.
+      if (e.isComposing) return
+      if (target && target !== document.body && !target.closest('.search-overlay')) return
       const inBox = target === input.current
       const inChips = !!target?.closest('.search-chips')
       const cards = cardEls()
@@ -113,6 +117,8 @@ export function SearchOverlay({ initial, restore, active, onOpen, onClose }: Pro
         if (pick) onOpen(pick.key, { query: now, selectedKey: pick.key })
         return
       }
+      // Space on a chip presses it, like any button.
+      if (e.key === ' ' && inChips) return
       if (isTyping(e) && !inBox) {
         e.preventDefault()
         setQuery((q) => q + e.key)

@@ -37,3 +37,29 @@ describe('createDocsStore', () => {
     expect(store.get()?.[0]?.title).toBe('A')
   })
 })
+
+describe('nextSelection', () => {
+  it('a new query selects the first card', async () => {
+    const { nextSelection } = await import('../../src/renderer/src/search/selection')
+    const r = docs('A').concat(docs('B'))
+    expect(nextSelection('B', r, true)).toBe('A')
+  })
+  it('a library refresh keeps the selected card while it is still there', async () => {
+    const { nextSelection } = await import('../../src/renderer/src/search/selection')
+    const r = docs('A').concat(docs('B'))
+    expect(nextSelection('B', r, false)).toBe('B')
+    expect(nextSelection('Z', r, false)).toBe('A')
+    expect(nextSelection(null, [], false)).toBeNull()
+  })
+})
+
+describe('docs cache', () => {
+  it('a second store starts with the documents the first one loaded', async () => {
+    const first = createDocsStore(vi.fn().mockResolvedValue(docs('A')), () => () => {})
+    await flush()
+    first.dispose()
+    const second = createDocsStore(() => new Promise(() => {}), () => () => {})
+    expect(second.get()?.[0]?.title).toBe('A')
+    second.dispose()
+  })
+})

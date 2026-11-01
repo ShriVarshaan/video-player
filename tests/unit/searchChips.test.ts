@@ -84,3 +84,12 @@ describe('moveInGrid', () => {
     expect(moveInGrid(9, 'ArrowRight', 4, 10)).toBe(9)
   })
 })
+
+describe('relatedChips with a scoped query', () => {
+  it('does not offer the active chip again', () => {
+    const hanks = [doc('Cast Away', { year: 2000, cast: ['Tom Hanks'], genres: ['Drama'] }), doc('Big', { year: 1988, cast: ['Tom Hanks'], genres: ['Comedy', 'Drama'] })]
+    expect(relatedChips(hanks, 'cast:"Tom Hanks"').map((c) => c.label)).not.toContain('Tom Hanks')
+    expect(relatedChips(hanks, 'genre:Drama').map((c) => c.label)).not.toContain('Drama')
+    expect(relatedChips(hanks, '2000s').map((c) => c.label)).not.toContain('2000s')
+  })
+})

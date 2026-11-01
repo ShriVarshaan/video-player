@@ -94,6 +94,13 @@ describe('listSearchDocs', () => {
       expect(doc('tmdb:1396').progress).toBeNull()
     })
 
+    it('a show watched to its last episode is not', () => {
+      played(5, 3000, 3000, 10, 1)
+      played(6, 3000, 3000, 20, 1)
+      played(7, 3000, 3000, 30, 1)
+      expect(doc('tmdb:1396').inProgress).toBe(false)
+    })
+
     it('a show with nothing played is not', () => {
       expect(doc('tmdb:1396').inProgress).toBe(false)
     })

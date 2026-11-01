@@ -122,3 +122,41 @@ test('a show opens its page', async () => {
   await win.keyboard.press('Enter')
   await expect(win.getByTestId('season-tab').first()).toBeVisible()
 })
+
+test('back to search keeps the card you moved to', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('in')
+  await expect(cards().nth(1)).toBeVisible()
+  await win.keyboard.press('ArrowDown') // chips
+  await win.keyboard.press('ArrowDown') // first card
+  await win.keyboard.press('ArrowRight')
+  const second = await cards().nth(1).getAttribute('aria-label')
+  await expect(cards().nth(1)).toBeFocused()
+  await win.keyboard.press('Enter')
+  await expect(win.getByTestId('title-page')).toBeVisible()
+  await win.keyboard.press('Escape')
+  await expect(box()).toHaveValue('in')
+  await expect(selected()).toHaveAttribute('aria-label', second!)
+})
+
+test('Enter on the menu button opens the menu, not a result', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await win.getByRole('button', { name: 'Menu' }).click()
+  await expect(win.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  await win.keyboard.press('Escape')
+  await expect(win.getByRole('navigation', { name: 'Main' })).toBeHidden()
+  await win.keyboard.press('Enter')
+  await expect(win.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  await expect(win.getByTestId('title-page')).toHaveCount(0)
+})
+
+test('Space on a chip picks it', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await expect(win.getByTestId('search-chip').first()).toBeVisible()
+  await win.keyboard.press('ArrowDown')
+  await expect(win.getByTestId('search-chip').first()).toBeFocused()
+  await win.keyboard.press(' ')
+  await expect(box()).toHaveValue(/^(cast:|director:|genre:|\d{4}s$)/)
+})

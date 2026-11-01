@@ -336,6 +336,11 @@ export function listSearchDocs(db: Db): SearchDoc[] {
     const info = tmdb !== null ? (show.get(tmdb) as { original_name: string | null; logo_path: string | null } | undefined) : undefined
     const played = g.progress.filter((e) => e.lastPlayedAt !== null)
     const half = g.up?.action === 'continue' ? g.progress.find((e) => e.videoId === g.up!.videoId) : undefined
+    // After the last episode nextUp wraps to the first: that isn't "next", so a
+    // finished show leaves Continue watching.
+    const last = played.reduce<ProgressEpisode | null>((a, e) => (!a || e.lastPlayedAt! > a.lastPlayedAt! ? e : a), null)
+    const regular = g.progress.filter((e) => e.season >= 1)
+    const wrapped = last !== null && last.season >= 1 && regular.indexOf(last) === regular.length - 1 && g.up?.action !== 'continue'
     return {
       ...w,
       originalTitle: info?.original_name ?? null,
@@ -344,7 +349,7 @@ export function listSearchDocs(db: Db): SearchDoc[] {
       logoUrl: info?.logo_path ? posterUrl({ type: 'logo', owner: 'show', id: tmdb! }, artVersion(tmdb)) : null,
       addedAt: Math.max(...g.episodes.map((e) => (fileDates.get(e.id) as { added_at: number }).added_at)),
       lastPlayedAt: played.length ? Math.max(...played.map((e) => e.lastPlayedAt!)) : null,
-      inProgress: g.up?.action === 'continue' || played.length > 0,
+      inProgress: g.up?.action === 'continue' || (played.length > 0 && !wrapped),
       progress: half && half.durationS ? half.positionS / half.durationS : null
     }
   })

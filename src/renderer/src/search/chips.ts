@@ -1,6 +1,6 @@
 import type { SearchDoc } from '@shared/library'
 import { normalizeTitle } from '@shared/normalize'
-import { scopedQuery } from './query'
+import { parseQuery, scopedQuery } from './query'
 
 // "Explore titles related to:" chips, and genre chips for the no-match state.
 
@@ -21,7 +21,9 @@ function add(counts: Map<string, { chip: Chip; n: number }>, chip: Chip) {
 }
 
 export function relatedChips(results: SearchDoc[], raw: string): Chip[] {
-  const q = normalizeTitle(raw)
+  // The query itself, as free text or as the chip that put it there.
+  const q = normalizeTitle(parseQuery(raw).scope?.value ?? raw)
+  const active = raw.trim()
   const counts = new Map<string, { chip: Chip; n: number }>()
   for (const d of results.slice(0, FROM_TOP)) {
     for (const g of d.genres) add(counts, { label: g, query: scopedQuery('genre', g) })
@@ -33,7 +35,7 @@ export function relatedChips(results: SearchDoc[], raw: string): Chip[] {
     }
   }
   return byCount(counts)
-    .filter((c) => normalizeTitle(c.label) !== q)
+    .filter((c) => normalizeTitle(c.label) !== q && c.query !== active)
     .slice(0, MAX_RELATED)
 }
 
