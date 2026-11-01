@@ -110,7 +110,7 @@ video-player/
 | 5 | **Subtitles:** auto-match files, Apple TV renderer, style settings, OpenSubtitles search | `subtitle-formats`, `apple-design` | ✅ |
 | 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, offset slider, sync-to-line card, reset, synced export | `subtitle-formats` | ✅ |
 | 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | ✅ |
-| 8 | **Search:** overlay with titles-first ranking, chips, 16:9 cards, empty-state rows, back-to-search | `netflix-search` | |
+| 8 | **Search:** overlay with titles-first ranking, chips, 16:9 cards, empty-state rows, back-to-search | `netflix-search` | ✅ |
 | 9 | **Polish and packaging:** design audit, accessibility, settings, NSIS installer, notices | `impeccable`, `review-animations`, `accessibility`, `release-windows` | |
 
 Every milestone follows the same flow: `brainstorming` → `writing-plans` → `executing-plans` with `test-driven-development` → `verification-before-completion` → `requesting-code-review` / `/code-review`.

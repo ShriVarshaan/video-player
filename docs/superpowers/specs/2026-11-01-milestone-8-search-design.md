@@ -143,3 +143,21 @@ Cards are buttons with `aria-label="Title (Year)"`; the input is `role="searchbo
 - **Cards** are `role="option"` in a listbox (so `aria-selected` is valid), not buttons.
 - **`App`** keeps search as its own overlay state, plus `fromSearch` so back from a title page returns to the search. The menu still lists "Search".
 - **In fixture mode** every TMDB image is the same placeholder, so cards look identical in screenshots. Logos are fetched on demand by the image cache.
+
+Fixed after the final review:
+- Back from a title page keeps the card you'd moved to. The search documents are cached while the app runs, so reopening search starts with results at once.
+- A library refresh keeps your selection while that card is still there.
+- The active chip isn't offered again.
+- A show watched to its last episode leaves Continue watching.
+- Enter on the menu button opens the menu, not a result.
+- Space on a chip picks it.
+- Keys typed during IME composition are ignored.
+
+Deferred (minor, from the final review):
+- Backspace on a focused card doesn't edit the query.
+- `listSearchDocs` uses an O(n²) movie join and builds the show groups twice. Fine at hundreds of titles; revisit at thousands.
+- A bare year also lists neighbouring years through the fuzzy year key (that year's titles come first).
+- Overlapping document fetches aren't ordered.
+- The key handler re-subscribes on every render, and cards aren't memoized.
+- Empty-state row cards don't show the selected scale or meta line.
+- Choosing Search from the menu while search is open sometimes keeps the query.
