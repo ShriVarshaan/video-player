@@ -1,5 +1,5 @@
 import { fnv1a32 } from '@shared/hash'
-import type { EpisodeItem, LibraryFolder, MovieItem, ShowDetail, ShowItem, TitleDetail, WallItem } from '@shared/library'
+import type { EpisodeItem, LibraryFolder, MovieItem, NextUp, SearchDoc, ShowDetail, ShowItem, TitleDetail, WallItem } from '@shared/library'
 import { normalizeTitle } from '@shared/normalize'
 import type { Db } from '../db'
 import { posterUrl } from '../images/posterUrl'
@@ -190,6 +190,32 @@ function genresBy(db: Db, table: 'tmdb_movie_genres' | 'tmdb_show_genres', idCol
   return out
 }
 
+// One entry per show on disk: its episodes (largest file per episode, in order)
+// with their playback, and the show page's main button.
+type ShowGroup = { key: string; episodes: EpisodeRow[]; progress: ProgressEpisode[]; up: NextUp | null }
+
+function showGroups(db: Db): ShowGroup[] {
+  const playback = db.prepare('SELECT position_s, duration_s, completed, last_played_at FROM playback_state WHERE video_id = ?')
+  const groups = new Map<string, EpisodeRow[]>()
+  for (const r of episodeRows(db)) groups.set(showKey(r), [...(groups.get(showKey(r)) ?? []), r])
+  return [...groups.entries()].map(([key, rows]) => {
+    const episodes = largestPer(rows, (r) => `${r.season}x${r.episode}`).sort(episodeOrder)
+    const progress = episodes.map((r): ProgressEpisode => {
+      const p = playback.get(r.id) as PlaybackRow | undefined
+      return {
+        videoId: r.id,
+        season: r.season,
+        episode: r.episode,
+        positionS: p?.position_s ?? 0,
+        durationS: p?.duration_s ?? r.duration_s,
+        completed: p?.completed === 1,
+        lastPlayedAt: p?.last_played_at ?? null
+      }
+    })
+    return { key, episodes, progress, up: nextUp(progress) }
+  })
+}
+
 // Everything the home wall draws, one item per movie and per show, in wall order.
 export function listWall(db: Db): WallItem[] {
   const movieGenres = genresBy(db, 'tmdb_movie_genres', 'tmdb_id')
@@ -233,28 +259,10 @@ export function listWall(db: Db): WallItem[] {
   )
 
   const showInfo = db.prepare('SELECT rating, overview, backdrop_path FROM tmdb_shows WHERE tmdb_id = ?')
-  const playback = db.prepare('SELECT position_s, duration_s, completed, last_played_at FROM playback_state WHERE video_id = ?')
-  const groups = new Map<string, EpisodeRow[]>()
-  for (const r of episodeRows(db)) groups.set(showKey(r), [...(groups.get(showKey(r)) ?? []), r])
-  const shows = [...groups.entries()].map(([key, rows]): WallItem => {
-    const episodes = largestPer(rows, (r) => `${r.season}x${r.episode}`).sort(episodeOrder)
+  const shows = showGroups(db).map(({ key, episodes, up }): WallItem => {
     const first = episodes[0]!
     const id = first.show_tmdb_id
     const info = id !== null ? (showInfo.get(id) as { rating: number | null; overview: string | null; backdrop_path: string | null } | undefined) : undefined
-    const up = nextUp(
-      episodes.map((r) => {
-        const p = playback.get(r.id) as PlaybackRow | undefined
-        return {
-          videoId: r.id,
-          season: r.season,
-          episode: r.episode,
-          positionS: p?.position_s ?? 0,
-          durationS: p?.duration_s ?? r.duration_s,
-          completed: p?.completed === 1,
-          lastPlayedAt: p?.last_played_at ?? null
-        }
-      })
-    )
     return {
       key,
       kind: 'show',
@@ -279,6 +287,67 @@ export function listWall(db: Db): WallItem[] {
   })
 
   return [...movies, ...shows].sort((a, b) => a.order - b.order || a.key.localeCompare(b.key))
+}
+
+const TOP_CAST = 5
+
+// One search document per wall title (milestone 8): the wall item plus the
+// fields search matches on and the empty-state rows sort by.
+export function listSearchDocs(db: Db): SearchDoc[] {
+  const groups = new Map(showGroups(db).map((g) => [g.key, g]))
+  const names = (sql: string) => {
+    const q = db.prepare(sql)
+    return (id: number) => (q.all(id) as { name: string }[]).map((r) => r.name)
+  }
+  const movieCast = names(`SELECT p.name FROM credits c JOIN people p ON p.id = c.person_id WHERE c.tmdb_id = ? AND c.role = 'cast' ORDER BY c.ord LIMIT ${TOP_CAST}`)
+  const movieDirectors = names(`SELECT p.name FROM credits c JOIN people p ON p.id = c.person_id WHERE c.tmdb_id = ? AND c.role = 'director' ORDER BY c.ord`)
+  const showCast = names(`SELECT p.name FROM show_credits c JOIN people p ON p.id = c.person_id WHERE c.show_tmdb_id = ? AND c.role = 'cast' ORDER BY c.ord LIMIT ${TOP_CAST}`)
+  const showCreators = names(`SELECT p.name FROM show_credits c JOIN people p ON p.id = c.person_id WHERE c.show_tmdb_id = ? AND c.role = 'creator' ORDER BY c.ord`)
+  const movie = db.prepare(
+    `SELECT v.tmdb_id, m.original_title, m.logo_path,
+            MAX(f.added_at) AS added_at, MAX(p.last_played_at) AS last_played_at
+     FROM videos v
+     LEFT JOIN tmdb_movies m ON m.tmdb_id = v.tmdb_id
+     JOIN videos f ON f.kind = 'movie' AND f.missing_since IS NULL AND (f.id = v.id OR (v.tmdb_id IS NOT NULL AND f.tmdb_id = v.tmdb_id))
+     LEFT JOIN playback_state p ON p.video_id = f.id
+     WHERE v.id = ?`
+  )
+  const show = db.prepare('SELECT original_name, logo_path FROM tmdb_shows WHERE tmdb_id = ?')
+  const fileDates = db.prepare('SELECT added_at FROM videos WHERE id = ?')
+
+  return listWall(db).map((w): SearchDoc => {
+    if (w.kind === 'movie') {
+      const id = Number(w.key.slice('movie:'.length))
+      const r = movie.get(id) as { tmdb_id: number | null; original_title: string | null; logo_path: string | null; added_at: number; last_played_at: number | null }
+      const tmdb = r.tmdb_id
+      return {
+        ...w,
+        originalTitle: r.original_title,
+        cast: tmdb !== null ? movieCast(tmdb) : [],
+        directors: tmdb !== null ? movieDirectors(tmdb) : [],
+        logoUrl: r.logo_path ? posterUrl({ type: 'logo', owner: 'video', id }, artVersion(tmdb)) : null,
+        addedAt: r.added_at,
+        lastPlayedAt: r.last_played_at,
+        inProgress: w.progress !== null
+      }
+    }
+    const g = groups.get(w.key)!
+    const tmdb = g.episodes[0]!.show_tmdb_id
+    const info = tmdb !== null ? (show.get(tmdb) as { original_name: string | null; logo_path: string | null } | undefined) : undefined
+    const played = g.progress.filter((e) => e.lastPlayedAt !== null)
+    const half = g.up?.action === 'continue' ? g.progress.find((e) => e.videoId === g.up!.videoId) : undefined
+    return {
+      ...w,
+      originalTitle: info?.original_name ?? null,
+      cast: tmdb !== null ? showCast(tmdb) : [],
+      directors: tmdb !== null ? showCreators(tmdb) : [],
+      logoUrl: info?.logo_path ? posterUrl({ type: 'logo', owner: 'show', id: tmdb! }, artVersion(tmdb)) : null,
+      addedAt: Math.max(...g.episodes.map((e) => (fileDates.get(e.id) as { added_at: number }).added_at)),
+      lastPlayedAt: played.length ? Math.max(...played.map((e) => e.lastPlayedAt!)) : null,
+      inProgress: g.up?.action === 'continue' || played.length > 0,
+      progress: half && half.durationS ? half.positionS / half.durationS : null
+    }
+  })
 }
 
 export function listFolders(db: Db, exists: (p: string) => boolean): LibraryFolder[] {

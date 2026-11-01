@@ -55,6 +55,17 @@ export type WallItem = {
   playLabel: 'Play' | 'Play episode' | 'Continue watching'
 }
 
+// One search document per wall title (milestone 8): what search matches on and sorts by.
+export type SearchDoc = WallItem & {
+  originalTitle: string | null
+  cast: string[] // top 5 billed
+  directors: string[] // movies: directors; shows: creators
+  logoUrl: string | null
+  addedAt: number // newest of the title's files (unix ms)
+  lastPlayedAt: number | null
+  inProgress: boolean // Continue watching: partway through a movie, or partway through a show
+}
+
 export type ScanProgress = { phase: 'scanning' | 'probing' | 'matching' | 'images' | 'idle'; done: number; total: number }
 
 export type MetadataStatus = { hasKey: boolean; pending: number; unmatched: number }

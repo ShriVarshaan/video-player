@@ -1,7 +1,7 @@
 // The one source of truth for renderer ↔ main IPC. Add a method here and to
 // apiMethods; the compiler then points at the missing handler and bridge.
 
-import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
+import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, SearchDoc, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
 import type { AutoSyncOutcome, AutoSyncProgress } from './autoSync'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from './player'
 import type { SubtitleResult } from './subtitleSearch'
@@ -38,6 +38,8 @@ export type API = {
     wall: (params: Record<string, never>) => Promise<WallItem[]>
     // The title page: a movie ('movie:<videoId>') or a show key.
     getTitle: (params: { key: string }) => Promise<TitleDetail | null>
+    // Search (milestone 8): one document per wall title.
+    searchDocs: (params: Record<string, never>) => Promise<SearchDoc[]>
   }
   metadata: {
     setTmdbKey: (params: { key: string }) => Promise<void>
@@ -100,7 +102,7 @@ export type Domain = keyof API
 export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
   app: { getInfo: true },
   settings: { get: true, set: true },
-  library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true, getTitle: true },
+  library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true, getTitle: true, searchDocs: true },
   metadata: { setTmdbKey: true, status: true },
   player: { play: true, stop: true, command: true },
   subtitles: {
