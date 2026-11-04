@@ -3,7 +3,7 @@
 import { resolve } from 'node:path'
 import { rmSync } from 'node:fs'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { closeApp, focusTile, keyOf, launchApp, openTile, overlayPage, overlayVisible, position, wallTitles } from './pages'
+import { closeApp, closeWithX, focusTile, keyOf, launchApp, openTile, overlayPage, overlayVisible, position, wallTitles } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 const ALL_TITLES = ['Amélie', 'Breaking Bad', 'Inception', 'Some Unknown Home Video', 'The Matrix']
@@ -94,7 +94,7 @@ test('back from the player, focus is on the main button and the season follows w
   await win.keyboard.press('Enter') // Play S1 E1 from the focused main button
   let overlay = await overlayPage(app)
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(1)
-  await overlay.keyboard.press('Escape')
+  await closeWithX(overlay)
   await expect.poll(() => overlayVisible(app)).toBe(false)
   await expect(win.getByTestId('title-main')).toBeFocused()
 
@@ -108,7 +108,7 @@ test('back from the player, focus is on the main button and the season follows w
   await overlay.getByTestId('next-play').click({ timeout: 10_000 })
   await expect(overlay.getByTestId('player-heading')).toContainText('S2 E1')
   await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(1)
-  await overlay.keyboard.press('Escape')
+  await closeWithX(overlay)
   await expect.poll(() => overlayVisible(app)).toBe(false)
   await expect(win.getByTestId('season-tab').filter({ hasText: 'Season 2' })).toHaveAttribute('aria-pressed', 'true')
 })

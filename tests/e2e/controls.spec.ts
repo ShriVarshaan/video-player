@@ -4,7 +4,7 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { closeApp, keyOf, launchApp, overlayPage, overlayVisible, position } from './pages'
+import { closeApp, closeWithX, isFullScreen, keyOf, launchApp, overlayPage, overlayVisible, position } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 let userData: string
@@ -32,8 +32,14 @@ async function playTitle(title: string, opts: { videoId?: number; from?: 'resume
 }
 
 async function closePlayer(overlay: Page) {
-  await overlay.keyboard.press('Escape')
+  await closeWithX(overlay)
   await expect.poll(() => overlayVisible(app)).toBe(false)
+}
+
+// Playing means the position moves on from where it is now.
+async function expectPlaying(overlay: Page) {
+  const from = await position(overlay)
+  await expect.poll(() => position(overlay)).toBeGreaterThan(from + 0.3)
 }
 
 const episodeId = async (title: string, season: number, episode: number) => {
@@ -42,7 +48,57 @@ const episodeId = async (title: string, season: number, episode: number) => {
   return t.seasons.find((s) => s.season === season)!.episodes.find((e) => e.episode === episode)!.videoId
 }
 
-test('Space pauses and resumes; arrows seek; Esc closes to the title page', async () => {
+test('Esc in fullscreen leaves fullscreen and keeps playing', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.keyboard.press('f')
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await overlay.keyboard.press('Escape')
+  await expect.poll(() => isFullScreen(app)).toBe(false)
+  expect(await overlayVisible(app)).toBe(true)
+  await expectPlaying(overlay)
+})
+
+test('Esc when not fullscreen does nothing', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.keyboard.press('Escape')
+  await overlay.waitForTimeout(500)
+  expect(await overlayVisible(app)).toBe(true)
+  expect(await isFullScreen(app)).toBe(false)
+  await expectPlaying(overlay)
+})
+
+test('Esc with a menu open in fullscreen closes only the menu', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.keyboard.press('f')
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await overlay.mouse.move(200, 200)
+  await overlay.getByTestId('subtitles-button').click()
+  await expect(overlay.getByTestId('track-menu')).toBeVisible()
+  await overlay.keyboard.press('Escape')
+  await expect(overlay.getByTestId('track-menu')).toHaveCount(0)
+  expect(await isFullScreen(app)).toBe(true)
+})
+
+test('Held Esc closes the menu and stays fullscreen', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.keyboard.press('f')
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await overlay.mouse.move(200, 200)
+  await overlay.getByTestId('subtitles-button').click()
+  await expect(overlay.getByTestId('track-menu')).toBeVisible()
+  // keyboard.down again without an up is a key repeat.
+  for (let i = 0; i < 3; i++) await overlay.keyboard.down('Escape')
+  await overlay.keyboard.up('Escape')
+  await expect(overlay.getByTestId('track-menu')).toHaveCount(0)
+  await overlay.waitForTimeout(300)
+  expect(await isFullScreen(app)).toBe(true)
+})
+
+test('Space pauses and resumes; arrows seek; ✕ closes to the title page', async () => {
   await start()
   const overlay = await playTitle('The Matrix', { from: 'start' })
   await overlay.keyboard.press(' ')

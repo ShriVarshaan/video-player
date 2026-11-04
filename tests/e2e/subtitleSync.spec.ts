@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import type { PlayerCommand } from '@shared/player'
 import { REACTION_LEAD_S } from '@shared/subtitleTiming'
-import { closeApp, keyOf, launchApp, overlayPage, position } from './pages'
+import { closeApp, isFullScreen, keyOf, launchApp, overlayPage, position } from './pages'
 
 // Matrix cues: "Wake up, Neo." 1–4 s, "Follow the white rabbit." 5–8 s.
 const MATRIX = 'The.Matrix.1999.1080p.BluRay.x264'
@@ -54,6 +54,21 @@ async function menuAction(overlay: Page, name: string) {
   await overlay.getByTestId('subtitles-button').click()
   await overlay.getByRole('menuitem', { name }).click()
 }
+
+test('Esc closes the offset panel in fullscreen even with focus outside it', async () => {
+  ;({ app, win, userData } = await launchApp(dir))
+  const overlay = await play('The Matrix')
+  await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 8000 })
+  await overlay.keyboard.press('f')
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await menuAction(overlay, 'Set offset…')
+  const panel = overlay.getByTestId('offset-panel')
+  await expect(panel).toBeVisible()
+  await overlay.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await overlay.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  expect(await isFullScreen(app)).toBe(true)
+})
 
 test('Shift+H four times moves the subtitles 2 s later, and it is remembered', async () => {
   ;({ app, win, userData } = await launchApp(dir))

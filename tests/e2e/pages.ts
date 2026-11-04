@@ -56,6 +56,15 @@ export async function overlayPage(app: ElectronApplication): Promise<Page> {
 export const overlayVisible = (app: ElectronApplication) =>
   app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.webContents.getURL().endsWith('overlay.html') && w.isVisible()))
 
+export const isFullScreen = (app: ElectronApplication) =>
+  app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.isFullScreen()))
+
+// Closes the player with its ✕; Esc doesn't close it. Faded controls take no clicks, so the mouse moves first.
+export async function closeWithX(overlay: Page) {
+  await overlay.mouse.move(200, 200)
+  await overlay.getByTestId('player-close').click()
+}
+
 // Seconds into the playing file, as the overlay shows it.
 export const position = (overlay: Page) =>
   overlay.getByTestId('player-time').evaluate((el) => Number((el as HTMLElement).dataset['position']))

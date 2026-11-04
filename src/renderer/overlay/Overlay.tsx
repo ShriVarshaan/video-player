@@ -254,10 +254,15 @@ export function Overlay() {
     const onKey = (e: KeyboardEvent) => {
       wake()
       const s = stateRef.current
+      // Esc backs out one step at a time and never closes the player (✕ does that).
+      // A held key is one press, so it can't go on from a panel to leaving full screen.
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (e.repeat) return
         if (menu) setMenu(null)
-        else close()
+        else if (offsetOpen) setOffsetOpen(false)
+        else if (confirm) setConfirm(null)
+        else if (s?.fullScreen) send({ type: 'fullScreen', on: false })
         return
       }
       if (!s) return
@@ -320,7 +325,7 @@ export function Overlay() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [menu, close, wake, nudge, startSync, startAutoSync])
+  }, [menu, offsetOpen, confirm, wake, nudge, startSync, startAutoSync])
 
   const playNext = useCallback(() => {
     const s = stateRef.current
