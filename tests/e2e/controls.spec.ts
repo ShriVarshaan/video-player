@@ -98,6 +98,100 @@ test('Held Esc closes the menu and stays fullscreen', async () => {
   expect(await isFullScreen(app)).toBe(true)
 })
 
+const playLabel = (overlay: Page) => expect(overlay.getByTestId('play-pause'))
+async function centre(overlay: Page) {
+  const { width, height } = overlay.viewportSize() ?? (await overlay.evaluate(() => ({ width: innerWidth, height: innerHeight })))
+  return { x: Math.round(width / 2), y: Math.round(height / 2) }
+}
+
+test('Click pauses and click resumes', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.click(x, y)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Play')
+  await overlay.mouse.click(x, y)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Pause')
+  await expectPlaying(overlay)
+})
+
+test('Click on the dark strip above the controls pauses', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.mouse.move(200, 200)
+  const seek = (await overlay.getByTestId('seek').boundingBox())!
+  await overlay.mouse.click(seek.x + seek.width / 2, seek.y - 20)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Play')
+})
+
+test('Double-click toggles fullscreen and keeps playing', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.dblclick(x, y)
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Pause')
+  await expectPlaying(overlay)
+  // Again, back out: faster than mpv reports the pause, it still must not end up paused.
+  const c = await centre(overlay)
+  await overlay.mouse.dblclick(c.x, c.y)
+  await expect.poll(() => isFullScreen(app)).toBe(false)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Pause')
+  await expectPlaying(overlay)
+})
+
+test('Click with a menu open only closes the menu', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.mouse.move(200, 200)
+  await overlay.getByTestId('subtitles-button').click()
+  await expect(overlay.getByTestId('track-menu')).toBeVisible()
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.click(x, y)
+  await expect(overlay.getByTestId('track-menu')).toHaveCount(0)
+  await overlay.waitForTimeout(300)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Pause')
+})
+
+test('Clicks on the controls do not also toggle pause', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.mouse.move(200, 200)
+  await overlay.getByTestId('fullscreen').click()
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await overlay.waitForTimeout(300)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Pause')
+})
+
+test('Releasing a volume drag over the video does not pause', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await overlay.mouse.move(200, 200)
+  const slider = (await overlay.getByTestId('volume').boundingBox())!
+  await overlay.mouse.move(slider.x + slider.width / 2, slider.y + slider.height / 2)
+  await overlay.mouse.down()
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.move(x, y, { steps: 5 })
+  await overlay.mouse.up()
+  await overlay.waitForTimeout(300)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Pause')
+})
+
+test('Click does nothing while the next-episode card shows', async () => {
+  await start()
+  const videoId = await episodeId('Breaking Bad', 1, 1)
+  const overlay = await playTitle('Breaking Bad', { videoId, from: 'start' })
+  await win.evaluate(() => window.api.player.command({ type: 'seek', toS: 18.5 }))
+  const nextPlay = overlay.getByTestId('next-play')
+  await expect(nextPlay).toBeVisible({ timeout: 10_000 })
+  const label = await overlay.getByTestId('play-pause').getAttribute('aria-label')
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.click(x, y)
+  await overlay.waitForTimeout(300)
+  await expect(nextPlay).toBeVisible()
+  await playLabel(overlay).toHaveAttribute('aria-label', label!)
+})
+
 test('Space pauses and resumes; arrows seek; ✕ closes to the title page', async () => {
   await start()
   const overlay = await playTitle('The Matrix', { from: 'start' })

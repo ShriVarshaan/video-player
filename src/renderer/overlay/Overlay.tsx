@@ -19,6 +19,10 @@ import { TimingNote } from './TimingNote'
 const HIDE_AFTER_MS = 2500
 const send = (c: PlayerCommand) => void window.api.player.command(c)
 
+// The picture, and the dark strips and words over it. Gaps between the buttons don't
+// count, so a near miss on a control doesn't pause.
+const isVideoSurface = (el: Element) => el.matches('.overlay, .player-top, .player-bottom, .player-heading') || el.closest('.subs') !== null
+
 // The player's controls, in the see-through window over the app window.
 export function Overlay() {
   const [state, setState] = useState<PlayerState | null>(null)
@@ -47,6 +51,10 @@ export function Overlay() {
   const closing = useRef(false)
   // Volume keys run ahead of the state coming back from main.
   const volume = useRef<{ value: number; sent: number | null }>({ value: 100, sent: null })
+  // So do pause toggles: the two clicks of a double-click land before mpv reports the first.
+  const pausedIntent = useRef<{ value: boolean; sent: boolean | null }>({ value: false, sent: null })
+  // Whether the press began on the video: letting go of a drag there is not a click on it.
+  const pressedVideo = useRef(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Cancels a running auto sync: another subtitle or file, or the player closed.
@@ -78,6 +86,8 @@ export function Overlay() {
         clock.current = { pos: s.positionS, at: performance.now(), paused: s.paused, duration: s.durationS ?? 0 }
         const v = volume.current
         if (v.sent === null || v.sent === s.volume) volume.current = { value: s.volume, sent: null }
+        const p = pausedIntent.current
+        if (p.sent === null || p.sent === s.paused) pausedIntent.current = { value: s.paused, sent: null }
       }),
       window.api.on('player.ended', ({ next: n }) => setNext(n)),
       window.api.on('subtitles.cue', setCue),
@@ -244,6 +254,12 @@ export function Overlay() {
     [startSync, startAutoSync, sayOffset, sayError, exportSynced]
   )
 
+  const togglePause = useCallback(() => {
+    const paused = !pausedIntent.current.value
+    pausedIntent.current = { value: paused, sent: paused }
+    send({ type: 'pause', paused })
+  }, [])
+
   const close = useCallback(() => {
     if (closing.current) return
     closing.current = true
@@ -276,7 +292,7 @@ export function Overlay() {
       }
       switch (e.key) {
         case ' ':
-          send({ type: 'pause', paused: !s.paused })
+          togglePause()
           break
         case 'ArrowLeft':
           send({ type: 'seekBy', s: -10 })
@@ -325,7 +341,7 @@ export function Overlay() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [menu, offsetOpen, confirm, wake, nudge, startSync, startAutoSync])
+  }, [menu, offsetOpen, confirm, wake, togglePause, nudge, startSync, startAutoSync])
 
   const playNext = useCallback(() => {
     const s = stateRef.current
@@ -341,10 +357,14 @@ export function Overlay() {
       onPointerMove={wake}
       onPointerDown={(e) => {
         wake()
+        pressedVideo.current = !menu && isVideoSurface(e.target as Element)
         if (menu && !(e.target as Element).closest('.menu-anchor, .style-panel')) setMenu(null)
       }}
+      onClick={(e) => {
+        if (state && !next && pressedVideo.current && isVideoSurface(e.target as Element)) togglePause()
+      }}
       onDoubleClick={(e) => {
-        if (state && e.target === e.currentTarget) send({ type: 'fullScreen', on: !state.fullScreen })
+        if (state && isVideoSurface(e.target as Element)) send({ type: 'fullScreen', on: !state.fullScreen })
       }}
     >
       {state && (
