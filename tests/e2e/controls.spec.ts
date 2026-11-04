@@ -103,7 +103,12 @@ test('The controls cover the video exactly, windowed, fullscreen and resized', a
   const overlay = await playTitle('The Matrix', { from: 'start' })
   const aligned = async () => {
     const { overlay: o, video } = await overlayAndVideoRects(app)
-    return o === video ? 'aligned' : `overlay ${o}, video ${video}`
+    const parse = (rect: string) => rect.split(/[, x]/).map(Number) as [number, number, number, number]
+    const [ox, oy, ow, oh] = parse(o)
+    const [vx, vy, vw, vh] = parse(video)
+    // Corners must match; at a fractional display scale Electron may round the size up a pixel or so.
+    const fits = ox === vx && oy === vy && Math.abs(ow - vw) <= 2 && Math.abs(oh - vh) <= 2
+    return fits ? 'aligned' : `overlay ${o}, video ${video}`
   }
   await expect.poll(aligned).toBe('aligned')
   await overlay.keyboard.press('f')
