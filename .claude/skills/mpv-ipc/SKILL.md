@@ -108,6 +108,8 @@ new BrowserWindow({ parent: mainWin, transparent: true, frame: false, hasShadow:
 - Copy `mainWindow.getContentBounds()` to the overlay on `move`, `resize`, `maximize`, `unmaximize`, `enter-full-screen` and `leave-full-screen`. Use `setBounds`, not animations.
 - The overlay receives all keyboard and mouse input while shown. Focusing the main window (Alt+Tab, taskbar) re-focuses the overlay. Closing the overlay (Alt+F4 lands there) closes the **app** instead, which saves first.
 - Faded controls take no clicks; the first pointer movement brings them back.
+- The app has no application menu. A menu bar would sit in the client area mpv fills while content bounds start below it, so the overlay would sit 26 px under the video's top (milestone 9).
+- Esc closes an open panel, otherwise leaves full screen, otherwise does nothing; only ✕ closes the player. A click on the video (or the dark strips behind the controls) toggles pause and a double-click toggles full screen: the first click pauses at once and the second undoes it. Pause toggles track what was last sent, since the two clicks land before mpv reports the first.
 - Hide the cursor after 2.5 s without movement during playback using CSS `cursor: none` on the overlay.
 
 ## Lifecycle and errors
