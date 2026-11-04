@@ -39,7 +39,7 @@ Python sidecar (PyInstaller onedir)
   - mpv uses FFmpeg internally, so it plays essentially every container and codec.
   - Chromium's own child windows sit above mpv's, so mpv's window is raised with one Win32 call (`SetWindowPos`, via koffi).
   - Controls live in a **transparent owned BrowserWindow** that tracks the app window's content bounds, because HTML can't be layered over mpv's surface in the same window. Layout: one control bar along the bottom (seek, play/skip, volume 0–200 %, time, Audio, Subtitles, full screen).
-  - Esc/✕ saves the position and goes to the title's page. Episodes autoplay after a 10 s "Next episode" card.
+  - ✕ saves the position and goes to the title's page. Esc closes an open panel, otherwise leaves full screen, otherwise does nothing. Clicking the video pauses or resumes it; double-clicking toggles full screen. Episodes autoplay after a 10 s "Next episode" card.
   - Volume, audio and subtitle choices are remembered **per movie or show** (`title_prefs`), never app-wide.
 - **Title pages:** Enter/click on a wall tile opens a page for the movie or show: full-bleed backdrop, details on the left (TMDB synopsis and rating), Play / Continue watching + Restart; shows add a season row and an episode strip. The wall's info card button plays directly.
 - **Subtitles** (design: `docs/superpowers/specs/2026-10-30-milestone-5-subtitles-design.md`):

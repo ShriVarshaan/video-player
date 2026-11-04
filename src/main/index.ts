@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
 import { version } from '../../package.json'
 import { createAppInfo } from './appInfo'
 import { openDb, type Db } from './db'
@@ -78,16 +78,17 @@ function createWindow(): BrowserWindow {
     show: false,
     webPreferences
   })
-  // Electron's default menu bar (File, Edit, View…) sits inside the client area that mpv
-  // fills, and content bounds start below it, updating late when it shows or hides.
-  // With it gone, the overlay's bounds and mpv's window always match.
-  win.removeMenu()
   win.once('ready-to-show', () => win.show())
   loadPage(win, 'index')
   return win
 }
 
 function start(): void {
+  // No default menu. Its bar (File, Edit, View…) sits inside the client area that mpv fills,
+  // and content bounds start below it, updating late when it shows or hides: the overlay and
+  // mpv's window would no longer match. Its shortcuts would also act on the overlay while
+  // playing (Ctrl+R reloads the controls, F11 fullscreens them alone).
+  Menu.setApplicationMenu(null)
   const userDataPath = app.getPath('userData')
   const dbPath = join(userDataPath, 'library.db')
   db = openDb(dbPath)

@@ -80,6 +80,11 @@ export function SearchOverlay({ initial, restore, active, onOpen, onClose }: Pro
   const focusChip = (i: number) => chipsRef.current?.querySelectorAll<HTMLElement>('button')[i]?.focus()
   const backToBox = () => input.current?.focus()
 
+  // The menu closing leaves focus on its button, where search ignores keys.
+  useEffect(() => {
+    if (active && !document.activeElement?.closest('.search-overlay')) input.current?.focus()
+  }, [active])
+
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {

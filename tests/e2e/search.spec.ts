@@ -187,6 +187,18 @@ test('The open menu is drawn on top of search', async () => {
   expect(onTop).toBe(true)
 })
 
+test('After Esc closes the menu, search takes keys again', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await win.getByRole('button', { name: 'Menu' }).click()
+  const home = win.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Home' })
+  await expect(home).toBeVisible()
+  await win.keyboard.press('Escape')
+  await expect(home).toBeHidden()
+  await win.keyboard.press('x')
+  await expect(box()).toHaveValue('inceptionx')
+})
+
 test('The menu goes to Settings from search', async () => {
   await win.keyboard.press('/')
   await box().pressSequentially('inception')

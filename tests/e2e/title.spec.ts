@@ -103,6 +103,31 @@ test("a show's page shows when its next-up episode would end", async () => {
   await expect(win.getByTestId('title-ends')).toHaveText(/^Ends at \d/)
 })
 
+test('a show being continued keeps its buttons and times on one line in a narrower window', async () => {
+  // A part-watched episode gives the row its most items: Continue, Restart, time left, Ends at.
+  const d = await detail('Breaking Bad')
+  await win.evaluate(({ key, videoId }) => window.api.player.play({ key, videoId, from: 'start' }), { key: d.key, videoId: d.main.videoId })
+  const overlay = await overlayPage(app)
+  await expect.poll(() => position(overlay), { timeout: 8000 }).toBeGreaterThan(2)
+  await closeWithX(overlay)
+  await expect.poll(() => overlayVisible(app)).toBe(false)
+  // Closing the player returns to this title's page.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.setSize(1000, 700)
+  })
+  await expect(win.getByTestId('title-left')).toBeVisible()
+  const lines = () =>
+    win.evaluate(() =>
+      ['title-main', 'title-restart', 'title-left', 'title-ends'].map((id) => {
+        const el = document.querySelector(`[data-testid="${id}"]`)!
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        return new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top))).size
+      })
+    )
+  await expect.poll(lines).toEqual([1, 1, 1, 1])
+})
+
 test('the app can read the clock set in Windows', async () => {
   const info = await win.evaluate(() => window.api.app.getInfo({}))
   expect(typeof info.hour12).toBe('boolean')

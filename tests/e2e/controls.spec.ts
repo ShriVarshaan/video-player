@@ -125,6 +125,11 @@ test('The controls cover the video exactly, windowed, fullscreen and resized', a
   await expect.poll(aligned).toBe('aligned')
 })
 
+test('No window has the default menu or its shortcuts', async () => {
+  await start()
+  expect(await app.evaluate(({ Menu }) => Menu.getApplicationMenu() === null)).toBe(true)
+})
+
 test('The window keeps its size after playing, and the page gets back its space', async () => {
   await start()
   const contentHeight = () =>
