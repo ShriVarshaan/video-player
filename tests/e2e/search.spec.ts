@@ -160,3 +160,49 @@ test('Space on a chip picks it', async () => {
   await win.keyboard.press(' ')
   await expect(box()).toHaveValue(/^(cast:|director:|genre:|\d{4}s$)/)
 })
+
+test('The menu opens above search and Home goes home', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await win.getByRole('button', { name: 'Menu' }).click()
+  await win.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Home' }).click({ timeout: 5000 })
+  await expect(box()).toHaveCount(0)
+  await expect(win.getByTestId('wall-home')).toBeVisible()
+})
+
+test('The open menu is drawn on top of search', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await win.getByRole('button', { name: 'Menu' }).click()
+  const home = win.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Home' })
+  await expect(home).toBeVisible()
+  await win.waitForTimeout(400) // the drawer slides in
+  // The page is inert while the menu is open, which lets clicks through to a menu hidden
+  // behind it. Without inert, hit testing follows what is really drawn on top.
+  const onTop = await home.evaluate((el) => {
+    document.querySelector('.pages')!.removeAttribute('inert')
+    const r = el.getBoundingClientRect()
+    return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el
+  })
+  expect(onTop).toBe(true)
+})
+
+test('The menu goes to Settings from search', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await win.getByRole('button', { name: 'Menu' }).click()
+  await win.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click({ timeout: 5000 })
+  await expect(box()).toHaveCount(0)
+  await expect(win.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible()
+})
+
+test('Esc with the menu open closes only the menu', async () => {
+  await win.keyboard.press('/')
+  await box().pressSequentially('inception')
+  await win.getByRole('button', { name: 'Menu' }).click()
+  const home = win.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Home' })
+  await expect(home).toBeVisible()
+  await win.keyboard.press('Escape')
+  await expect(home).toBeHidden()
+  await expect(box()).toHaveValue('inception')
+})

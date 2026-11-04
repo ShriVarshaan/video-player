@@ -2,7 +2,7 @@
 .search-overlay {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 5; /* under the menu's scrim (10) and drawer (20) */
   overflow-y: auto;
   padding: 72px clamp(24px, 5vw, 72px) 56px;
   background: rgba(11, 11, 13, 0.86);
