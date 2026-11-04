@@ -54,6 +54,8 @@ Lead from the user's screenshot (`C:\Users\varsh\Pictures\Screenshots\Screenshot
 
 Done means no line in windowed or fullscreen mode, at the user's display scale.
 
+**Cause (confirmed by measuring):** Electron's default menu bar is 26 px tall and sits inside the client area, which mpv fills completely. `getContentBounds()` starts below that bar, so the overlay started 26 px under the video's top. In fullscreen the bar goes away but `enter-full-screen` reads the old bounds, leaving the overlay 26 px low there too (the user's screenshot). Hiding the bar only during playback doesn't work: content bounds update late and no event says so. **Fix:** `win.removeMenu()` on the main window, so nothing ever separates the two rectangles. *My call, visible beyond the player:* File/Edit/View is gone from every page, along with its shortcuts (F11, Ctrl+R, Ctrl+Shift+I, zoom).
+
 ### "Ends at" (`src/renderer/src/pages/Title.tsx`, data from `library/queries.ts`)
 
 - Shown near the main button, for what that button would play: a movie, or a show's next-up episode. Other episodes in the list don't get a time.

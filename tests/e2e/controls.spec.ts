@@ -4,7 +4,7 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { closeApp, closeWithX, isFullScreen, keyOf, launchApp, overlayPage, overlayVisible, position } from './pages'
+import { closeApp, closeWithX, isFullScreen, keyOf, launchApp, overlayAndVideoRects, overlayPage, overlayVisible, position } from './pages'
 
 const LIBRARY = resolve('tests', 'fixtures', 'library')
 let userData: string
@@ -96,6 +96,41 @@ test('Held Esc closes the menu and stays fullscreen', async () => {
   await expect(overlay.getByTestId('track-menu')).toHaveCount(0)
   await overlay.waitForTimeout(300)
   expect(await isFullScreen(app)).toBe(true)
+})
+
+test('The controls cover the video exactly, windowed, fullscreen and resized', async () => {
+  await start()
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  const aligned = async () => {
+    const { overlay: o, video } = await overlayAndVideoRects(app)
+    return o === video ? 'aligned' : `overlay ${o}, video ${video}`
+  }
+  await expect.poll(aligned).toBe('aligned')
+  await overlay.keyboard.press('f')
+  await expect.poll(() => isFullScreen(app)).toBe(true)
+  await expect.poll(aligned).toBe('aligned')
+  await overlay.keyboard.press('f')
+  await expect.poll(() => isFullScreen(app)).toBe(false)
+  await expect.poll(aligned).toBe('aligned')
+  await app.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!
+    const [w, h] = main.getSize() as [number, number]
+    main.setSize(w - 100, h - 60)
+  })
+  await expect.poll(aligned).toBe('aligned')
+})
+
+test('The window keeps its size after playing, and the page gets back its space', async () => {
+  await start()
+  const contentHeight = () =>
+    app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.getContentBounds().height)
+  const windowSize = () =>
+    app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().endsWith('overlay.html'))!.getSize())
+  const [size, height] = [await windowSize(), await contentHeight()]
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  await closePlayer(overlay)
+  await expect.poll(contentHeight).toBe(height)
+  expect(await windowSize()).toEqual(size)
 })
 
 const playLabel = (overlay: Page) => expect(overlay.getByTestId('play-pause'))

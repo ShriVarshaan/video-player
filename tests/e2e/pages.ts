@@ -59,6 +59,27 @@ export const overlayVisible = (app: ElectronApplication) =>
 export const isFullScreen = (app: ElectronApplication) =>
   app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.isFullScreen()))
 
+// Where the overlay and mpv's own window really are on screen, in physical pixels, read
+// from Windows: Electron's bounds can't see mpv, which fills the main window's whole client area.
+export const overlayAndVideoRects = (app: ElectronApplication) =>
+  app.evaluate(({ BrowserWindow }, koffiPath) => {
+    const koffi = (process as unknown as { mainModule: NodeJS.Module }).mainModule.require(koffiPath)
+    const user32 = koffi.load('user32.dll')
+    const rectType = koffi.struct(`VpRect${Date.now()}`, { left: 'int', top: 'int', right: 'int', bottom: 'int' })
+    const getRect = user32.func(`bool __stdcall GetWindowRect(intptr h, _Out_ ${koffi.pointer(rectType).name} r)`)
+    const findChild = user32.func('intptr __stdcall FindWindowExW(intptr parent, intptr after, str16 cls, str16 name)')
+    const rect = (h: bigint | number) => {
+      const r = { left: 0, top: 0, right: 0, bottom: 0 }
+      getRect(h, r)
+      return `${r.left},${r.top} ${r.right - r.left}x${r.bottom - r.top}`
+    }
+    const windows = BrowserWindow.getAllWindows()
+    const isOverlay = (w: Electron.BrowserWindow) => w.webContents.getURL().endsWith('overlay.html')
+    const handle = (w: Electron.BrowserWindow) => w.getNativeWindowHandle().readBigUInt64LE()
+    const mpv = findChild(handle(windows.find((w) => !isOverlay(w))!), 0n, 'mpv', null)
+    return { overlay: rect(handle(windows.find(isOverlay)!)), video: rect(mpv) }
+  }, join(process.cwd(), 'node_modules', 'koffi'))
+
 // Closes the player with its ✕; Esc doesn't close it. Faded controls take no clicks, so the mouse moves first.
 export async function closeWithX(overlay: Page) {
   await overlay.mouse.move(200, 200)

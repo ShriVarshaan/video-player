@@ -77,6 +77,10 @@ function createWindow(): BrowserWindow {
     show: false,
     webPreferences
   })
+  // Electron's default menu bar (File, Edit, View…) sits inside the client area that mpv
+  // fills, and content bounds start below it, updating late when it shows or hides.
+  // With it gone, the overlay's bounds and mpv's window always match.
+  win.removeMenu()
   win.once('ready-to-show', () => win.show())
   loadPage(win, 'index')
   return win
