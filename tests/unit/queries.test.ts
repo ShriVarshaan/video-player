@@ -237,6 +237,7 @@ describe('getTitle', () => {
       main: { label: 'Play', videoId: 2, from: 'start' },
       restart: null,
       remainingS: null,
+      playS: null, // this fixture has no length yet
       progress: null,
       seasons: [],
       openSeason: null
@@ -259,6 +260,34 @@ describe('getTitle', () => {
     expect(t.restart).toBeNull()
     expect(t.watched).toBe(true)
     expect(t.remainingS).toBeNull()
+  })
+
+  describe('how long the main button would play', () => {
+    it('is the whole film when it has not been started', () => {
+      db.prepare('UPDATE videos SET duration_s = 8160 WHERE id = 2').run()
+      expect(getTitle(db, 'movie:2')!.playS).toBe(8160)
+    })
+    it('is what is left of a film partway through', () => {
+      play(2, 600, 8160)
+      expect(getTitle(db, 'movie:2')!.playS).toBe(7560)
+    })
+    it('is the whole film again once it is finished', () => {
+      play(2, 8000, 8160, 1)
+      expect(getTitle(db, 'movie:2')!.playS).toBe(8160)
+    })
+    it('is unknown when the length is', () => {
+      expect(getTitle(db, 'movie:2')!.playS).toBeNull()
+    })
+    it("is the whole next-up episode when it hasn't been started", () => {
+      const t = getTitle(db, 'tmdb:1396')!
+      const ep = t.seasons.flatMap((s) => s.episodes).find((e) => e.videoId === t.main.videoId)!
+      expect(ep.durationS).toBeGreaterThan(0)
+      expect(t.playS).toBe(ep.durationS)
+    })
+    it('is what is left of an episode partway through', () => {
+      play(6, 1000, 3000)
+      expect(getTitle(db, 'tmdb:1396')!.playS).toBe(2000)
+    })
   })
 
   it('leaves out what an unmatched movie lacks', () => {

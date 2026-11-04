@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { catchAppError } from '@shared/appError'
 import type { EpisodeItem, TitleButton, TitleDetail } from '@shared/library'
-import { timeLeft } from '@shared/time'
+import { endsAt, timeLeft } from '@shared/time'
 import './title.css'
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -39,10 +39,26 @@ function rove(e: React.KeyboardEvent<HTMLButtonElement>) {
   next?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
 }
 
+// When the main button's film or episode would finish if started now. Its own clock,
+// so the page doesn't re-render as time passes.
+function EndsAt({ playS, hour12 }: { playS: number; hour12: boolean | null }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15_000)
+    return () => clearInterval(timer)
+  }, [])
+  return (
+    <span className="title-left" data-testid="title-ends">
+      {endsAt(playS, now, hour12)}
+    </span>
+  )
+}
+
 // A movie's or show's page: backdrop, details, play buttons and, for shows, the episodes.
 export function TitlePage({ titleKey, active, onBack }: { titleKey: string; active: boolean; onBack: () => void }) {
   const [t, setT] = useState<TitleDetail | null>(null)
   const [season, setSeason] = useState<number | null>(null)
+  const [hour12, setHour12] = useState<boolean | null>(null)
   const main = useRef<HTMLButtonElement>(null)
   const focusedFor = useRef<string | null>(null)
 
@@ -54,6 +70,10 @@ export function TitlePage({ titleKey, active, onBack }: { titleKey: string; acti
         .then((d) => live && setT(d))
         .catch((err: unknown) => catchAppError(err, { DEFAULT: ({ message }) => console.error(message) }))
     void load()
+    void window.api.app
+      .getInfo({})
+      .then((info) => live && setHour12(info.hour12))
+      .catch(() => {}) // the locale's clock is a fine fallback
     const offs = [
       window.api.on('library.changed', () => void load()),
       // Back from the player: open the season that played and focus the main button again.
@@ -146,6 +166,7 @@ export function TitlePage({ titleKey, active, onBack }: { titleKey: string; acti
               {timeLeft(t.remainingS)}
             </span>
           )}
+          {t.playS !== null && t.playS > 0 && <EndsAt playS={t.playS} hour12={hour12} />}
         </div>
         {t.progress !== null && (
           <div className="title-progress" aria-hidden="true">

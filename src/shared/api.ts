@@ -15,6 +15,7 @@ export type AppInfo = {
   version: string
   userDataPath: string
   dbPath: string
+  hour12: boolean | null // the clock set in Windows; null when it can't be read
   binaries: Record<BinaryName, { path: string; exists: boolean }>
 }
 

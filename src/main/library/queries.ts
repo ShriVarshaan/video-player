@@ -384,6 +384,7 @@ export function getTitle(db: Db, key: string): TitleDetail | null {
     main: { label: continuing ? `Continue ${sxe}` : `Play ${sxe}`, videoId: up.videoId, from: continuing ? 'resume' : 'start' },
     restart: continuing ? { label: 'Restart episode', videoId: up.videoId, from: 'start' } : null,
     ...remaining(continuing, up.positionS, ep.durationS),
+    playS: playLength(continuing, up.positionS, ep.durationS),
     seasons: show.seasons,
     openSeason: up.season
   }
@@ -406,6 +407,7 @@ function movieTitle(db: Db, key: string): TitleDetail | null {
     main: { label: continuing ? 'Continue watching' : 'Play', videoId, from: continuing ? 'resume' : 'start' },
     restart: continuing ? { label: 'Restart', videoId, from: 'start' } : null,
     ...remaining(continuing, pb.positionS, pb.durationS),
+    playS: playLength(continuing, pb.positionS, pb.durationS),
     seasons: [],
     openSeason: null
   }
@@ -414,6 +416,11 @@ function movieTitle(db: Db, key: string): TitleDetail | null {
 function common(item: WallItem) {
   const { key, kind, title, year, runtimeMin, seasonCount, episodeCount, genres, rating, overview, posterUrl, backdropUrl, matched } = item
   return { key, kind, title, year, runtimeMin, seasonCount, episodeCount, genres, rating, overview, posterUrl, backdropUrl, matched }
+}
+
+function playLength(continuing: boolean, positionS: number, durationS: number | null): number | null {
+  if (durationS === null || durationS <= 0) return null
+  return continuing ? Math.max(0, durationS - positionS) : durationS
 }
 
 function remaining(continuing: boolean, positionS: number, durationS: number | null) {

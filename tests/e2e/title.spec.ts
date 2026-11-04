@@ -88,6 +88,26 @@ test("the info card's button plays straight from the wall", async () => {
   await expect(win.getByTestId('title-page')).toHaveCount(0)
 })
 
+test("a movie's page shows when it would end, and the time keeps up", async () => {
+  await win.clock.install()
+  await openTile(win, 'The Matrix')
+  const ends = win.getByTestId('title-ends')
+  await expect(ends).toHaveText(/^Ends at \d/)
+  const first = await ends.textContent()
+  await win.clock.fastForward(120_000)
+  await expect(ends).not.toHaveText(first!)
+})
+
+test("a show's page shows when its next-up episode would end", async () => {
+  await openTile(win, 'Breaking Bad')
+  await expect(win.getByTestId('title-ends')).toHaveText(/^Ends at \d/)
+})
+
+test('the app can read the clock set in Windows', async () => {
+  const info = await win.evaluate(() => window.api.app.getInfo({}))
+  expect(typeof info.hour12).toBe('boolean')
+})
+
 test('back from the player, focus is on the main button and the season follows what played', async () => {
   await openTile(win, 'Breaking Bad')
   await expect(win.getByTestId('title-main')).toBeFocused()

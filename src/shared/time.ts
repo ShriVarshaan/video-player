@@ -10,6 +10,17 @@ export function formatTime(seconds: number): string {
   return h > 0 ? `${h}:${two(m)}:${two(s % 60)}` : `${m}:${two(s % 60)}`
 }
 
+// "Ends at 11:30 PM" / "Ends at 23:30", playS seconds from nowMs. hour12: Windows' clock
+// setting, or null to go by the locale. hourCycle, because hour12: false can print 24:05.
+export function endsAt(playS: number, nowMs: number, hour12: boolean | null, locale?: string): string {
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: 'numeric',
+    minute: '2-digit',
+    ...(hour12 === null ? {} : { hourCycle: hour12 ? 'h12' : 'h23' })
+  }).format(nowMs + playS * 1000)
+  return `Ends at ${time.replace(/ /g, ' ')}`
+}
+
 // "1 h 12 min left", "21 min left", "2 h left"; anything under a minute is "1 min left".
 export function timeLeft(seconds: number): string {
   const total = Math.max(1, Math.round(seconds / 60))

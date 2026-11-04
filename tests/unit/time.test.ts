@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { formatTime, timeLeft } from '@shared/time'
+import { endsAt, formatTime, timeLeft } from '@shared/time'
+
+describe('endsAt', () => {
+  const now = new Date(2026, 10, 4, 22, 0).getTime()
+
+  it('uses a 12-hour clock with an ordinary space', () => {
+    expect(endsAt(5400, now, true, 'en-US')).toBe('Ends at 11:30 PM')
+  })
+  it('uses a 24-hour clock', () => {
+    expect(endsAt(5400, now, false, 'en-US')).toBe('Ends at 23:30')
+  })
+  it('writes just past midnight as 00, not 24', () => {
+    expect(endsAt(7500, now, false, 'en-US')).toBe('Ends at 00:05')
+  })
+  it("follows the locale when Windows' setting is unknown", () => {
+    expect(endsAt(5400, now, null, 'en-GB')).toBe('Ends at 23:30')
+  })
+})
 
 describe('formatTime', () => {
   it('formats minutes and seconds, and hours when there are any', () => {

@@ -92,6 +92,7 @@ export type TitleDetail = {
   main: TitleButton
   restart: TitleButton | null
   remainingS: number | null // when the main button continues
+  playS: number | null // how long the main button would play; null when the length is unknown
   progress: number | null
   seasons: ShowDetail['seasons'] // [] for movies
   openSeason: number | null // the season holding the next-up episode

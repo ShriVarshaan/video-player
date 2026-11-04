@@ -8,12 +8,14 @@ describe('app.getInfo', () => {
       userDataPath: 'C:\\data',
       dbPath: 'C:\\data\\library.db',
       resolve: (n) => `C:\\vendor\\${n}.exe`,
-      exists: (p) => p.endsWith('mpv.exe')
+      exists: (p) => p.endsWith('mpv.exe'),
+      hour12: () => false
     })
     expect(await app.getInfo({})).toEqual({
       version: '0.1.0',
       userDataPath: 'C:\\data',
       dbPath: 'C:\\data\\library.db',
+      hour12: false,
       binaries: {
         mpv: { path: 'C:\\vendor\\mpv.exe', exists: true },
         ffmpeg: { path: 'C:\\vendor\\ffmpeg.exe', exists: false },

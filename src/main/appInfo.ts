@@ -8,6 +8,7 @@ export function createAppInfo(deps: {
   dbPath: string
   resolve: (name: BinaryName) => string
   exists: (path: string) => boolean
+  hour12: () => boolean | null
 }): API['app'] {
   return {
     getInfo: async () => {
@@ -21,6 +22,7 @@ export function createAppInfo(deps: {
         version: deps.version,
         userDataPath: deps.userDataPath,
         dbPath: deps.dbPath,
+        hour12: deps.hour12(),
         binaries
       }
     }

@@ -4,6 +4,7 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { version } from '../../package.json'
 import { createAppInfo } from './appInfo'
 import { openDb, type Db } from './db'
+import { systemHour12 } from './hour12'
 import { registerDomain } from './ipc'
 import { registerPosterScheme, setupLibrary } from './library/setup'
 import type { LibraryService } from './library/service'
@@ -103,7 +104,8 @@ function start(): void {
       userDataPath,
       dbPath,
       resolve: (name) => binaryPath(name, binaryBase),
-      exists: existsSync
+      exists: existsSync,
+      hour12: systemHour12
     })
   )
   registerDomain(ipcMain, 'settings', createSettings(db))
