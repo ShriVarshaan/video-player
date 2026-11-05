@@ -24,7 +24,7 @@ export type AppErrorCode =
 
 export const appErrorMessages: Record<AppErrorCode, string> = {
   db_too_new:
-    'The library database was created by a newer version of Video Player. Update the app to open it.',
+    'The library database was created by a newer version of Cinewall. Update the app to open it.',
   db_migration_failed: 'The library database could not be upgraded.',
   invalid_argument: 'An invalid value was passed.',
   tmdb_key_invalid: 'TMDB did not accept this API key.',

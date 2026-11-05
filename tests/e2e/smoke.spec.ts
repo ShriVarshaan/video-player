@@ -39,6 +39,12 @@ test('opens the shell and creates the database in userData', async () => {
   }
 })
 
+test('the window is called Cinewall', async () => {
+  const win = await app.firstWindow()
+  await toSecondDisplay(app)
+  await expect(win).toHaveTitle('Cinewall')
+})
+
 test('the window cannot be navigated away or open new windows', async () => {
   const win = await app.firstWindow()
   await toSecondDisplay(app)

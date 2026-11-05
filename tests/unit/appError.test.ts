@@ -7,6 +7,10 @@ import {
   throwAppError
 } from '@shared/appError'
 
+it('messages use the name Cinewall', () => {
+  expect(appErrorMessages.db_too_new).toContain('Cinewall')
+})
+
 function caught(fn: () => unknown): unknown {
   try {
     fn()

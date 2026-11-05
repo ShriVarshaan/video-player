@@ -38,7 +38,7 @@ if (!app.requestSingleInstanceLock()) {
   })
   void app.whenReady().then(() =>
     startOrQuit(start, {
-      report: (message) => dialog.showErrorBox('Video Player', message),
+      report: (message) => dialog.showErrorBox('Cinewall', message),
       quit: () => app.quit()
     })
   )
