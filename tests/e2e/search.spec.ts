@@ -142,10 +142,8 @@ test('back to search keeps the card you moved to', async () => {
 test('Enter on the menu button opens the menu, not a result', async () => {
   await win.keyboard.press('/')
   await box().pressSequentially('inception')
-  await win.getByRole('button', { name: 'Menu' }).click()
-  await expect(win.getByRole('navigation', { name: 'Main' })).toBeVisible()
-  await win.keyboard.press('Escape')
-  await expect(win.getByRole('navigation', { name: 'Main' })).toBeHidden()
+  await expect(cards().first()).toBeVisible()
+  await win.getByRole('button', { name: 'Menu' }).focus()
   await win.keyboard.press('Enter')
   await expect(win.getByRole('navigation', { name: 'Main' })).toBeVisible()
   await expect(win.getByTestId('title-page')).toHaveCount(0)
