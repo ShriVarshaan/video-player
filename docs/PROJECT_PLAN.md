@@ -1,6 +1,6 @@
-# Project Plan: Local Movie Player
+# Project Plan: Cinewall
 
-An endless poster wall, Apple TV-style subtitles, Netflix-style search, automatic subtitle sync and volume boost.
+The app was called "video player" until milestone 10; the repo, npm package and data folder keep that name. An endless poster wall, Apple TV-style subtitles, Netflix-style search, automatic subtitle sync and volume boost.
 
 ## Context
 A desktop player (Windows 11) for movies and TV shows stored on this laptop:
@@ -112,7 +112,7 @@ video-player/
 | 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | ✅ |
 | 8 | **Search:** overlay with titles-first ranking, chips, 16:9 cards, empty-state rows, back-to-search | `netflix-search` | ✅ |
 | 9 | **Polish:** fixes from real use: Esc and click in the player, the line over the video, "Ends at" time, menu button in search | `mpv-ipc`, `systematic-debugging`, `apple-design` | ✅ |
-| 10 | **Packaging and publishing:** NSIS installer (unsigned, with an install note), About and notices, auto-update from GitHub Releases | `release-windows` | |
+| 10 | **Packaging and publishing:** Cinewall name and logo, MIT licence, NSIS installer (unsigned, with an install note), first-run setup, About and notices, updates from GitHub Releases that people choose to install, one-command draft releases (design: `docs/superpowers/specs/2026-11-05-milestone-10-packaging-design.md`) | `release-windows` | |
 
 Every milestone follows the same flow: `brainstorming` → `writing-plans` → `executing-plans` with `test-driven-development` → `verification-before-completion` → `requesting-code-review` / `/code-review`.
 
