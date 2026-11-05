@@ -8,4 +8,5 @@ export function checkRelease(s: {
   published: string[]
   hasToken: boolean
   changelog: string
+  dataFolderOverride?: string
 }): string[]

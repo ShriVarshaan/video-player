@@ -36,6 +36,8 @@ describe('third-party notices', () => {
     }
     // A dependency of a dependency.
     expect(text).toContain('### scheduler ')
+    // Where koffi's native code really is: an optional dependency, for this platform.
+    expect(text).toContain('### @koromix/koffi-win32-x64 ')
     expect(text).toContain('## Electron')
   })
 
@@ -77,6 +79,34 @@ describe('a missing licence stops the script', () => {
   it('a package that is not installed', () => {
     expect(() => npmPackages(fakePackage('there', { LICENSE: 'x' }), ['ghost'])).toThrow(/ghost/)
   })
+  it('optional dependencies count when installed, and are skipped when not', () => {
+    const root = fakePackage('host', { LICENSE: 'host text' })
+    writeFileSync(
+      join(root, 'node_modules', 'host', 'package.json'),
+      JSON.stringify({ name: 'host', version: '1.0.0', license: 'MIT', optionalDependencies: { here: '1', 'other-platform': '1' } })
+    )
+    mkdirSync(join(root, 'node_modules', 'here'))
+    writeFileSync(join(root, 'node_modules', 'here', 'package.json'), JSON.stringify({ name: 'here', version: '2.0.0', license: 'MIT' }))
+    writeFileSync(join(root, 'node_modules', 'here', 'LICENSE'), 'here text')
+    expect(npmPackages(root, ['host']).map((p) => p.name)).toEqual(['here', 'host'])
+  })
+
+  it('a dependency is found in a folder between its parent and the root', () => {
+    const root = fakePackage('a', { LICENSE: 'a text' })
+    const a = join(root, 'node_modules', 'a')
+    writeFileSync(join(a, 'package.json'), JSON.stringify({ name: 'a', version: '1.0.0', license: 'MIT', dependencies: { b: '1' } }))
+    for (const [dir, json] of [
+      [join(a, 'node_modules', 'b'), { name: 'b', version: '1.0.0', license: 'MIT', dependencies: { c: '1' } }],
+      [join(a, 'node_modules', 'c'), { name: 'c', version: '2.0.0', license: 'MIT' }],
+      [join(root, 'node_modules', 'c'), { name: 'c', version: '1.0.0', license: 'MIT' }]
+    ] as const) {
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify(json))
+      writeFileSync(join(dir, 'LICENSE'), 'text')
+    }
+    expect(npmPackages(root, ['a']).find((p) => p.name === 'c')?.version).toBe('2.0.0')
+  })
+
   it('a licence file under any usual name is found', () => {
     expect(npmPackages(fakePackage('named', { 'license.md': 'the text' }), ['named'])[0]?.text).toBe('the text')
   })

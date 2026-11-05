@@ -1,7 +1,7 @@
 // Writes THIRD_PARTY_NOTICES.md: everything the installer ships that someone else wrote, with its
 // licence. Stops if a licence text can't be found, so a release can never go out with one missing.
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const LICENCE_FILE = /^(licen[cs]e|copying|notice)([.\-_]|$)/i
@@ -10,8 +10,9 @@ const BUNDLED = ['react', 'react-dom']
 // No licence file in the wheel. It offers a choice of three licences (see docs/third-party-sidecar.md).
 const SIDECAR_LICENCE_OVERRIDES = { 'faust-cchardet': 'build/licenses/MPL-1.1.txt' }
 
-// Declares MIT in its package.json but ships no licence file.
-const NPM_LICENCE_OVERRIDES = { 'lazy-val': 'build/licenses/lazy-val.txt' }
+// Each declares MIT in its package.json but ships no licence file. The second is koffi's own native
+// code, published separately per platform, so koffi's licence covers it.
+const NPM_LICENCE_OVERRIDES = { 'lazy-val': 'build/licenses/lazy-val.txt', '@koromix/koffi-win32-x64': 'node_modules/koffi/LICENSE.txt' }
 
 const read = (path) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n').trim()
 
@@ -25,19 +26,25 @@ function licenceFiles(dir, recurse = false) {
   return found.sort()
 }
 
+// As Node resolves it: the nearest node_modules, from the dependent's folder up to the root.
 function findPackage(root, name, from) {
-  for (const base of [join(from, 'node_modules'), join(root, 'node_modules')]) {
-    const dir = join(base, name)
-    if (existsSync(join(dir, 'package.json'))) return dir
+  for (let dir = from; ; dir = dirname(dir)) {
+    const candidate = join(dir, 'node_modules', name)
+    if (existsSync(join(candidate, 'package.json'))) return candidate
+    if (dir === root || dirname(dir) === dir) return null
   }
-  throw new Error(`make-notices: package ${name} isn't installed; run npm install.`)
 }
 
 // The named packages and everything they depend on, sorted, with their licence texts.
 export function npmPackages(root, names) {
   const seen = new Map()
-  const visit = (name, from) => {
+  const visit = (name, from, optional = false) => {
     const dir = findPackage(root, name, from)
+    if (!dir) {
+      // Optional dependencies are often for other platforms, so what isn't installed doesn't ship.
+      if (optional) return
+      throw new Error(`make-notices: package ${name} isn't installed; run npm install.`)
+    }
     if (seen.has(dir)) return
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
     const override = NPM_LICENCE_OVERRIDES[pkg.name]
@@ -45,6 +52,7 @@ export function npmPackages(root, names) {
     if (files.length === 0) throw new Error(`make-notices: no licence text in ${dir}.`)
     seen.set(dir, { name: pkg.name, version: pkg.version, license: pkg.license ?? 'see text', text: files.map(read).join('\n\n') })
     for (const dep of Object.keys(pkg.dependencies ?? {})) visit(dep, dir)
+    for (const dep of Object.keys(pkg.optionalDependencies ?? {})) visit(dep, dir, true)
   }
   for (const name of names) visit(name, root)
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'en') || a.version.localeCompare(b.version, 'en'))

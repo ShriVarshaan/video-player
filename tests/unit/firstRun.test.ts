@@ -3,31 +3,24 @@ import type { Json } from '@shared/api'
 import { parseAppError } from '@shared/appError'
 import type { LinkId } from '@shared/links'
 import { LINKS } from '@shared/links'
-import { createFirstRun, shouldShowSetup } from '../../src/main/firstRun'
+import { createFirstRun } from '../../src/main/firstRun'
 
 function setup(folders = 0, disabled = false) {
   const store = new Map<string, Json>()
   const openExternal = vi.fn(async () => {})
+  const library = { folders }
+  const folderCount = vi.fn(() => library.folders)
   const firstRun = createFirstRun({
     settings: {
       get: async ({ key }) => store.get(key) ?? null,
       set: async ({ key, value }) => void store.set(key, value)
     },
-    folderCount: () => folders,
+    folderCount,
     disabled,
     openExternal
   })
-  return { firstRun, openExternal }
+  return { firstRun, openExternal, library, folderCount, store }
 }
-
-describe('shouldShowSetup', () => {
-  it('shows on a fresh install only', () => {
-    expect(shouldShowSetup({ completed: false, folderCount: 0, disabled: false })).toBe(true)
-    expect(shouldShowSetup({ completed: true, folderCount: 0, disabled: false })).toBe(false)
-    expect(shouldShowSetup({ completed: false, folderCount: 1, disabled: false })).toBe(false)
-    expect(shouldShowSetup({ completed: false, folderCount: 0, disabled: true })).toBe(false)
-  })
-})
 
 describe('createFirstRun', () => {
   it('stops showing once finished', async () => {
@@ -39,6 +32,27 @@ describe('createFirstRun', () => {
 
   it("doesn't show when a library already exists", async () => {
     expect(await setup(2).firstRun.setupState({})).toEqual({ show: false })
+  })
+
+  it('removing every folder later does not bring it back for someone who already had a library', async () => {
+    const { firstRun, library } = setup(1)
+    expect(await firstRun.setupState({})).toEqual({ show: false })
+    library.folders = 0
+    expect(await firstRun.setupState({})).toEqual({ show: false })
+  })
+
+  it('never looks at folders once setup is done, so a sleeping network drive cannot hold up the window', async () => {
+    const { firstRun, folderCount } = setup()
+    await firstRun.finishSetup({})
+    folderCount.mockClear()
+    await firstRun.setupState({})
+    expect(folderCount).not.toHaveBeenCalled()
+  })
+
+  it('a run with setup switched off records nothing', async () => {
+    const { firstRun, store } = setup(1, true)
+    expect(await firstRun.setupState({})).toEqual({ show: false })
+    expect(store.size).toBe(0)
   })
 
   it('opens only links on the fixed list', async () => {

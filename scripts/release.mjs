@@ -28,7 +28,7 @@ async function publishedVersions(token) {
 // Runs a step without the token, so no test or build can see it.
 function step(label, command, env = {}) {
   console.log(`\n== ${label}`)
-  const { GH_TOKEN: _token, GITHUB_TOKEN: _other, ...clean } = process.env
+  const { GH_TOKEN: _token, GITHUB_TOKEN: _other, GITHUB_RELEASE_TOKEN: _release, ...clean } = process.env
   const r = spawnSync(command, { shell: true, stdio: 'inherit', env: { ...clean, ...env } })
   if (r.status !== 0) stop([`${label} failed.`])
 }
@@ -47,11 +47,12 @@ async function release() {
     version,
     published: await publishedVersions(token),
     hasToken: token !== '',
-    changelog
+    changelog,
+    dataFolderOverride: process.env.VP_DATA_FOLDER
   })
   if (problems.length > 0) stop(problems)
 
-  step('Vendor files match their pinned hashes', 'npm run fetch-vendor')
+  step('Vendor files are the pinned versions', 'npm run fetch-vendor')
   step('Typecheck', 'npm run typecheck')
   step('Unit tests', 'npm test')
   step('Sidecar tests', 'npm run test:sidecar')
@@ -66,11 +67,11 @@ async function release() {
   const notesFile = join('release', 'release-notes.md')
   writeFileSync(notesFile, notesFor(changelog, version))
   console.log(`\n== Upload a draft of ${version}`)
-  // electron-builder.yml sets releaseType: draft, so this can't publish.
+  // EP_DRAFT outranks everything else electron-builder reads (EP_PRE_RELEASE, releaseType), so this can't publish.
   const upload = spawnSync(`npx electron-builder --win --publish always "--config.releaseInfo.releaseNotesFile=${notesFile}"`, {
     shell: true,
     stdio: 'inherit',
-    env: process.env
+    env: { ...process.env, EP_DRAFT: 'true' }
   })
   if (upload.status !== 0) stop(['The upload failed. Any draft it left can be replaced by running this again.'])
   console.log(`\nDraft ${version} is on GitHub. Test its installer, then publish it by hand: https://github.com/${REPO}/releases`)

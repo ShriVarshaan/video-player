@@ -5,7 +5,7 @@ const escapeForRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // The changelog section for one version, without its heading; null when there's none or it's empty.
 export function notesFor(changelog, version) {
   const text = changelog.replace(/\r\n/g, '\n')
-  const heading = new RegExp(`^## \\[?${escapeForRegExp(version)}\\]?(?:\\s.*)?$`, 'm').exec(text)
+  const heading = new RegExp(`^## \\[?${escapeForRegExp(version)}\\]?(?:[ \\t].*)?$`, 'm').exec(text)
   if (!heading) return null
   const rest = text.slice(heading.index + heading[0].length)
   const next = rest.search(/^## /m)
@@ -22,5 +22,6 @@ export function checkRelease(s) {
   if (s.published.includes(s.version)) problems.push(`Version ${s.version} is already released: raise the version in package.json.`)
   if (!s.hasToken) problems.push('GH_TOKEN is not set: give it for this one command, and never save it to a file.')
   if (!notesFor(s.changelog, s.version)) problems.push(`CHANGELOG.md has no entry for ${s.version}.`)
+  if (s.dataFolderOverride) problems.push('VP_DATA_FOLDER is set: it would be built in, and people who update would seem to lose their library. Clear it.')
   return problems
 }

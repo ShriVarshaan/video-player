@@ -35,7 +35,9 @@ describe('checkRelease', () => {
     ['main not pushed', { head: 'def' }, /push/i],
     ['already released', { published: ['1.0.0'] }, /already/i],
     ['no token', { hasToken: false }, /GH_TOKEN/],
-    ['no changelog entry', { version: '2.0.0' }, /CHANGELOG/]
+    ['no changelog entry', { version: '2.0.0' }, /CHANGELOG/],
+    // It would be compiled in, and everyone who updated would seem to lose their library.
+    ['the test data folder switch is set', { dataFolderOverride: 'video-player-update-test' }, /VP_DATA_FOLDER/]
   ])('%s is a problem', (_name, change, message) => {
     const problems = checkRelease({ ...good, ...change })
     expect(problems).toHaveLength(1)
@@ -59,6 +61,15 @@ describe('notesFor', () => {
 
   it('copes with Windows line endings', () => {
     expect(notesFor(CHANGELOG.replace(/\n/g, '\r\n'), '1.1.0')).toBe('- Newer things.')
+  })
+
+  it('keeps the first note when no blank line follows the heading', () => {
+    expect(notesFor('## 1.1.0\n- First\n- Second\n\n## 1.0.0\n\n- Old.', '1.1.0')).toBe('- First\n- Second')
+    expect(notesFor('## 1.1.0\n- Only\n', '1.1.0')).toBe('- Only')
+  })
+
+  it('a heading can carry a date', () => {
+    expect(notesFor('## 1.1.0 - 2026-11-05\n\n- Dated.', '1.1.0')).toBe('- Dated.')
   })
 
   it('finds nothing for a version not listed, or a part of one', () => {
