@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync }
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { closeApp, goTo, keyOf, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
+import { closeApp, goTo, keyOf, mainWindow, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
 
 const UNPACKED = resolve('release', 'win-unpacked')
 let root: string
@@ -43,7 +43,7 @@ test.beforeEach(async () => {
     // Shipped builds must ignore every development switch.
     env: { ...process.env, VP_TMDB_MODE: 'fixtures', VP_OPENSUBS_MODE: 'fixtures', VP_FIRST_RUN: 'off', VP_UPDATE_MODE: 'available' }
   })
-  win = await app.firstWindow()
+  win = await mainWindow(app)
   await toSecondDisplay(app)
 })
 

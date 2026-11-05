@@ -110,14 +110,20 @@ export async function toSecondDisplay(app: ElectronApplication) {
   })
 }
 
+// The main window. firstWindow() can be the hidden overlay, depending on which loads first.
+export async function mainWindow(app: ElectronApplication): Promise<Page> {
+  await expect.poll(() => app.windows().some((w) => w.url().endsWith('index.html')), { timeout: 30_000 }).toBe(true)
+  return app.windows().find((w) => w.url().endsWith('index.html'))!
+}
+
 // Launches the app on a fresh (or given) user-data dir, in TMDB and OpenSubtitles fixture mode, and
-// adds the folder through Settings when one is given.
-export async function launchApp(folder: string | null, userData = mkdtempSync(join(tmpdir(), 'vp-e2e-'))) {
+// adds the folder through Settings when one is given. First-run setup stays off unless env turns it on.
+export async function launchApp(folder: string | null, userData = mkdtempSync(join(tmpdir(), 'vp-e2e-')), env: Record<string, string> = {}) {
   const app = await electron.launch({
     args: ['out/main/index.js', `--user-data-dir=${userData}`],
-    env: { ...process.env, VP_TMDB_MODE: 'fixtures', VP_OPENSUBS_MODE: 'fixtures' }
+    env: { ...process.env, VP_TMDB_MODE: 'fixtures', VP_OPENSUBS_MODE: 'fixtures', VP_FIRST_RUN: 'off', ...env }
   })
-  const win = await app.firstWindow()
+  const win = await mainWindow(app)
   await toSecondDisplay(app)
   if (folder) {
     await app.evaluate(({ dialog }, path) => {
