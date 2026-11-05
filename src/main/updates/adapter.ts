@@ -3,7 +3,8 @@ import type { UpdateAdapter } from './service'
 // The real thing, for installed builds. Downloading and installing happen only when asked:
 // with these off, "Remind me later" and "Skip" can't install anything when the app quits.
 export async function liveAdapter(): Promise<UpdateAdapter> {
-  const { autoUpdater } = await import('electron-updater')
+  // Through default: autoUpdater is a getter on a CommonJS module, so import() has no named export for it.
+  const { autoUpdater } = (await import('electron-updater')).default
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
   return {

@@ -1,7 +1,9 @@
 /// <reference lib="dom" />
 /// <reference path="../../src/preload/index.d.ts" />
 import { spawn } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -13,6 +15,7 @@ let installed: string
 let userData: string
 let app: ElectronApplication
 let win: Page
+let feed: Server
 
 // Not cpSync: on Windows it garbles non-ASCII destination names (Node 24).
 function copyTree(from: string, to: string) {
@@ -24,14 +27,22 @@ function copyTree(from: string, to: string) {
 }
 
 // A folder with a space and accents, as a Windows user name or install folder can have.
-test.beforeAll(() => {
+test.beforeAll(async () => {
   if (!existsSync(UNPACKED)) throw new Error('Run npm run package first: release/win-unpacked is missing.')
   root = mkdtempSync(join(tmpdir(), 'cinewall-packaged-'))
   installed = join(root, 'Cinewall Tést Ñ')
   copyTree(UNPACKED, installed)
+  feed = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/yaml' })
+    res.end(`version: 9.9.9\npath: Cinewall-Setup-9.9.9.exe\nsha512: AAAA\nreleaseNotes: '<p>New things</p>'\n`)
+  })
+  await new Promise<void>((done) => feed.listen(0, '127.0.0.1', done))
+  const { port } = feed.address() as AddressInfo
+  writeFileSync(join(installed, 'resources', 'app-update.yml'), `provider: generic\nurl: http://127.0.0.1:${port}\nupdaterCacheDirName: cinewall-packaged-test\n`)
 })
 
 test.afterAll(() => {
+  feed?.close()
   if (root) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 })
 })
 
@@ -97,6 +108,22 @@ test('About is written for people using the app, and has its notices', async () 
   await expect(win.getByTestId('binaries-missing')).toHaveCount(0)
   await win.getByRole('button', { name: 'Show third-party notices' }).click()
   await expect(win.getByTestId('notices')).toContainText('GNU GENERAL PUBLIC LICENSE')
+})
+
+test('the shipped build looks for updates on GitHub', () => {
+  const config = readFileSync(join(UNPACKED, 'resources', 'app-update.yml'), 'utf8')
+  expect(config).toContain('provider: github')
+  expect(config).toContain('owner: ShriVarshaan')
+  expect(config).toContain('repo: video-player')
+})
+
+// The real electron-updater, which E2E's fixtures never touch: only this copy's feed is changed.
+test('the real updater finds a newer version on its feed, and offers it', async () => {
+  await win.evaluate(() => window.api.updates.check({ manual: true }))
+  expect(await win.evaluate(() => window.api.updates.state({}))).toMatchObject({
+    phase: 'available',
+    offer: { version: '9.9.9', notes: 'New things' }
+  })
 })
 
 test('the bundled sidecar answers', async () => {
