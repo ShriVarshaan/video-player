@@ -41,6 +41,7 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
+    "electron-updater": "6.8.11",
     "fuse.js": "^7.5.0",
     "iconv-lite": "^0.6.3",
     "jschardet": "^3.1.4",

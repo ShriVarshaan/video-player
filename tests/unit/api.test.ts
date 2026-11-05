@@ -13,6 +13,7 @@ describe('apiMethods', () => {
     expect(Object.keys(apiMethods.app)).toEqual(['getInfo', 'setupState', 'finishSetup', 'openLink'])
     expect(Object.keys(apiMethods.library)).toEqual(['addFolder', 'removeFolder', 'listFolders', 'rescan', 'list', 'getShow', 'wall', 'getTitle', 'searchDocs'])
     expect(Object.keys(apiMethods.metadata)).toEqual(['setTmdbKey', 'status'])
+    expect(Object.keys(apiMethods.updates)).toEqual(['state', 'check', 'install', 'later', 'skip', 'restart'])
     expect(Object.keys(apiMethods.subtitles)).toEqual(['getStyle', 'setGlobalStyle', 'setTitleStyle', 'useForAll', 'resetTitle', 'getSettings', 'setSettings', 'search', 'download', 'accountStatus', 'setAccount', 'clearAccount', 'testAccount', 'nudge', 'resetTiming', 'setTiming', 'syncCues', 'syncToCue', 'exportSynced', 'autoSync', 'autoSyncReplace', 'autoSyncCancel'])
   })
 })

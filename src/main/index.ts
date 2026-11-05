@@ -18,6 +18,7 @@ import { binaryPath, sidecarCommand, userDataDir } from './paths'
 import { createSettings } from './settings'
 import { startOrQuit } from './startup'
 import { createSidecar, type Sidecar } from './sync/sidecar'
+import { setupUpdates } from './updates/setup'
 
 // Must run before 'ready' (and the single-instance lock) so everything sees it.
 app.setPath('userData', userDataDir(process.argv, app.getPath('appData')))
@@ -120,6 +121,7 @@ function start(): void {
     })
   })
   registerDomain(ipcMain, 'settings', settings)
+  setupUpdates(settings)
   library = setupLibrary({
     db,
     userDataPath,

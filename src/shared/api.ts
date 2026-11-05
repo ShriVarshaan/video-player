@@ -7,6 +7,7 @@ import type { LinkId } from './links'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from './player'
 import type { SubtitleResult } from './subtitleSearch'
 import type { SubtitleStyle } from './subtitleStyle'
+import type { UpdateState } from './updates'
 
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json }
 
@@ -100,6 +101,17 @@ export type API = {
     autoSyncReplace: (params: { key: string }) => Promise<AutoSyncOutcome>
     autoSyncCancel: (params: Record<string, never>) => Promise<void>
   }
+  // Updates from GitHub Releases (milestone 10). Nothing downloads until install.
+  updates: {
+    state: (params: Record<string, never>) => Promise<UpdateState>
+    // manual: Settings → Check for updates, which also offers a skipped version and reports the result.
+    check: (params: { manual: boolean }) => Promise<void>
+    install: (params: Record<string, never>) => Promise<void>
+    later: (params: Record<string, never>) => Promise<void>
+    skip: (params: Record<string, never>) => Promise<void>
+    // Quits and installs a downloaded update. The renderer waits until no film is playing.
+    restart: (params: Record<string, never>) => Promise<void>
+  }
 }
 
 // Subtitle language (ISO 639-2/B, as mpv names it) and whether SDH is preferred.
@@ -137,13 +149,15 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
     autoSync: true,
     autoSyncReplace: true,
     autoSyncCancel: true
-  }
+  },
+  updates: { state: true, check: true, install: true, later: true, skip: true, restart: true }
 }
 
 export const channelFor = (domain: string, method: string): string => `vp:${domain}.${method}`
 
 // Main → renderer notifications.
 export type ApiEvents = {
+  'updates.state': UpdateState
   'library.progress': ScanProgress
   'library.changed': Record<string, never>
   'player.state': PlayerState

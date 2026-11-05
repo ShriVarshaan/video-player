@@ -9,7 +9,7 @@ export default defineConfig({
     resolve: { alias },
     define: { __DATA_FOLDER__: JSON.stringify(process.env['VP_DATA_FOLDER'] ?? 'video-player') },
     build: {
-      rolldownOptions: { external: ['node:sqlite', 'koffi'] }
+      rolldownOptions: { external: ['node:sqlite', 'koffi', 'electron-updater'] }
     }
   },
   preload: {
