@@ -71,7 +71,9 @@ export function createTmdbClient(opts: Options): TmdbClient {
   }
 
   async function fixture<T>(path: string, params: Record<string, string | number>): Promise<T> {
-    if (credentialOrThrow() === 'invalid') throwAppError('tmdb_key_invalid')
+    const credential = credentialOrThrow()
+    if (credential === 'invalid') throwAppError('tmdb_key_invalid')
+    if (credential === 'offline') throwAppError('tmdb_unavailable')
     try {
       return JSON.parse(await readFile(join(opts.fixturesDir, fixtureName(path, params)), 'utf8')) as T
     } catch {

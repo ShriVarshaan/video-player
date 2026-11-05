@@ -111,6 +111,8 @@ export function createOpenSubtitles(opts: Options) {
     const secrets = opts.secrets()
     if (!secrets) throwAppError('opensubtitles_not_set_up')
     if (token) return
+    if (opts.mode === 'fixtures' && secrets.username === 'invalid') throwAppError('opensubtitles_login')
+    if (opts.mode === 'fixtures' && secrets.username === 'offline') unavailable('fixture')
     const r = await request('POST', 'login', { body: { username: secrets.username, password: secrets.password } })
     if (r.status === 400 || r.status === 401 || r.status === 403) throwAppError('opensubtitles_login')
     if (r.status !== 200 || typeof r.body['token'] !== 'string') unavailable(`login ${r.status}`)

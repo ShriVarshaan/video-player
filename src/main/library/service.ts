@@ -184,10 +184,10 @@ export function createLibraryService(deps: LibraryServiceDeps) {
       return { hasKey: deps.credential.has(), pending: count('pending'), unmatched: count('unmatched') }
     },
 
-    async setTmdbKey(key: string): Promise<void> {
+    async setTmdbKey(key: string, opts: { unchecked?: boolean } = {}): Promise<void> {
       const trimmed = typeof key === 'string' ? key.trim() : ''
       if (!trimmed) throwAppError({ code: 'invalid_argument', message: 'Enter a TMDB API key or read access token.' })
-      await deps.checkKey(trimmed)
+      if (opts.unchecked !== true) await deps.checkKey(trimmed)
       deps.credential.set(trimmed)
       rescanInBackground()
     }

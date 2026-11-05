@@ -9,7 +9,7 @@ export function createAppInfo(deps: {
   resolve: (name: BinaryName) => string
   exists: (path: string) => boolean
   hour12: () => boolean | null
-}): API['app'] {
+}): Pick<API['app'], 'getInfo'> {
   return {
     getInfo: async () => {
       const binaries = Object.fromEntries(

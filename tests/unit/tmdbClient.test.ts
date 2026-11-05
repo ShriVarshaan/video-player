@@ -77,6 +77,11 @@ describe('live mode', () => {
 })
 
 describe('fixtures mode', () => {
+  it("the key 'offline' acts out an unreachable TMDB", async () => {
+    const client = createTmdbClient({ credential: () => 'offline', mode: 'fixtures', fixturesDir: dir })
+    expect(parseAppError(await client.get('authentication').catch((e: unknown) => e))?.code).toBe('tmdb_unavailable')
+  })
+
   it('names fixture files from path and params', () => {
     expect(fixtureName('search/movie', { query: 'The Matrix', year: 1999, language: 'en-US' })).toBe(
       'search_movie__query=the-matrix_year=1999.json'

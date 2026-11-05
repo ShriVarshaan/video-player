@@ -46,6 +46,14 @@ describe('secret store', () => {
     expect(raw).not.toContain('abc')
   })
 
+  it('can be cleared', () => {
+    const os = createSecretStore(openDb(':memory:'), reversing(), 'opensubtitles.account', 'opensubtitles_storage_unavailable')
+    os.set('x')
+    os.clear()
+    expect(os.has()).toBe(false)
+    expect(os.get()).toBeNull()
+  })
+
   it('refuses with its own error when Windows cannot encrypt', () => {
     const os = createSecretStore(openDb(':memory:'), reversing(false), 'opensubtitles.account', 'opensubtitles_storage_unavailable')
     let error: unknown

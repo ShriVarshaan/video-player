@@ -14,6 +14,7 @@ export function createSecretStore(db: Db, safe: SafeStorageLike, key: string, un
   const upsert = db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
   )
+  const remove = db.prepare('DELETE FROM settings WHERE key = ?')
 
   return {
     get(): string | null {
@@ -27,6 +28,9 @@ export function createSecretStore(db: Db, safe: SafeStorageLike, key: string, un
     },
     has(): boolean {
       return select.get(key) !== undefined
+    },
+    clear(): void {
+      remove.run(key)
     }
   }
 }

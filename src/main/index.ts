@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { version } from '../../package.json'
 import { createAppInfo } from './appInfo'
 import { openDb, type Db } from './db'
+import { createFirstRun } from './firstRun'
 import { systemHour12 } from './hour12'
 import { registerDomain } from './ipc'
+import { listFolders } from './library/queries'
 import { registerPosterScheme, setupLibrary } from './library/setup'
 import type { LibraryService } from './library/service'
 import { killAllMpv } from './player/launch'
@@ -99,19 +101,25 @@ function start(): void {
   // Unpackaged, app.getVersion() reports Electron's version when launched by file path. Packaged,
   // it's what the updater compares, so the two can't disagree.
   const appVersion = app.isPackaged ? app.getVersion() : version
-  registerDomain(
-    ipcMain,
-    'app',
-    createAppInfo({
+  const settings = createSettings(db)
+  const database = db
+  registerDomain(ipcMain, 'app', {
+    ...createAppInfo({
       version: appVersion,
       userDataPath,
       dbPath,
       resolve: (name) => binaryPath(name, binaryBase),
       exists: existsSync,
       hour12: systemHour12
+    }),
+    ...createFirstRun({
+      settings,
+      folderCount: () => listFolders(database, existsSync).length,
+      disabled: !app.isPackaged && process.env['VP_FIRST_RUN'] === 'off',
+      openExternal: (url) => shell.openExternal(url)
     })
-  )
-  registerDomain(ipcMain, 'settings', createSettings(db))
+  })
+  registerDomain(ipcMain, 'settings', settings)
   library = setupLibrary({
     db,
     userDataPath,

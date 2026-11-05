@@ -169,4 +169,10 @@ describe('library service', () => {
     await service.setTmdbKey('  good-key  ')
     expect(credential.get()).toBe('good-key')
   })
+
+  it('can save a TMDB key unchecked, for when TMDB can\'t be reached', async () => {
+    const { service, credential } = setup()
+    await service.setTmdbKey('  invalid  ', { unchecked: true })
+    expect(credential.get()).toBe('invalid')
+  })
 })

@@ -90,7 +90,7 @@ export function setupLibrary(opts: {
     searchDocs: async () => listSearchDocs(db)
   })
   registerDomain(ipcMain, 'metadata', {
-    setTmdbKey: ({ key }) => library.setTmdbKey(key),
+    setTmdbKey: ({ key, unchecked }) => library.setTmdbKey(key, { unchecked: unchecked === true }),
     status: async () => library.metadataStatus()
   })
 

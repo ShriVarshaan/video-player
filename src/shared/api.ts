@@ -3,6 +3,7 @@
 
 import type { LibraryFolder, MetadataStatus, MovieItem, ScanProgress, SearchDoc, ShowDetail, ShowItem, TitleDetail, WallItem } from './library'
 import type { AutoSyncOutcome, AutoSyncProgress } from './autoSync'
+import type { LinkId } from './links'
 import type { Cue, NextEpisode, PlayerCommand, PlayerState } from './player'
 import type { SubtitleResult } from './subtitleSearch'
 import type { SubtitleStyle } from './subtitleStyle'
@@ -22,6 +23,11 @@ export type AppInfo = {
 export type API = {
   app: {
     getInfo: (params: Record<string, never>) => Promise<AppInfo>
+    // First-run setup (milestone 10): whether to show it, and that it's done.
+    setupState: (params: Record<string, never>) => Promise<{ show: boolean }>
+    finishSetup: (params: Record<string, never>) => Promise<void>
+    // Opens one of the app's fixed links in the default browser.
+    openLink: (params: { id: LinkId }) => Promise<void>
   }
   settings: {
     get: (params: { key: string }) => Promise<Json | null>
@@ -43,7 +49,8 @@ export type API = {
     searchDocs: (params: Record<string, never>) => Promise<SearchDoc[]>
   }
   metadata: {
-    setTmdbKey: (params: { key: string }) => Promise<void>
+    // Checks the key with TMDB first, unless unchecked (setup, when TMDB can't be reached).
+    setTmdbKey: (params: { key: string; unchecked?: boolean }) => Promise<void>
     status: (params: Record<string, never>) => Promise<MetadataStatus>
   }
   player: {
@@ -73,6 +80,7 @@ export type API = {
     // Never returns the API key or password.
     accountStatus: (params: Record<string, never>) => Promise<{ configured: boolean; username: string | null }>
     setAccount: (params: { apiKey: string; username: string; password: string }) => Promise<void>
+    clearAccount: (params: Record<string, never>) => Promise<void>
     testAccount: (params: Record<string, never>) => Promise<{ username: string; remaining: number }>
     // Timing of the showing subtitle (milestone 6). offset null: no subtitle showing.
     nudge: (params: { deltaS: number }) => Promise<{ offset: number | null }>
@@ -101,7 +109,7 @@ export type Domain = keyof API
 
 // Runtime list of methods. The mapped type makes leaving one out a compile error.
 export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
-  app: { getInfo: true },
+  app: { getInfo: true, setupState: true, finishSetup: true, openLink: true },
   settings: { get: true, set: true },
   library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true, getTitle: true, searchDocs: true },
   metadata: { setTmdbKey: true, status: true },
@@ -118,6 +126,7 @@ export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
     download: true,
     accountStatus: true,
     setAccount: true,
+    clearAccount: true,
     testAccount: true,
     nudge: true,
     resetTiming: true,

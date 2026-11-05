@@ -142,6 +142,10 @@ export function createSubtitlesApi(deps: SubtitlesDeps): API['subtitles'] {
       deps.account.set(JSON.stringify({ apiKey: clean[0], username: clean[1], password: clean[2] }))
       os.reset()
     },
+    clearAccount: async () => {
+      deps.account.clear()
+      os.reset()
+    },
     testAccount: async () => os.account(),
 
     nudge: async ({ deltaS }) => {

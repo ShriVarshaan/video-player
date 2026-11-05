@@ -161,6 +161,14 @@ describe('OpenSubtitles client', () => {
     expect(await client(server()).account()).toEqual({ username: 'neo', remaining: 19 })
   })
 
+  it('can act out a rejected login and an unreachable service in fixture mode', async () => {
+    const as = (username: string) =>
+      createOpenSubtitles({ secrets: () => ({ ...SECRETS, username }), mode: 'fixtures', fixturesDir: FIXTURES, userAgent: 'x' })
+    expect(parseAppError(await as('invalid').account().catch((e: unknown) => e))?.code).toBe('opensubtitles_login')
+    expect(parseAppError(await as('offline').account().catch((e: unknown) => e))?.code).toBe('opensubtitles_unavailable')
+    expect((await as('neo').account()).username).toBeTruthy()
+  })
+
   it('serves recorded responses in fixture mode', async () => {
     const os = createOpenSubtitles({ secrets: () => SECRETS, mode: 'fixtures', fixturesDir: FIXTURES, userAgent: 'x' })
     const results = await os.search({ hash: 'anything', tmdbId: 603, language: 'en' })
