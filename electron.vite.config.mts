@@ -7,6 +7,7 @@ const alias = { '@shared': resolve(import.meta.dirname, 'src/shared') }
 export default defineConfig({
   main: {
     resolve: { alias },
+    define: { __DATA_FOLDER__: JSON.stringify(process.env['VP_DATA_FOLDER'] ?? 'video-player') },
     build: {
       rolldownOptions: { external: ['node:sqlite', 'koffi'] }
     }

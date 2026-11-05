@@ -1,0 +1,40 @@
+appId: com.shrivarshaan.cinewall
+productName: Cinewall
+asar: true
+# koffi loads a native .node file, which can't run from inside the asar.
+asarUnpack:
+  - '**/node_modules/koffi/**'
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: vendor
+    to: vendor
+    filter:
+      - '**/*'
+      - '!manifest.json'
+  - from: sidecar/dist/vp-sync
+    to: sidecar/vp-sync
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  # Unsigned on purpose (milestone 10 design); this only writes the icon and version into the exe.
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  include: build/installer.nsh
+  artifactName: Cinewall-Setup-${version}.${ext}
+publish:
+  provider: github
+  owner: ShriVarshaan
+  repo: video-player
+  releaseType: draft

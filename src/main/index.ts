@@ -96,12 +96,14 @@ function start(): void {
   // In development vendor/ is in the project root, two levels above out/main.
   // (getAppPath() is out/main when Electron is launched with a file path.)
   const binaryBase = app.isPackaged ? process.resourcesPath : join(__dirname, '..', '..')
+  // Unpackaged, app.getVersion() reports Electron's version when launched by file path. Packaged,
+  // it's what the updater compares, so the two can't disagree.
+  const appVersion = app.isPackaged ? app.getVersion() : version
   registerDomain(
     ipcMain,
     'app',
     createAppInfo({
-      // Not app.getVersion(): that reports Electron's version when launched by file path.
-      version,
+      version: appVersion,
       userDataPath,
       dbPath,
       resolve: (name) => binaryPath(name, binaryBase),
@@ -124,7 +126,7 @@ function start(): void {
   player = playback.player
   // Auto sync's Python helper: started on the first sync, not now.
   sidecar = createSidecar({ command: sidecarCommand(binaryBase, app.isPackaged, existsSync), ffmpeg: binaryPath('ffmpeg', binaryBase) })
-  setupSubtitles({ db, ...playback, userDataPath, devRoot: app.isPackaged ? null : join(__dirname, '..', '..'), version, sidecar })
+  setupSubtitles({ db, ...playback, userDataPath, devRoot: app.isPackaged ? null : join(__dirname, '..', '..'), version: appVersion, sidecar })
   // Closing the window mid-film saves the position and stops mpv first.
   let saved = false
   main.on('close', (event) => {
