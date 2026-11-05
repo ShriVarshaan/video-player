@@ -3,6 +3,8 @@ import { Menu } from './nav/Menu'
 import { SearchOverlay, type SearchState } from './search/SearchOverlay'
 import { Settings } from './pages/Settings'
 import { TitlePage } from './pages/Title'
+import { FirstRun } from './setup/FirstRun'
+import { TmdbReminder } from './setup/TmdbReminder'
 import { Wall } from './wall/Wall'
 import './app.css'
 
@@ -10,6 +12,8 @@ import './app.css'
 export type Page = 'home' | 'search' | 'settings'
 
 export function App() {
+  // Whether first-run setup replaces the app; null until main has said, so the wall never flashes.
+  const [setup, setSetup] = useState<boolean | null>(null)
   const [page, setPage] = useState<Exclude<Page, 'search'>>('home')
   // A title page belongs to Home: it opens over the wall, and Esc goes back to it.
   const [titleKey, setTitleKey] = useState<string | null>(null)
@@ -19,6 +23,13 @@ export function App() {
   // The open search, and where back from a title page opened from it returns to.
   const [search, setSearch] = useState<{ initial: string; restore: SearchState | null } | null>(null)
   const [fromSearch, setFromSearch] = useState<SearchState | null>(null)
+
+  useEffect(() => {
+    window.api.app.setupState({}).then(
+      (s) => setSetup(s.show),
+      () => setSetup(false) // a broken check must not keep anyone out of the app
+    )
+  }, [])
 
   useEffect(() => {
     const offs = [
@@ -68,6 +79,10 @@ export function App() {
 
   const onTitle = page === 'home' && titleKey !== null
   const searching = page === 'home' && !onTitle && search !== null
+  const onWall = page === 'home' && !onTitle && !searching && !playing
+
+  if (setup === null) return null
+  if (setup) return <FirstRun onDone={() => setSetup(false)} />
 
   return (
     <>
@@ -95,6 +110,7 @@ export function App() {
         )}
         {onTitle && <TitlePage titleKey={titleKey} active={!menuOpen && !playing} onBack={back} />}
         {page === 'settings' && <Settings />}
+        {onWall && <TmdbReminder onSettings={() => navigate('settings')} />}
       </div>
       {playing && <div className="player-cover" aria-hidden="true" />}
     </>

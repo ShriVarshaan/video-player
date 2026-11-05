@@ -126,8 +126,13 @@ function OpenSubtitlesAccount({ onError }: { onError: (e: unknown) => void }) {
     <form className="opensubtitles" onSubmit={(e) => void save(e)}>
       <h3>OpenSubtitles</h3>
       <p className="muted small">
-        Used only when you choose Search online… in the player. Needs a free account at opensubtitles.com and an API key from
-        its API consumers page.
+        Used only when you choose Search online… in the player. Needs a free account and an API key:{' '}
+        <button type="button" className="setup-link" onClick={() => void window.api.app.openLink({ id: 'openSubtitlesSignup' }).catch(onError)}>
+          create an account ↗
+        </button>{' '}
+        <button type="button" className="setup-link" onClick={() => void window.api.app.openLink({ id: 'openSubtitlesConsumers' }).catch(onError)}>
+          open the API consumers page ↗
+        </button>
       </p>
       {field('apiKey', 'API key', 'password')}
       {field('username', 'Username', 'text')}

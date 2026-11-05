@@ -370,7 +370,7 @@ export class WallEngine {
   private onKeyDown = (e: KeyboardEvent): void => {
     if (!this.active || this.items.length === 0 || e.defaultPrevented) return
     const target = e.target as HTMLElement
-    if (target.closest('input, textarea, select, [contenteditable="true"], nav')) return
+    if (target.closest('input, textarea, select, [contenteditable="true"], nav, [data-wall-ignore]')) return
     const onOtherButton = target.tagName === 'BUTTON'
     this.input()
 

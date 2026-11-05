@@ -10,7 +10,7 @@ let win: Page
 
 test.beforeEach(async () => {
   userData = mkdtempSync(join(tmpdir(), 'vp-e2e-nav-'))
-  app = await electron.launch({ args: ['out/main/index.js', `--user-data-dir=${userData}`] })
+  app = await electron.launch({ args: ['out/main/index.js', `--user-data-dir=${userData}`], env: { ...process.env, VP_FIRST_RUN: 'off' } })
   win = await app.firstWindow()
   await toSecondDisplay(app)
 })

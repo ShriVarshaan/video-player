@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync }
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { closeApp, goTo, keyOf, mainWindow, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
+import { closeApp, keyOf, mainWindow, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
 
 const UNPACKED = resolve('release', 'win-unpacked')
 let root: string
@@ -66,12 +66,12 @@ test('the installed app stands alone', async () => {
   await app.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog
   }, library)
-  // First-run setup is added later in this milestone, and this test will go through it then.
-  test.fixme(await win.getByTestId('setup-step').count() > 0, 'route through first-run setup')
-  await goTo(win, 'Settings')
-  await win.getByRole('button', { name: 'Add folder' }).click()
-  await expect(win.getByTestId('folder-row')).toHaveCount(1)
-  await goTo(win, 'Home')
+  // VP_FIRST_RUN=off is ignored, so a new install starts in setup.
+  await expect(win.getByTestId('setup-step')).toHaveAttribute('data-step', 'tmdb')
+  await win.getByTestId('setup-skip').click()
+  await win.getByTestId('setup-skip').click()
+  await expect(win.getByTestId('setup-step')).toHaveAttribute('data-step', 'folder')
+  await win.getByTestId('setup-check').click()
   await expect(win.locator('[data-testid="wall-tile"]:not([hidden])').first()).toBeVisible() // ffprobe ran
 
   const key = await keyOf(win, 'Stand Alone')

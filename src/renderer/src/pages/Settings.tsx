@@ -130,6 +130,15 @@ export function Settings() {
 
       <h2>TMDB</h2>
       <form className="tmdb" onSubmit={(e) => void saveKey(e)}>
+        <p className="muted small">
+          Needs a free key:{' '}
+          <button type="button" className="setup-link" onClick={() => void window.api.app.openLink({ id: 'tmdbSignup' }).catch(report)}>
+            create a TMDB account ↗
+          </button>{' '}
+          <button type="button" className="setup-link" onClick={() => void window.api.app.openLink({ id: 'tmdbApiSettings' }).catch(report)}>
+            open your API settings ↗
+          </button>
+        </p>
         <label htmlFor="tmdb-key">TMDB API key or read access token</label>
         <input id="tmdb-key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
         <button type="submit">Save key</button>

@@ -16,7 +16,7 @@ async function launch(folder: string | null) {
   userData = mkdtempSync(join(tmpdir(), 'vp-e2e-wall-'))
   app = await electron.launch({
     args: ['out/main/index.js', `--user-data-dir=${userData}`],
-    env: { ...process.env, VP_TMDB_MODE: 'fixtures' }
+    env: { ...process.env, VP_TMDB_MODE: 'fixtures', VP_FIRST_RUN: 'off' }
   })
   win = await app.firstWindow()
   await toSecondDisplay(app)
