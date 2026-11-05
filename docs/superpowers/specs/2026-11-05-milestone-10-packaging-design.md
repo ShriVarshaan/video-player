@@ -127,6 +127,14 @@ The user tests the draft installer and publishes it by hand. Publishing is what 
 
 *My call, on where the milestone ends:* the milestone is done when the local installer has passed the friend's check and the update check, and the branch is merged and pushed to `main`. `npm run release` needs a clean `main`, so the first draft comes after that, as a separate step with the user's permission. "Not already released" in step 1 means published. A bug found in a draft is fixed on `main` and the draft is replaced at the same version; once published, a fix takes a new version.
 
+**Outcome (2026-11-05):** the user chose to merge without the friend's check. So the installer has never run on a clean PC, and the real sign-up pages haven't been clicked through. Everything else passed, including a real update from 0.9.0 to 1.0.0 on the user's PC. Testing the draft installer is now the only check before anything reaches people.
+
+**Deferred from the final reviews:**
+- Setup: Skip stays clickable during a check, and a late TMDB result can pull someone back a step. Quitting after an unreachable OpenSubtitles check keeps the unverified login. A rejected login mentions only the username and password, though a bad API key may look the same.
+- Updates: Restart now does nothing after a film failed to start. A failed manual check hides a showing offer until the next automatic one. A blocked installer leaves the app closed until it's next opened. The card shows Markdown characters literally. The updater's cache survives uninstall.
+- Releases: replacing a draft keeps its old notes. A release published during a run prints a false success. `fetch-vendor` doesn't re-hash extracted files. GPL and LGPL source is offered by link to third-party build pages, which may be removed: decide before the first public release.
+- Other: `d3dcompiler_43.dll` has no notices line. Choosing an install folder with "Cinewall" in its name means uninstalling deletes that whole folder (electron-builder's behaviour).
+
 ## Tests
 
 Test first wherever the code can be tested without an installer:
