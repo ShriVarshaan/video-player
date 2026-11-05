@@ -78,3 +78,16 @@ Test first for each behaviour:
 - **The line:** a regression test if the cause can be tested (for example overlay bounds against main bounds in fullscreen), otherwise a screenshot check the user confirms.
 
 Windows open on the second monitor, as in every E2E spec.
+
+## Deferred
+
+Found in the final reviews and left for later. All are rare or cosmetic.
+
+- A double-click with a menu open ends paused in fullscreen (one more click recovers).
+- With the controls faded, a double-click where a hidden button sits pauses, then presses that button (over ✕, it closes the player).
+- The bar's play button sends its own pause, not `togglePause`, so a press within moments of a video click can be lost.
+- Closing the ☰ menu in search returns focus to the box, not the card you were on. After ☰ then Esc, Enter opens the top result.
+- `getInfo` runs on every title page open just to read `hour12`; it could be fetched once.
+- Cleanups: the `.subs` clause in `isVideoSurface` never fires (`pointer-events: none`), and `endsAt` has a literal U+202F in its regex that should be written ` `.
+- Test gaps: no E2E for clicking the video with the Replace prompt open, the Replace prompt or sync cards with Esc and focus outside, and the Windows clock test only checks the type.
+- Older than this milestone: the subtitle style panel can lose one step in a fast run of key presses, probably when a late style from main overwrites the draft (`StylePanel.tsx`). Seen once in full E2E runs as `subtitleStyle.spec.ts` ending at 140% rather than 150%; it passed 8 of 8 alone.

@@ -111,7 +111,7 @@ video-player/
 | 6 | **Manual sync:** the app's own subtitle reader (parse, extract embedded), G/H hotkeys, offset slider, sync-to-line card, reset, synced export | `subtitle-formats` | ✅ |
 | 7 | **Auto sync:** speech-detection sidecar (ffsubsync) → confidence check → player card and A key → PyInstaller packaging (no Whisper, no cuts) | `subtitle-sync-ml`, `test-media-fixtures` | ✅ |
 | 8 | **Search:** overlay with titles-first ranking, chips, 16:9 cards, empty-state rows, back-to-search | `netflix-search` | ✅ |
-| 9 | **Polish:** fixes from real use: Esc and click in the player, the line over the video, "Ends at" time, menu button in search | `mpv-ipc`, `systematic-debugging`, `apple-design` | |
+| 9 | **Polish:** fixes from real use: Esc and click in the player, the line over the video, "Ends at" time, menu button in search | `mpv-ipc`, `systematic-debugging`, `apple-design` | ✅ |
 | 10 | **Packaging and publishing:** NSIS installer (unsigned, with an install note), About and notices, auto-update from GitHub Releases | `release-windows` | |
 
 Every milestone follows the same flow: `brainstorming` → `writing-plans` → `executing-plans` with `test-driven-development` → `verification-before-completion` → `requesting-code-review` / `/code-review`.
