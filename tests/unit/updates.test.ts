@@ -15,9 +15,11 @@ function setup(over: Partial<UpdateAdapter> = {}, store = new Map<string, Json>(
     createUpdateService({
       adapter,
       settings: { get: async ({ key }) => store.get(key) ?? null, set: async ({ key, value }) => void store.set(key, value) },
-      emit: (s) => seen.push(s)
+      emit: (s) => seen.push(s),
+      filmOpen: () => film.open
     })
-  return { service: make(), make, adapter, seen, store }
+  const film = { open: false }
+  return { service: make(), make, adapter, seen, store, film }
 }
 const auto = { manual: false }
 const manual = { manual: true }
@@ -108,6 +110,18 @@ describe('update service', () => {
     await service.install({})
     expect(seen.map((s) => s.phase)).toEqual(['available', 'downloading', 'downloading', 'ready'])
     expect(seen[2]).toMatchObject({ percent: 50 })
+    await service.restart({})
+    expect(adapter.quitAndInstall).toHaveBeenCalledTimes(1)
+  })
+
+  it('restart refuses while a film is open, even one still starting', async () => {
+    const { service, adapter, film } = setup()
+    await service.check(auto)
+    await service.install({})
+    film.open = true
+    await service.restart({})
+    expect(adapter.quitAndInstall).not.toHaveBeenCalled()
+    film.open = false
     await service.restart({})
     expect(adapter.quitAndInstall).toHaveBeenCalledTimes(1)
   })

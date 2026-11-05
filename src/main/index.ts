@@ -121,7 +121,7 @@ function start(): void {
     })
   })
   registerDomain(ipcMain, 'settings', settings)
-  setupUpdates(settings)
+  setupUpdates(settings, () => player?.current() != null)
   library = setupLibrary({
     db,
     userDataPath,

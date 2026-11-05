@@ -1,0 +1,75 @@
+/* A small card in the corner of Home; the wall's title card has the opposite corner. */
+.update-card {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 5;
+  box-sizing: border-box;
+  width: min(380px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--material);
+  backdrop-filter: blur(20px);
+}
+
+/* Narrow windows have no room beside the title card, so it moves up, under the TMDB reminder's row. */
+@media (max-width: 1020px) {
+  .update-card {
+    top: 64px;
+    bottom: auto;
+  }
+}
+
+.update-card h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text, #fff);
+}
+
+.update-notes {
+  margin: 8px 0 0;
+  max-height: 7.5em;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: pre-line;
+}
+
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.update-actions button {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.update-progress {
+  height: 4px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.update-progress i {
+  display: block;
+  height: 100%;
+  background: var(--text, #fff);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-progress i {
+    transition: none;
+  }
+}

@@ -25,11 +25,12 @@ function pickAdapter(): UpdateAdapter {
   return FIXTURE_MODES.includes(mode) ? fixtureAdapter(mode as FixtureMode, () => app.quit()) : noUpdates
 }
 
-export function setupUpdates(settings: API['settings']): void {
+export function setupUpdates(settings: API['settings'], filmOpen: () => boolean): void {
   const service = createUpdateService({
     adapter: pickAdapter(),
     settings,
-    emit: (state) => broadcast('updates.state', state)
+    emit: (state) => broadcast('updates.state', state),
+    filmOpen
   })
   registerDomain(ipcMain, 'updates', service)
   const check = () => void service.check({ manual: false })

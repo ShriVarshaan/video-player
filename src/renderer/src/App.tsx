@@ -5,6 +5,8 @@ import { Settings } from './pages/Settings'
 import { TitlePage } from './pages/Title'
 import { FirstRun } from './setup/FirstRun'
 import { TmdbReminder } from './setup/TmdbReminder'
+import { UpdateCard } from './updates/UpdateCard'
+import { useUpdates } from './updates/useUpdates'
 import { Wall } from './wall/Wall'
 import './app.css'
 
@@ -23,6 +25,7 @@ export function App() {
   // The open search, and where back from a title page opened from it returns to.
   const [search, setSearch] = useState<{ initial: string; restore: SearchState | null } | null>(null)
   const [fromSearch, setFromSearch] = useState<SearchState | null>(null)
+  const update = useUpdates(playing)
 
   useEffect(() => {
     window.api.app.setupState({}).then(
@@ -111,6 +114,7 @@ export function App() {
         {onTitle && <TitlePage titleKey={titleKey} active={!menuOpen && !playing} onBack={back} />}
         {page === 'settings' && <Settings />}
         {onWall && <TmdbReminder onSettings={() => navigate('settings')} />}
+        {onWall && <UpdateCard state={update} />}
       </div>
       {playing && <div className="player-cover" aria-hidden="true" />}
     </>

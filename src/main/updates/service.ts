@@ -37,6 +37,8 @@ export function createUpdateService(deps: {
   adapter: UpdateAdapter
   settings: Pick<API['settings'], 'get' | 'set'>
   emit: (state: UpdateState) => void
+  // True from the moment a film is asked for, before the renderer has heard about it.
+  filmOpen: () => boolean
 }): API['updates'] {
   let state: UpdateState = { phase: 'idle' }
   // "Remind me later" lasts until the app next opens, so it's kept in memory only.
@@ -105,7 +107,7 @@ export function createUpdateService(deps: {
     },
 
     restart: async () => {
-      if (state.phase === 'ready') deps.adapter.quitAndInstall()
+      if (state.phase === 'ready' && !deps.filmOpen()) deps.adapter.quitAndInstall()
     }
   }
 }
