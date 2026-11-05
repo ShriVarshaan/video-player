@@ -1035,7 +1035,7 @@ Public License instead of this License.
 Reads video details and extracts subtitles and audio. Runs as a separate program, with replaceable shared libraries.
 
 Version: n9.0.2-37-gae19868753 (autobuild-2026-10-29-19-17)
-Licence: LGPL-3.0-or-later (built with --enable-version3). The LGPL adds to the GPL, so both texts are below.
+Licence: LGPL-3.0-or-later (built with --enable-version3). The LGPL adds to the GPL: its text is below, and the GPL's is in the mpv section above.
 This build: https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-10-29-19-17
 Source and build scripts: https://github.com/BtbN/FFmpeg-Builds
 FFmpeg's source: https://ffmpeg.org/download.html
@@ -1207,8 +1207,6 @@ apply, that proxy's public statement of acceptance of any version is
 permanent authorization for you to choose that version for the
 Library.
 ````
-
-The GPL text is in the mpv section above.
 
 ## Electron
 

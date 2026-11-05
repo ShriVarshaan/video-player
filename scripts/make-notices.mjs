@@ -111,7 +111,7 @@ export function generateNotices(root) {
     ),
     section(
       'FFmpeg',
-      `Reads video details and extracts subtitles and audio. Runs as a separate program, with replaceable shared libraries.\n\nVersion: ${ffmpeg.version}\nLicence: LGPL-3.0-or-later (built with --enable-version3). The LGPL adds to the GPL, so both texts are below.\nThis build: ${ffmpeg.source.release}\nSource and build scripts: ${ffmpeg.source.repo}\nFFmpeg's source: https://ffmpeg.org/download.html\n\n${block(read(join(root, 'build', 'licenses', 'LGPL-3.0.txt')))}\n\nThe GPL text is in the mpv section above.`
+      `Reads video details and extracts subtitles and audio. Runs as a separate program, with replaceable shared libraries.\n\nVersion: ${ffmpeg.version}\nLicence: LGPL-3.0-or-later (built with --enable-version3). The LGPL adds to the GPL: its text is below, and the GPL's is in the mpv section above.\nThis build: ${ffmpeg.source.release}\nSource and build scripts: ${ffmpeg.source.repo}\nFFmpeg's source: https://ffmpeg.org/download.html\n\n${block(read(join(root, 'build', 'licenses', 'LGPL-3.0.txt')))}`
     ),
     section(
       'Electron',

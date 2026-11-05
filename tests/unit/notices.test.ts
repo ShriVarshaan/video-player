@@ -26,7 +26,8 @@ describe('third-party notices', () => {
     const avutil = readdirSync('vendor/ffmpeg').find((f) => /^avutil-.*\.dll$/.test(f))!
     expect(readFileSync(join('vendor/ffmpeg', avutil)).includes('LGPL version 3 or later')).toBe(true)
     expect(text).toContain('Licence: LGPL-3.0-or-later')
-    expect(text).not.toContain('Licence: LGPL-2.1')
+    // jschardet, further down, really is LGPL-2.1; FFmpeg's own section comes before Electron's.
+    expect(text.slice(text.indexOf('## FFmpeg'), text.indexOf('## Electron'))).not.toContain('LGPL-2.1')
   })
 
   it('covers every npm package that ships, and Electron', () => {
