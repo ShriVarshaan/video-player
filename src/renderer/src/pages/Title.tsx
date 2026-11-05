@@ -58,7 +58,8 @@ function EndsAt({ playS, hour12 }: { playS: number; hour12: boolean | null }) {
 export function TitlePage({ titleKey, active, onBack }: { titleKey: string; active: boolean; onBack: () => void }) {
   const [t, setT] = useState<TitleDetail | null>(null)
   const [season, setSeason] = useState<number | null>(null)
-  const [hour12, setHour12] = useState<boolean | null>(null)
+  // undefined until Windows' clock setting is known, so "Ends at" never changes format on screen.
+  const [hour12, setHour12] = useState<boolean | null | undefined>(undefined)
   const main = useRef<HTMLButtonElement>(null)
   const focusedFor = useRef<string | null>(null)
 
@@ -73,7 +74,7 @@ export function TitlePage({ titleKey, active, onBack }: { titleKey: string; acti
     void window.api.app
       .getInfo({})
       .then((info) => live && setHour12(info.hour12))
-      .catch(() => {}) // the locale's clock is a fine fallback
+      .catch(() => live && setHour12(null)) // the locale's clock is a fine fallback
     const offs = [
       window.api.on('library.changed', () => void load()),
       // Back from the player: open the season that played and focus the main button again.
@@ -166,7 +167,7 @@ export function TitlePage({ titleKey, active, onBack }: { titleKey: string; acti
               {timeLeft(t.remainingS)}
             </span>
           )}
-          {t.playS !== null && t.playS > 0 && <EndsAt playS={t.playS} hour12={hour12} />}
+          {t.playS !== null && t.playS > 0 && hour12 !== undefined && <EndsAt playS={t.playS} hour12={hour12} />}
         </div>
         {t.progress !== null && (
           <div className="title-progress" aria-hidden="true">

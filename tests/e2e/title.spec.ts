@@ -133,6 +133,23 @@ test('the app can read the clock set in Windows', async () => {
   expect(typeof info.hour12).toBe('boolean')
 })
 
+test('"Ends at" waits for the Windows clock setting, so it never changes format on screen', async () => {
+  await app.evaluate(({ ipcMain }) => {
+    const channel = 'vp:app.getInfo'
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, (...a: unknown[]) => unknown> })._invokeHandlers
+    const original = handlers.get(channel)!
+    ipcMain.removeHandler(channel)
+    ipcMain.handle(channel, async (...a: unknown[]) => {
+      await new Promise((r) => setTimeout(r, 1500))
+      return original(...a)
+    })
+  })
+  await openTile(win, 'The Matrix')
+  await expect(win.getByTestId('title-main')).toBeVisible()
+  await expect(win.getByTestId('title-ends')).toHaveCount(0)
+  await expect(win.getByTestId('title-ends')).toHaveText(/^Ends at \d/)
+})
+
 test('back from the player, focus is on the main button and the season follows what played', async () => {
   await openTile(win, 'Breaking Bad')
   await expect(win.getByTestId('title-main')).toBeFocused()

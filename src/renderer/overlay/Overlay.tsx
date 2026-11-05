@@ -75,6 +75,8 @@ export function Overlay() {
         if (prev?.videoId !== s.videoId) {
           setNext(null)
           setError(null)
+          // A toggle sent as the last file closed never gets an answer: don't carry it over.
+          pausedIntent.current = { value: s.paused, sent: null }
         }
         // The sync card and the replace prompt are about one subtitle: another one closes them.
         if (prev?.videoId !== s.videoId || prev?.subtitleId !== s.subtitleId) {
@@ -357,7 +359,7 @@ export function Overlay() {
       onPointerMove={wake}
       onPointerDown={(e) => {
         wake()
-        pressedVideo.current = !menu && isVideoSurface(e.target as Element)
+        pressedVideo.current = !menu && !offsetOpen && !confirm && isVideoSurface(e.target as Element)
         if (menu && !(e.target as Element).closest('.menu-anchor, .style-panel')) setMenu(null)
       }}
       onClick={(e) => {

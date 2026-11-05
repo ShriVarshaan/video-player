@@ -237,6 +237,38 @@ test('Click does nothing while the next-episode card shows', async () => {
   await playLabel(overlay).toHaveAttribute('aria-label', label!)
 })
 
+test('Click does nothing on a file that could not play', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vp-e2e-broken-'))
+  cleanup.push(dir)
+  copyFileSync(resolve('tests', 'fixtures', 'media', 'truncated.mp4'), join(dir, 'Broken Film (2001).mp4'))
+  await start(dir)
+  const key = await keyOf(win, 'Broken Film')
+  await win.evaluate((k) => window.api.player.play({ key: k }), key)
+  const overlay = await overlayPage(app)
+  await expect(overlay.getByTestId('player-error')).toHaveText("Can't play this file")
+  const label = await overlay.getByTestId('play-pause').getAttribute('aria-label')
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.click(x, y)
+  await overlay.waitForTimeout(500)
+  await playLabel(overlay).toHaveAttribute('aria-label', label!)
+})
+
+test('A click while the player closes does not swallow the first pause of the next film', async () => {
+  await start()
+  const first = await playTitle('The Matrix', { from: 'start' })
+  await first.evaluate(() => {
+    document.querySelector<HTMLElement>('[data-testid="player-close"]')!.click()
+    const surface = document.querySelector('.overlay')!
+    surface.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    surface.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  await expect.poll(() => overlayVisible(app)).toBe(false)
+  const overlay = await playTitle('The Matrix', { from: 'start' })
+  const { x, y } = await centre(overlay)
+  await overlay.mouse.click(x, y)
+  await playLabel(overlay).toHaveAttribute('aria-label', 'Play')
+})
+
 test('Space pauses and resumes; arrows seek; ✕ closes to the title page', async () => {
   await start()
   const overlay = await playTitle('The Matrix', { from: 'start' })

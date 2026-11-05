@@ -70,6 +70,18 @@ test('Esc closes the offset panel in fullscreen even with focus outside it', asy
   expect(await isFullScreen(app)).toBe(true)
 })
 
+test('Click on the video with the offset panel open does not pause', async () => {
+  ;({ app, win, userData } = await launchApp(dir))
+  const overlay = await play('The Matrix')
+  await expect(line(overlay)).toHaveText('Wake up, Neo.', { timeout: 8000 })
+  await menuAction(overlay, 'Set offset…')
+  await expect(overlay.getByTestId('offset-panel')).toBeVisible()
+  const { width, height } = await overlay.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  await overlay.mouse.click(Math.round(width / 2), Math.round(height / 3))
+  await overlay.waitForTimeout(500)
+  await expect(overlay.getByTestId('play-pause')).toHaveAttribute('aria-label', 'Pause')
+})
+
 test('Shift+H four times moves the subtitles 2 s later, and it is remembered', async () => {
   ;({ app, win, userData } = await launchApp(dir))
   let overlay = await play('The Matrix')
