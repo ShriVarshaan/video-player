@@ -17,6 +17,8 @@ extraResources:
       - '!manifest.json'
   - from: sidecar/dist/vp-sync
     to: sidecar/vp-sync
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 win:
   target:
     - target: nsis

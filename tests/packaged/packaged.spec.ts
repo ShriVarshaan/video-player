@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync }
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { closeApp, keyOf, mainWindow, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
+import { closeApp, goTo, keyOf, mainWindow, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
 
 const UNPACKED = resolve('release', 'win-unpacked')
 let root: string
@@ -79,6 +79,24 @@ test('the installed app stands alone', async () => {
   const overlay = await overlayPage(app)
   await expect.poll(() => overlayVisible(app)).toBe(true)
   await expect.poll(() => position(overlay), { timeout: 15_000 }).toBeGreaterThan(0.5) // mpv plays
+})
+
+test('About is written for people using the app, and has its notices', async () => {
+  await win.getByTestId('setup-skip').click()
+  await win.getByTestId('setup-skip').click()
+  const library = join(root, 'Films about')
+  mkdirSync(library, { recursive: true })
+  await app.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [path] })) as typeof dialog.showOpenDialog
+  }, library)
+  await win.getByTestId('setup-check').click()
+  await goTo(win, 'Settings')
+  await expect(win.getByTestId('version')).toHaveText('1.0.0')
+  await expect(win.getByTestId('db-path')).toHaveCount(0)
+  await expect(win.getByTestId('bin-mpv')).toHaveCount(0)
+  await expect(win.getByTestId('binaries-missing')).toHaveCount(0)
+  await win.getByRole('button', { name: 'Show third-party notices' }).click()
+  await expect(win.getByTestId('notices')).toContainText('GNU GENERAL PUBLIC LICENSE')
 })
 
 test('the bundled sidecar answers', async () => {

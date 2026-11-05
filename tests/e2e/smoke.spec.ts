@@ -4,7 +4,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
-import { goTo, toSecondDisplay } from './pages'
+import { LINKS } from '../../src/shared/links'
+import { goTo, mainWindow, toSecondDisplay } from './pages'
 
 let userData: string
 let app: ElectronApplication
@@ -37,6 +38,34 @@ test('opens the shell and creates the database in userData', async () => {
   for (const [name, file] of Object.entries(vendored)) {
     await expect(win.getByTestId(`bin-${name}`)).toHaveAttribute('data-exists', String(existsSync(file)))
   }
+})
+
+test('About shows the licences, credits and source links', async () => {
+  const win = await mainWindow(app)
+  await toSecondDisplay(app)
+  await app.evaluate(({ shell }) => {
+    const g = globalThis as unknown as { opened: string[] }
+    g.opened = []
+    shell.openExternal = (async (url: string) => void g.opened.push(url)) as typeof shell.openExternal
+  })
+  await goTo(win, 'Settings')
+  await expect(win.getByText('Cinewall is free software under the MIT licence.')).toBeVisible()
+  await expect(win.getByText('This product uses the TMDB API but is not endorsed or certified by TMDB.')).toBeVisible()
+  await expect.poll(() => win.getByTestId('tmdb-logo').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+
+  await win.getByRole('button', { name: 'Source on GitHub' }).click()
+  await win.getByRole('button', { name: 'mpv source' }).click()
+  await win.getByRole('button', { name: 'FFmpeg source' }).click()
+  await win.getByRole('button', { name: 'The Movie Database' }).click()
+  await expect
+    .poll(() => app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened))
+    .toEqual([LINKS.repo, LINKS.mpvSource, LINKS.ffmpegSource, LINKS.tmdb])
+
+  await win.getByRole('button', { name: 'Show third-party notices' }).click()
+  await expect(win.getByTestId('notices')).toContainText('mpv')
+  await expect(win.getByTestId('notices')).toContainText('GNU GENERAL PUBLIC LICENSE')
+  await win.getByRole('button', { name: 'Hide third-party notices' }).click()
+  await expect(win.getByTestId('notices')).toHaveCount(0)
 })
 
 test('the window is called Cinewall', async () => {

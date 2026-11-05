@@ -158,6 +158,32 @@ test('arrow keys on a card button leave the wall alone', async () => {
   await expect(win.getByTestId('wall-live')).toHaveText(live ?? '')
 })
 
+test('Check for updates says up to date when nothing is new', async () => {
+  await launch('off')
+  await goTo(win, 'Settings')
+  await win.getByRole('button', { name: 'Check for updates' }).click()
+  await expect(win.getByTestId('update-status')).toHaveText("You're up to date")
+})
+
+test('Check for updates says when the check fails', async () => {
+  await launch('fail-check')
+  await goTo(win, 'Settings')
+  await win.getByRole('button', { name: 'Check for updates' }).click()
+  await expect(win.getByTestId('update-status')).toContainText("Couldn't check for updates")
+})
+
+test('Check for updates offers a skipped version, on the card on Home', async () => {
+  await launch('available')
+  await check()
+  await win.getByTestId('update-skip').click()
+  await goTo(win, 'Settings')
+  await win.getByRole('button', { name: 'Check for updates' }).click()
+  await expect(win.getByTestId('update-status')).toHaveText('Cinewall 9.9.9 is available')
+  await expect(card()).toHaveCount(0)
+  await win.getByRole('button', { name: 'Show on Home' }).click()
+  await expect(card()).toContainText('9.9.9')
+})
+
 test('failed download offers retry', async () => {
   await launch('fail-download')
   await check()

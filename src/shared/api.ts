@@ -18,6 +18,7 @@ export type AppInfo = {
   userDataPath: string
   dbPath: string
   hour12: boolean | null // the clock set in Windows; null when it can't be read
+  packaged: boolean // an installed app, not a development run
   binaries: Record<BinaryName, { path: string; exists: boolean }>
 }
 
@@ -29,6 +30,8 @@ export type API = {
     finishSetup: (params: Record<string, never>) => Promise<void>
     // Opens one of the app's fixed links in the default browser.
     openLink: (params: { id: LinkId }) => Promise<void>
+    // The text of THIRD_PARTY_NOTICES.md, for Settings → About.
+    notices: (params: Record<string, never>) => Promise<string>
   }
   settings: {
     get: (params: { key: string }) => Promise<Json | null>
@@ -121,7 +124,7 @@ export type Domain = keyof API
 
 // Runtime list of methods. The mapped type makes leaving one out a compile error.
 export const apiMethods: { [D in Domain]: { [M in keyof API[D]]: true } } = {
-  app: { getInfo: true, setupState: true, finishSetup: true, openLink: true },
+  app: { getInfo: true, setupState: true, finishSetup: true, openLink: true, notices: true },
   settings: { get: true, set: true },
   library: { addFolder: true, removeFolder: true, listFolders: true, rescan: true, list: true, getShow: true, wall: true, getTitle: true, searchDocs: true },
   metadata: { setTmdbKey: true, status: true },

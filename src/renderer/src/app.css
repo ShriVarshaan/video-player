@@ -285,6 +285,43 @@ input {
   overflow-wrap: anywhere;
 }
 
+.tmdb-credit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tmdb-logo {
+  padding: 4px;
+  border: 0;
+  background: none;
+}
+
+.tmdb-logo img {
+  display: block;
+  height: 14px;
+}
+
+.about-heading {
+  margin: 20px 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.notices {
+  max-height: 50vh;
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .folders {
   list-style: none;
   padding: 0;

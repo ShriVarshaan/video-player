@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AppInfo, BinaryName } from '@shared/api'
+import type { AppInfo } from '@shared/api'
 import { catchAppError } from '@shared/appError'
 import type { LibraryFolder, MetadataStatus, ScanProgress } from '@shared/library'
+import type { UpdateState } from '@shared/updates'
+import { About } from './About'
 import { SubtitleSettings } from './SubtitleSettings'
 
 const PHASE_LABEL: Record<Exclude<ScanProgress['phase'], 'idle'>, string> = {
@@ -11,10 +13,8 @@ const PHASE_LABEL: Record<Exclude<ScanProgress['phase'], 'idle'>, string> = {
   images: 'Fetching images'
 }
 
-const BINARIES: BinaryName[] = ['mpv', 'ffmpeg', 'ffprobe']
-
-// Library folders, the TMDB key and app details. The full settings screen is milestone 9.
-export function Settings() {
+// Library folders, the TMDB key, subtitles and About.
+export function Settings({ update, onHome }: { update: UpdateState; onHome: () => void }) {
   const [folders, setFolders] = useState<LibraryFolder[]>([])
   const [status, setStatus] = useState<MetadataStatus | null>(null)
   const [progress, setProgress] = useState<ScanProgress | null>(null)
@@ -76,8 +76,6 @@ export function Settings() {
       report(e)
     }
   }
-
-  const missing = info ? BINARIES.filter((name) => !info.binaries[name].exists) : []
 
   return (
     <section className="page settings">
@@ -143,28 +141,13 @@ export function Settings() {
         <input id="tmdb-key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" />
         <button type="submit">Save key</button>
         {status?.hasKey && <span className="muted">TMDB key saved</span>}
-        <p className="muted small">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
       </form>
 
       <h2>Subtitles</h2>
       <SubtitleSettings onError={report} />
 
       <h2>About</h2>
-      {info && (
-        <dl>
-          <dt>Version</dt>
-          <dd data-testid="version">{info.version}</dd>
-          <dt>Library database</dt>
-          <dd data-testid="db-path">{info.dbPath}</dd>
-          {BINARIES.map((name) => (
-            <div key={name} className="row" data-testid={`bin-${name}`} data-exists={String(info.binaries[name].exists)}>
-              <dt>{name}</dt>
-              <dd>{info.binaries[name].exists ? 'found' : 'missing'}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {missing.length > 0 && <p className="muted">Run npm run fetch-vendor to download mpv and ffmpeg.</p>}
+      <About info={info} update={update} onHome={onHome} onError={report} />
     </section>
   )
 }

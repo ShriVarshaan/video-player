@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { version } from '../../package.json'
@@ -109,9 +110,11 @@ function start(): void {
       version: appVersion,
       userDataPath,
       dbPath,
+      packaged: app.isPackaged,
       resolve: (name) => binaryPath(name, binaryBase),
       exists: existsSync,
-      hour12: systemHour12
+      hour12: systemHour12,
+      readNotices: () => readFile(join(binaryBase, 'THIRD_PARTY_NOTICES.md'), 'utf8')
     }),
     ...createFirstRun({
       settings,

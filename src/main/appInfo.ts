@@ -6,10 +6,12 @@ export function createAppInfo(deps: {
   version: string
   userDataPath: string
   dbPath: string
+  packaged: boolean
   resolve: (name: BinaryName) => string
   exists: (path: string) => boolean
   hour12: () => boolean | null
-}): Pick<API['app'], 'getInfo'> {
+  readNotices: () => Promise<string>
+}): Pick<API['app'], 'getInfo' | 'notices'> {
   return {
     getInfo: async () => {
       const binaries = Object.fromEntries(
@@ -23,8 +25,10 @@ export function createAppInfo(deps: {
         userDataPath: deps.userDataPath,
         dbPath: deps.dbPath,
         hour12: deps.hour12(),
+        packaged: deps.packaged,
         binaries
       }
-    }
+    },
+    notices: async () => deps.readNotices()
   }
 }

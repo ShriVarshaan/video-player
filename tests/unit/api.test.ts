@@ -10,7 +10,7 @@ describe('channelFor', () => {
 describe('apiMethods', () => {
   it('lists every method of each domain', () => {
     expect(Object.keys(apiMethods.settings)).toEqual(['get', 'set'])
-    expect(Object.keys(apiMethods.app)).toEqual(['getInfo', 'setupState', 'finishSetup', 'openLink'])
+    expect(Object.keys(apiMethods.app)).toEqual(['getInfo', 'setupState', 'finishSetup', 'openLink', 'notices'])
     expect(Object.keys(apiMethods.library)).toEqual(['addFolder', 'removeFolder', 'listFolders', 'rescan', 'list', 'getShow', 'wall', 'getTitle', 'searchDocs'])
     expect(Object.keys(apiMethods.metadata)).toEqual(['setTmdbKey', 'status'])
     expect(Object.keys(apiMethods.updates)).toEqual(['state', 'check', 'install', 'later', 'skip', 'restart'])

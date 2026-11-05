@@ -112,7 +112,7 @@ export function App() {
           />
         )}
         {onTitle && <TitlePage titleKey={titleKey} active={!menuOpen && !playing} onBack={back} />}
-        {page === 'settings' && <Settings />}
+        {page === 'settings' && <Settings update={update} onHome={() => navigate('home')} />}
         {onWall && <TmdbReminder onSettings={() => navigate('settings')} />}
         {onWall && <UpdateCard state={update} />}
       </div>
