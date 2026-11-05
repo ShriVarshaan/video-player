@@ -171,6 +171,20 @@ function OpenSubtitlesStep({ onNext }: { onNext: () => void }) {
     }
   }
 
+  // What's in the fields now, which may have changed since the check that couldn't reach the service.
+  async function saveUnchecked() {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await window.api.subtitles.setAccount(form)
+      onNext()
+    } catch (e) {
+      catchAppError(e, { DEFAULT: ({ message: m }) => setMessage(m) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // A login that was never accepted isn't kept when they move on without it.
   async function skip() {
     if (unreachable) await window.api.subtitles.clearAccount({}).catch(() => {})
@@ -216,7 +230,7 @@ function OpenSubtitlesStep({ onNext }: { onNext: () => void }) {
             {saved && !typed ? 'Continue' : busy ? 'Checking…' : 'Check and continue'}
           </button>
           {unreachable && (
-            <button type="button" data-testid="setup-unchecked" onClick={onNext}>
+            <button type="button" data-testid="setup-unchecked" disabled={busy} onClick={() => void saveUnchecked()}>
               Save without checking
             </button>
           )}

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -17,8 +17,16 @@ describe('third-party notices', () => {
     expect(text).toContain(LINKS.mpvSource)
     expect(text).toContain(LINKS.ffmpegSource)
     for (const { version } of manifest.packages) expect(text).toContain(version)
-    expect(text).toContain('GNU GENERAL PUBLIC LICENSE')
-    expect(text).toContain('GNU LESSER GENERAL PUBLIC LICENSE')
+    expect(text).toContain('GNU GENERAL PUBLIC LICENSE\n                       Version 2')
+    expect(text).toContain('GNU GENERAL PUBLIC LICENSE\n                       Version 3')
+    expect(text).toContain('GNU LESSER GENERAL PUBLIC LICENSE\n                       Version 3')
+  })
+
+  it('states the licence the shipped FFmpeg says it is under', () => {
+    const avutil = readdirSync('vendor/ffmpeg').find((f) => /^avutil-.*\.dll$/.test(f))!
+    expect(readFileSync(join('vendor/ffmpeg', avutil)).includes('LGPL version 3 or later')).toBe(true)
+    expect(text).toContain('Licence: LGPL-3.0-or-later')
+    expect(text).not.toContain('Licence: LGPL-2.1')
   })
 
   it('covers every npm package that ships, and Electron', () => {

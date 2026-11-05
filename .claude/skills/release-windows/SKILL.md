@@ -31,6 +31,7 @@ Don't use `app.getAppPath()` in development: it's `out/main` when Electron is la
 - `koffi` is unpacked from the asar (`asarUnpack`), since a native `.node` can't load from inside it. The app has no other native modules; SQLite is the built-in `node:sqlite`.
 - `extraResources`: `vendor/` (minus the manifest), `sidecar/dist/vp-sync` → `sidecar/vp-sync`, `THIRD_PARTY_NOTICES.md`.
 - `build/installer.nsh`: the uninstaller asks whether to delete `%APPDATA%\video-player`, default No. It **must not** ask or delete on an update: `isUpdated` and `/SD IDNO` cover that. electron-builder's own delete option wouldn't find the folder.
+- `customInstallMode` in `installer.nsh` removes the wizard's "all users" page. `scripts/check-installer-pages.ps1 <installer>` opens the wizard, reads its first page and closes it, installing nothing.
 - **No file associations**: double-click opening was left out of milestone 10 by the user.
 - `npm run package` builds the installer into `release/`; `npm run test:packaged` then tests `release/win-unpacked` from a folder with accents and spaces, and proves dev switches are ignored.
 
@@ -53,8 +54,8 @@ Unsigned, on purpose: SmartScreen shows "Windows protected your PC", and `docs/I
 
 | Component | License | Obligation |
 |---|---|---|
-| mpv (shinchiro build) | GPL-2.0+ | Ship the license text and link to the exact source and build scripts. It runs as a separate executable over IPC. |
-| FFmpeg (LGPL shared) | LGPL-2.1+ | Ship the license, link to the source, keep the DLLs replaceable (shared build). |
+| mpv (shinchiro build) | GPL-2.0+, and GPL-3.0+ as built (its FFmpeg has `--enable-gpl --enable-version3`) | Ship the license texts and link to the exact source and build scripts. It runs as a separate executable over IPC. |
+| FFmpeg (BtbN "lgpl" shared) | LGPL-3.0+ (`--enable-version3`; the DLLs say so) | Ship the LGPL and GPL texts, link to the source, keep the DLLs replaceable (shared build). |
 | Electron, React, Fuse.js etc. | MIT and others | Include the license texts. |
 | Auto sync sidecar | MIT, BSD, Apache-2.0, MPL, PSF | Include each license text. No GPL code: auditok is excluded. |
 | TMDB | API terms | Show *"This product uses the TMDB API but is not endorsed or certified by TMDB."* with the TMDB logo in About. |

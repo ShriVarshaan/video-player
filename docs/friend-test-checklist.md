@@ -7,7 +7,7 @@ Tick each box as you go. **If anything goes wrong, write down the box it was and
 ## Install
 
 - [ ] Open `Cinewall-Setup-1.0.0.exe`. If Windows says "Windows protected your PC", that's expected: choose **More info**, then **Run anyway**.
-- [ ] The installer lets you choose a folder, and finishes without asking for an admin password.
+- [ ] The installer lets you choose a folder, never asks who to install it for, and finishes without asking for an admin password.
 - [ ] Cinewall opens. It has a small logo, not the default Electron one, in the taskbar.
 
 ## First-time setup

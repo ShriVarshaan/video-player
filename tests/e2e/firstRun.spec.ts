@@ -119,6 +119,18 @@ test('a login that could not be checked is not kept on skip', async () => {
   expect((await win.evaluate(() => window.api.subtitles.accountStatus({}))).configured).toBe(false)
 })
 
+test('Save without checking saves what is in the fields now', async () => {
+  await launch()
+  await skip().click()
+  await fillLogin('offline')
+  await check().click()
+  await expect(win.getByTestId('setup-unchecked')).toBeVisible()
+  await win.getByLabel('Username').fill('corrected')
+  await win.getByTestId('setup-unchecked').click()
+  await expect(step()).toHaveAttribute('data-step', 'folder')
+  expect((await win.evaluate(() => window.api.subtitles.accountStatus({}))).username).toBe('corrected')
+})
+
 test('a corrected login moves on', async () => {
   await launch()
   await skip().click()
