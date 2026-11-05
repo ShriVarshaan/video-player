@@ -66,7 +66,8 @@ async function release() {
   const notesFile = join('release', 'release-notes.md')
   writeFileSync(notesFile, notesFor(changelog, version))
   console.log(`\n== Upload a draft of ${version}`)
-  const upload = spawnSync(`npx electron-builder --win --publish always -c.publish.releaseType=draft "-c.releaseInfo.releaseNotesFile=${notesFile}"`, {
+  // electron-builder.yml sets releaseType: draft, so this can't publish.
+  const upload = spawnSync(`npx electron-builder --win --publish always "--config.releaseInfo.releaseNotesFile=${notesFile}"`, {
     shell: true,
     stdio: 'inherit',
     env: process.env
