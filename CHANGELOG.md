@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+- Press C while watching to change the aspect ratio, going through the same ratios as VLC. Press Shift+C to go straight back to the film's own ratio.
+- The ratio in use shows at the top right, and subtitles move with the picture.
+
 ## 1.0.0
 
 The first release of Cinewall, a player for the movies and shows on your own PC.
