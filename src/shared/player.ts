@@ -1,4 +1,5 @@
 // Player shapes shared by main and the overlay.
+import type { AspectRatio, PictureInsets } from './aspect'
 
 export type TrackKind = 'plain' | 'forced' | 'sdh' | 'commentary'
 
@@ -41,6 +42,9 @@ export type PlayerState = {
   audioId: number | null
   subtitleId: number | null
   fullScreen: boolean
+  aspect: AspectRatio | null // null: the file's own ratio
+  aspectNative: number | null // the file's own width / height, once known
+  picture: PictureInsets | null // where a forced ratio put the picture; null at the file's own ratio
 }
 
 export type NextEpisode = { videoId: number; season: number; episode: number; title: string | null; stillUrl: string }
@@ -54,6 +58,8 @@ export type PlayerCommand =
   | { type: 'audio'; id: number }
   | { type: 'subtitle'; id: number | null }
   | { type: 'fullScreen'; on: boolean }
+  | { type: 'cycleAspect' }
+  | { type: 'resetAspect' }
 
 // The subtitle line on screen now, as the overlay draws it.
 export type CueSpan = { text: string; italic: boolean; bold: boolean }

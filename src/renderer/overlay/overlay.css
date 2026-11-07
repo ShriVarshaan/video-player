@@ -697,6 +697,28 @@ button.text {
   transition-duration: 400ms;
 }
 
+.aspect-label {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  font-optical-sizing: auto;
+  letter-spacing: -0.005em;
+  color: #fff;
+  text-shadow: 0 0.05em 0.18em rgba(0, 0, 0, 0.75), 0 0 0.06em rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 160ms var(--ease-out);
+}
+
+.aspect-label[data-shown='false'] {
+  opacity: 0;
+  transition-duration: 400ms;
+}
+
 .confirm-card {
   position: absolute;
   top: 50%;
@@ -740,7 +762,8 @@ button.text {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timing-note {
+  .timing-note,
+  .aspect-label {
     transition: none;
   }
 }

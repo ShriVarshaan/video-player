@@ -112,6 +112,13 @@ new BrowserWindow({ parent: mainWin, transparent: true, frame: false, hasShadow:
 - Esc closes an open panel, otherwise leaves full screen, otherwise does nothing; only ✕ closes the player. A click on the video (or the dark strips behind the controls) toggles pause and a double-click toggles full screen: the first click pauses at once and the second undoes it. Pause toggles track what was last sent, since the two clicks land before mpv reports the first.
 - Hide the cursor after 2.5 s without movement during playback using CSS `cursor: none` on the overlay.
 
+## Aspect ratio (`C` / `Shift+C`)
+
+`shared/aspect.ts` has VLC's list and order. `C` cycles, `Shift+C` returns to the file's own ratio (VLC has no such key; its `A` is aspect and `C` is crop, but `A` is auto sync here). Spiked on the vendor mpv:
+- `set_property video-aspect-override <ratio>`; **reset with `no`** (back to mpv's default, -2). `0` means square pixels and distorts anamorphic files.
+- The override **survives `loadfile`**, so `play` resets it before opening a file; a crash restore sets it again.
+- `osd-dimensions` (`ml`/`mr`/`mt`/`mb`) is the picture's box, also after a resize. `video-params/aspect` reports the forced ratio while one is set, so the file's own is only read at Default. `video-params/aspect-name` gives names like "Panavision": don't show it.
+
 ## Lifecycle and errors
 
 - One mpv process per play session. When playback closes (or the app window closes), send `quit`, then kill the process if it hasn't exited within 1 s.

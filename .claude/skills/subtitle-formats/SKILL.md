@@ -96,6 +96,7 @@ Positive `offset` means subtitles appear **later**. **mpv applies it**: `PlayerS
 
 ## Apple TV-style renderer (`src/renderer/overlay/SubtitleView.tsx`, as built)
 Cues are drawn as HTML in the overlay window, measured against the **window** (the user's choice: 0 is the bottom of the screen, so wide films put subtitles in the black bar). The maths is pure and unit-tested in `subtitleLayout.ts`:
+- **Forced aspect ratio:** while `C` has forced a ratio, size, width and position are measured against the picture instead of the window (`subtitleArea`, from `PlayerState.picture`). At the file's own ratio it stays the window. Picture-based subtitles are drawn by mpv and follow by themselves.
 - **Size:** `max(18px, 4.5 % of the height) × size%`. Weight 600, line height 1.22, tracking −0.005em, `font-optical-sizing: auto`, `text-wrap: balance`, centred, 80 % max width.
 - **Position:** margin `m = 4 %` of the height; bottom of the block = `m + position/100 × (H − 2m − blockH)`. `top` cues sit at the top margin. While the controls show, a block below the seek bar lifts to 8 px above it (250 ms spring); top cues and high positions never move.
 - **Fonts** (all ship with Windows 11): Default = Segoe UI Variable Display, Arial, Georgia, Courier New, Consolas, Trebuchet MS, Casual = Comic Sans MS, Cursive = Segoe Script, Small Capitals = default + `small-caps`.

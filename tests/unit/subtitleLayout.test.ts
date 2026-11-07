@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_STYLE, PRESETS } from '@shared/subtitleStyle'
-import { styleToCss, subtitleBottom } from '../../src/renderer/overlay/subtitleLayout'
+import { aspectLabelFont, styleToCss, subtitleArea, subtitleBottom } from '../../src/renderer/overlay/subtitleLayout'
+
+describe('subtitleArea', () => {
+  it('is the whole window at the file’s own ratio', () => {
+    expect(subtitleArea(null, 1000)).toEqual({ h: 1000, bottom: 0, left: '10%', right: '10%' })
+  })
+
+  it('follows a letterboxed picture', () => {
+    expect(subtitleArea({ left: 0, right: 0, top: 0.1, bottom: 0.2 }, 1000)).toEqual({ h: 700, bottom: 200, left: '10%', right: '10%' })
+  })
+
+  it('keeps the text 10 % inside a pillarboxed picture', () => {
+    const a = subtitleArea({ left: 0.25, right: 0.25, top: 0, bottom: 0 }, 1000)
+    expect(a).toEqual({ h: 1000, bottom: 0, left: '30%', right: '30%' })
+  })
+})
+
+describe('aspectLabelFont', () => {
+  it('uses the subtitle font while subtitles are on', () => {
+    expect(aspectLabelFont({ ...DEFAULT_STYLE, font: 'georgia' }, true)).toEqual({ fontFamily: 'Georgia, serif', fontVariant: 'normal' })
+    expect(aspectLabelFont({ ...DEFAULT_STYLE, font: 'smallCaps' }, true).fontVariant).toBe('small-caps')
+  })
+
+  it('uses the default subtitle font while they are off', () => {
+    expect(aspectLabelFont({ ...DEFAULT_STYLE, font: 'georgia' }, false)).toEqual(aspectLabelFont(DEFAULT_STYLE, true))
+  })
+})
 
 describe('subtitleBottom', () => {
   const at = (position: number, extra: Partial<Parameters<typeof subtitleBottom>[0]> = {}) =>
@@ -20,6 +46,19 @@ describe('subtitleBottom', () => {
     expect(at(0, { controlsTop: 880 })).toBe(128)
     expect(at(50, { controlsTop: 880 })).toBe(450)
     expect(at(0, { controlsTop: 880, top: true })).toBe(860)
+  })
+
+  it('measures inside the picture when given one', () => {
+    const area = { h: 500, bottom: 250 }
+    expect(at(0, { area })).toBe(270) // 250 up to the picture, then its 4 % margin
+    expect(at(100, { area })).toBe(630) // block top on the picture's top margin
+    expect(at(0, { area, top: true })).toBe(630)
+  })
+
+  it('still clears the controls, which are measured from the window', () => {
+    const area = { h: 500, bottom: 50 }
+    expect(at(0, { area, controlsTop: 880 })).toBe(128)
+    expect(at(0, { area: { h: 500, bottom: 250 }, controlsTop: 880 })).toBe(270)
   })
 })
 

@@ -1,18 +1,37 @@
 import type { CSSProperties } from 'react'
+import type { PictureInsets } from '@shared/aspect'
 import type { FontId, SubtitleStyle } from '@shared/subtitleStyle'
 
 // Pure layout and style maths for SubtitleView, unit-tested in Node.
 
-const MARGIN = 0.04 // of the window height, at the bottom and the top
+const MARGIN = 0.04 // of the area's height, at the bottom and the top
 const GAP = 8 // px between a lifted line and the control bar
+const SIDE = 0.1 // of the area's width, kept clear on each side
+
+// What subtitles are laid out in: the window at the file's own ratio (0 is the bottom of
+// the screen, so wide films put them in the black bar), the picture at a forced ratio.
+export function subtitleArea(picture: PictureInsets | null, windowH: number): { h: number; bottom: number; left: string; right: string } {
+  const { left, right, top, bottom } = picture ?? { left: 0, right: 0, top: 0, bottom: 0 }
+  const width = 1 - left - right
+  const percent = (share: number) => `${Math.round((share + SIDE * width) * 1e5) / 1e3}%`
+  return { h: windowH * (1 - top - bottom), bottom: windowH * bottom, left: percent(left), right: percent(right) }
+}
 
 // Pixels from the window's bottom edge to the bottom of the subtitle block.
-// position 0 sits on the bottom margin, 100 puts the block's top on the top margin.
-export function subtitleBottom(p: { position: number; windowH: number; blockH: number; controlsTop: number | null; top: boolean }): number {
-  const m = MARGIN * p.windowH
-  const highest = p.windowH - m - p.blockH
+// position 0 sits on the area's bottom margin, 100 puts the block's top on its top margin.
+export function subtitleBottom(p: {
+  position: number
+  windowH: number
+  blockH: number
+  controlsTop: number | null
+  top: boolean
+  area?: { h: number; bottom: number }
+}): number {
+  const { h, bottom } = p.area ?? { h: p.windowH, bottom: 0 }
+  const m = MARGIN * h
+  const highest = bottom + h - m - p.blockH
   if (p.top) return highest
-  const base = m + (p.position / 100) * (p.windowH - 2 * m - p.blockH)
+  const base = bottom + m + (p.position / 100) * (h - 2 * m - p.blockH)
   if (p.controlsTop !== null) {
     const clear = p.windowH - p.controlsTop + GAP
     if (base < clear) return clear
@@ -30,6 +49,12 @@ const FAMILIES: Record<FontId, string> = {
   casual: '"Comic Sans MS", cursive',
   cursive: '"Segoe Script", cursive',
   smallCaps: '"Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'
+}
+
+// The aspect ratio label: the subtitle font, or the default one while subtitles are off.
+export function aspectLabelFont(s: SubtitleStyle, subtitlesOn: boolean): { fontFamily: string; fontVariant: string } {
+  const font = subtitlesOn ? s.font : 'default'
+  return { fontFamily: FAMILIES[font], fontVariant: font === 'smallCaps' ? 'small-caps' : 'normal' }
 }
 
 export function rgba(hex: string, opacity: number): string {

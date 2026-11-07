@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { PictureInsets } from '@shared/aspect'
 import type { Cue } from '@shared/player'
 import type { SubtitleStyle } from '@shared/subtitleStyle'
-import { styleToCss, subtitleBottom } from './subtitleLayout'
+import { styleToCss, subtitleArea, subtitleBottom } from './subtitleLayout'
 import './subtitles.css'
 
 const FADE_OUT_MS = 160
@@ -19,18 +20,21 @@ function useWindowHeight(): number {
 // The subtitle line, Apple TV style: drawn as text over the video, in the user's
 // style, at their height, lifted above the controls while they show.
 // height: the box it is drawn in, when that isn't the window (the Settings preview).
+// picture: where a forced aspect ratio put the picture; subtitles then stay on it.
 export function SubtitleView({
   cue,
   style,
   controlsTop,
   sample,
-  height
+  height,
+  picture = null
 }: {
   cue: Cue | null
   style: SubtitleStyle
   controlsTop: number | null
   sample?: string | null
   height?: number
+  picture?: PictureInsets | null
 }) {
   const windowHeight = useWindowHeight()
   const windowH = height ?? windowHeight
@@ -57,7 +61,8 @@ export function SubtitleView({
     return () => ro.disconnect()
   }, [])
 
-  const bottom = subtitleBottom({ position: style.position, windowH, blockH, controlsTop, top: drawn?.top ?? false })
+  const area = subtitleArea(picture, windowH)
+  const bottom = subtitleBottom({ position: style.position, windowH, blockH, controlsTop, top: drawn?.top ?? false, area })
 
   return (
     <div
@@ -67,7 +72,7 @@ export function SubtitleView({
       data-shown={showing !== null}
       data-position={Math.round(bottom)}
       aria-live="off"
-      style={{ ...styleToCss(style, windowH), transform: `translateY(${-bottom}px)` }}
+      style={{ ...styleToCss(style, area.h), left: area.left, right: area.right, transform: `translateY(${-bottom}px)` }}
     >
       {drawn && (
         <div className="subs-window">

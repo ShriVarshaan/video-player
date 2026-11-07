@@ -1,6 +1,7 @@
 import { basename, join } from 'node:path'
 import type { API, ApiEvents } from '@shared/api'
 import { throwAppError } from '@shared/appError'
+import { nextAspect, pictureInsets, type AspectRatio, type PictureInsets } from '@shared/aspect'
 import type { TitleDetail } from '@shared/library'
 import type { Cue, PlayerCommand, PlayerState, Track, TrackRef } from '@shared/player'
 import type { Db } from '../db'
@@ -64,6 +65,8 @@ const SAVE_EVERY_MS = 10_000
 const STATE_EVERY_MS = 33 // about 30 updates a second to the overlay
 const LIMITER = '@limiter:lavfi=[alimiter=limit=0.97]'
 const CANT_PLAY = "Can't play this file"
+// mpv's own default. Not 0: that means square pixels, which distorts some files.
+const ASPECT_ORIGINAL = 'no'
 
 type Current = {
   title: TitleDetail
@@ -128,7 +131,10 @@ export function createPlayerService(deps: {
     aid: null as number | null,
     sid: null as number | null,
     // Subtitle files added to this file, with the path mpv was given.
-    externals: [] as LoadedSub[]
+    externals: [] as LoadedSub[],
+    aspect: null as AspectRatio | null,
+    aspectNative: null as number | null,
+    picture: null as PictureInsets | null
   }
   let lastCue = 'null'
   // Cues the app has read for the current file, by subtitle key; aborted when the file changes.
@@ -206,8 +212,17 @@ export function createPlayerService(deps: {
       subtitles: st.tracks.filter((t) => t.type === 'sub'),
       audioId: st.aid,
       subtitleId: st.sid,
-      fullScreen: deps.window.isFullScreen()
+      fullScreen: deps.window.isFullScreen(),
+      aspect: st.aspect,
+      aspectNative: st.aspectNative,
+      picture: st.aspect ? st.picture : null
     }
+  }
+
+  async function setAspect(ratio: AspectRatio | null) {
+    st.aspect = ratio
+    await cmd('set_property', 'video-aspect-override', ratio ?? ASPECT_ORIGINAL)
+    emitState(true)
   }
 
   function emitState(force = false) {
@@ -285,6 +300,7 @@ export function createPlayerService(deps: {
     const audio = st.tracks.filter((t) => t.type === 'audio')
     const subs = st.tracks.filter((t) => t.type === 'sub')
     if (restore) {
+      if (st.aspect) await cmd('set_property', 'video-aspect-override', st.aspect)
       if (restore.aid !== null) await cmd('set_property', 'aid', restore.aid)
       await selectSubtitle(restore.sub === 'off' ? null : (preferSynced(subs, pickTrack(subs, restore.sub))?.id ?? null))
     } else {
@@ -348,6 +364,18 @@ export function createPlayerService(deps: {
     void c.observe('mute', (v) => (st.muted = v === true))
     void c.observe('aid', (v) => (st.aid = num(v)))
     void c.observe('sid', (v) => (st.sid = num(v)))
+    // Changes with the ratio and with the window. Sent straight away: subtitles follow it, paused too.
+    void c.observe('osd-dimensions', (v) => {
+      st.picture = pictureInsets(v)
+      emitState(true)
+    })
+    // While a ratio is forced this reports that ratio, not the file's.
+    void c.observe('video-params/aspect', (v) => {
+      const ratio = num(v)
+      if (st.aspect || ratio === null) return
+      st.aspectNative = ratio
+      emitState(true)
+    })
     void c.observe('sub-text/ass', (v) => {
       // Lines from a file that is no longer (or not yet) the current one are dropped.
       if (cur?.picked) emitCue(toCue(v))
@@ -444,7 +472,7 @@ export function createPlayerService(deps: {
     crashes = 0
     restore = null
     lastSave = deps.now()
-    Object.assign(st, { paused: false, positionS: mine.startAt, durationS: null, tracks: [], aid: null, sid: null, externals: [] })
+    Object.assign(st, { paused: false, positionS: mine.startAt, durationS: null, tracks: [], aid: null, sid: null, externals: [], aspect: null, aspectNative: null })
     st.volume = getPrefs(db, title.key).volume
     emitCue(null)
     notifyStyle()
@@ -453,6 +481,8 @@ export function createPlayerService(deps: {
     // Stopped, or replaced by a newer play, while mpv was starting.
     if (cur !== mine) return quitIfIdle()
     deps.overlay.show()
+    // A forced ratio would otherwise carry over to the next episode: mpv keeps it across files.
+    await cmd('set_property', 'video-aspect-override', ASPECT_ORIGINAL)
     await p2.client.command('loadfile', row.path, 'replace')
     // --keep-open leaves mpv paused at the end of the last file.
     await cmd('set_property', 'pause', false)
@@ -524,6 +554,10 @@ export function createPlayerService(deps: {
       case 'fullScreen':
         deps.window.setFullScreen(c.on)
         return emitState(true)
+      case 'cycleAspect':
+        return setAspect(nextAspect(st.aspect))
+      case 'resetAspect':
+        return setAspect(null)
     }
   }
 

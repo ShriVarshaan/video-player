@@ -293,6 +293,81 @@ describe('commands', () => {
   })
 })
 
+describe('aspect ratio', () => {
+  const last = () => emitted('player.state').at(-1) as { aspect: string | null; aspectNative: number | null; picture: unknown }
+  const overrides = () => sent('set_property').filter((c) => c[1] === 'video-aspect-override').map((c) => c[2])
+
+  beforeEach(async () => {
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    mpv().commands.length = 0
+  })
+
+  it('cycles in order and comes back to the file’s own ratio with no, not 0 (square pixels)', async () => {
+    for (let i = 0; i < 9; i++) await player.command({ type: 'cycleAspect' })
+    expect(overrides()).toEqual(['16:9', '4:3', '1:1', '16:10', '2.21:1', '2.35:1', '2.39:1', '5:4', 'no'])
+    expect(last().aspect).toBeNull()
+  })
+
+  it('tells the overlay at once, so a paused film still updates', async () => {
+    await player.command({ type: 'cycleAspect' })
+    expect(last().aspect).toBe('16:9')
+  })
+
+  it('goes straight back to the original from anywhere in the cycle', async () => {
+    await player.command({ type: 'cycleAspect' })
+    await player.command({ type: 'cycleAspect' })
+    await player.command({ type: 'resetAspect' })
+    expect(overrides().at(-1)).toBe('no')
+    expect(last().aspect).toBeNull()
+    await player.command({ type: 'cycleAspect' })
+    expect(overrides().at(-1)).toBe('16:9')
+  })
+
+  it('gives the overlay the picture’s box only while a ratio is forced', async () => {
+    mpv().set('osd-dimensions', { w: 1000, h: 1000, ml: 250, mr: 250, mt: 0, mb: 0 })
+    await player.command({ type: 'cycleAspect' })
+    expect(last().picture).toEqual({ left: 0.25, right: 0.25, top: 0, bottom: 0 })
+    await player.command({ type: 'resetAspect' })
+    expect(last().picture).toBeNull()
+  })
+
+  it('sends a new picture box as soon as mpv reports one, even when paused', async () => {
+    await player.command({ type: 'cycleAspect' })
+    mpv().set('pause', true)
+    mpv().set('osd-dimensions', { w: 1000, h: 1000, ml: 100, mr: 100, mt: 0, mb: 0 })
+    expect(last().picture).toEqual({ left: 0.1, right: 0.1, top: 0, bottom: 0 })
+  })
+
+  it('remembers the file’s own ratio, ignoring what a forced ratio reports', async () => {
+    mpv().set('video-params/aspect', 2.39)
+    await player.command({ type: 'cycleAspect' })
+    mpv().set('video-params/aspect', 16 / 9)
+    await player.command({ type: 'resetAspect' })
+    expect(last().aspectNative).toBe(2.39)
+  })
+
+  it('goes back to the original for the next file, before mpv opens it', async () => {
+    await player.command({ type: 'cycleAspect' })
+    mpv().commands.length = 0
+    await player.play({ key: 'tmdb:1396', videoId: 5 })
+    const names = mpv().commands.map((c) => (c[0] === 'set_property' ? c[1] : c[0]))
+    expect(names.indexOf('video-aspect-override')).toBeLessThan(names.indexOf('loadfile'))
+    expect(overrides()).toEqual(['no'])
+    expect(last().aspect).toBeNull()
+    expect(last().aspectNative).toBeNull()
+  })
+
+  it('puts a forced ratio back after mpv crashes', async () => {
+    await player.command({ type: 'cycleAspect' })
+    mpv().crash()
+    await flush()
+    await loaded()
+    expect(overrides()).toEqual(['16:9'])
+    expect(last().aspect).toBe('16:9')
+  })
+})
+
 describe('resume saving', () => {
   beforeEach(async () => {
     await player.play({ key: 'movie:2', from: 'start' })

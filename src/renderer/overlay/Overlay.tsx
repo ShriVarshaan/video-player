@@ -5,6 +5,7 @@ import { describeOutcome, type AutoSyncOutcome, type AutoSyncProgress } from '@s
 import { DEFAULT_STYLE, type SubtitleStyle } from '@shared/subtitleStyle'
 import { NUDGE_BIG_S, NUDGE_S, formatOffset } from '@shared/subtitleTiming'
 import { formatTime } from '@shared/time'
+import { AspectLabel } from './AspectLabel'
 import { AutoSyncCard } from './AutoSyncCard'
 import { ConfirmCard } from './ConfirmCard'
 import { ControlBar, type Menu, type SubtitleAction } from './ControlBar'
@@ -33,6 +34,7 @@ export function Overlay() {
   const [cue, setCue] = useState<Cue | null>(null)
   const [subStyle, setSubStyle] = useState<SubtitleStyle>(DEFAULT_STYLE)
   const [controlsTop, setControlsTop] = useState<number | null>(null)
+  const [aspectPresses, setAspectPresses] = useState(0)
   // Subtitle timing (milestone 6): the showing subtitle's fix, the sync card, the note, the replace prompt.
   const [offset, setOffset] = useState<number | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -110,6 +112,7 @@ export function Overlay() {
         setOffsetOpen(false)
         setConfirm(null)
         setNote(null)
+        setAspectPresses(0)
       })
     ]
     return () => offs.forEach((off) => off())
@@ -336,6 +339,13 @@ export function Overlay() {
           if (s.subtitleId === null || e.repeat) return
           startAutoSync()
           break
+        // Aspect ratio: C next, Shift+C straight back to the file's own. (VLC has no key for that.)
+        case 'c':
+        case 'C':
+          if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return
+          send({ type: e.shiftKey ? 'resetAspect' : 'cycleAspect' })
+          setAspectPresses((n) => n + 1)
+          break
         default:
           return
       }
@@ -370,7 +380,13 @@ export function Overlay() {
       }}
     >
       {state && (
-        <SubtitleView cue={cue} style={subStyle} controlsTop={controlsTop} sample={menu === 'style' ? 'The quick brown fox jumps over the lazy dog.' : null} />
+        <SubtitleView
+          cue={cue}
+          style={subStyle}
+          controlsTop={controlsTop}
+          picture={state.picture}
+          sample={menu === 'style' ? 'The quick brown fox jumps over the lazy dog.' : null}
+        />
       )}
       <div className="controls" data-testid="controls" data-hidden={hidden}>
         <div className="player-top">
@@ -395,6 +411,16 @@ export function Overlay() {
           />
         )}
       </div>
+      {state && (
+        <AspectLabel
+          aspect={state.aspect}
+          native={state.aspectNative}
+          style={subStyle}
+          subtitlesOn={state.subtitleId !== null}
+          controlsShown={!hidden}
+          pressed={aspectPresses}
+        />
+      )}
       {state && menu === 'style' && <StylePanel titleKey={state.titleKey} style={subStyle} onClose={() => setMenu(null)} />}
       {state && menu === 'search' && <SearchPanel key={state.videoId} onClose={() => setMenu(null)} />}
       {error && (
