@@ -10,6 +10,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { closeApp, goTo, keyOf, mainWindow, overlayPage, overlayVisible, position, toSecondDisplay } from '../e2e/pages'
 
 const UNPACKED = resolve('release', 'win-unpacked')
+const VERSION = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version
 let root: string
 let installed: string
 let userData: string
@@ -65,7 +66,7 @@ test.afterEach(async () => {
 test('the installed app stands alone', async () => {
   await expect(win).toHaveTitle('Cinewall')
   const info = await win.evaluate(() => window.api.app.getInfo({}))
-  expect(info.version).toBe('1.0.0')
+  expect(info.version).toBe(VERSION)
   expect(typeof info.hour12).toBe('boolean') // koffi loaded from outside the asar
   expect(Object.values(info.binaries).every((b) => b.exists)).toBe(true)
   // Fixture mode would accept this key; a shipped build asks TMDB, which doesn't.
@@ -102,7 +103,7 @@ test('About is written for people using the app, and has its notices', async () 
   }, library)
   await win.getByTestId('setup-check').click()
   await goTo(win, 'Settings')
-  await expect(win.getByTestId('version')).toHaveText('1.0.0')
+  await expect(win.getByTestId('version')).toHaveText(VERSION)
   await expect(win.getByTestId('db-path')).toHaveCount(0)
   await expect(win.getByTestId('bin-mpv')).toHaveCount(0)
   await expect(win.getByTestId('binaries-missing')).toHaveCount(0)
