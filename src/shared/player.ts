@@ -61,6 +61,9 @@ export type PlayerCommand =
   | { type: 'cycleAspect' }
   | { type: 'resetAspect' }
 
+// Picture in picture: the edge or corner being dragged to resize the floating window.
+export type PipEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+
 // The subtitle line on screen now, as the overlay draws it.
 export type CueSpan = { text: string; italic: boolean; bold: boolean }
 export type Cue = { lines: CueSpan[][]; top: boolean }
