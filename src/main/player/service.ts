@@ -503,8 +503,8 @@ export function createPlayerService(deps: {
       const p = proc
       proc = null
       if (p) await p.quit().catch(() => {})
-      // The title page comes back at full size.
-      if (deps.pip.isOn()) await deps.pip.exit()
+      // The title page comes back at full size (after an enter still under way, if any).
+      await deps.pip.exit()
       if (deps.window.isFullScreen()) deps.window.setFullScreen(false)
       deps.overlay.hide()
       const titleKey = cur!.title.key
@@ -522,7 +522,17 @@ export function createPlayerService(deps: {
   }
 
   async function command(c: PlayerCommand) {
-    if (!proc || !cur) return
+    if (!cur) return
+    // The floating window is the app's own: it can always be moved or left, even with mpv gone.
+    if (c.type === 'pip') {
+      await (c.on ? deps.pip.enter() : deps.pip.exit())
+      return emitState(true)
+    }
+    if (c.type === 'pipGesture') {
+      const { phase, edge, dx, dy } = c
+      return deps.pip.gesture({ phase, edge, dx, dy })
+    }
+    if (!proc) return
     const key = cur.title.key
     switch (c.type) {
       case 'pause':
@@ -558,17 +568,11 @@ export function createPlayerService(deps: {
         return emitState(true)
       }
       case 'fullScreen':
-        // Full screen from the floating window: back to the normal window first.
-        if (c.on && deps.pip.isOn()) await deps.pip.exit()
+        // Full screen from the floating window: back to the normal window first. Asked even when
+        // not floating yet: exit waits behind an enter still under way, and is a no-op otherwise.
+        if (c.on) await deps.pip.exit()
         deps.window.setFullScreen(c.on)
         return emitState(true)
-      case 'pip':
-        await (c.on ? deps.pip.enter() : deps.pip.exit())
-        return emitState(true)
-      case 'pipGesture': {
-        const { phase, edge, dx, dy } = c
-        return deps.pip.gesture({ phase, edge, dx, dy })
-      }
       case 'cycleAspect':
         return setAspect(nextAspect(st.aspect))
       case 'resetAspect':

@@ -102,12 +102,12 @@ describe('PipWindow', () => {
     expect(f.bounds()).toEqual({ ...CORNER, x: 1316, y: 696 })
     pip.gesture({ phase: 'end', edge: 'move', dx: -100, dy: -50 })
     expect(f.saved.at(-1)).toEqual({ ...CORNER, x: 1316, y: 696 })
-    pip.gesture({ phase: 'start', edge: 'se', dx: 0, dy: 0 })
-    pip.gesture({ phase: 'move', edge: 'se', dx: 160, dy: 0 })
-    expect(f.bounds()).toEqual({ x: 1316, y: 696, width: 640, height: 360 })
-    pip.gesture({ phase: 'end', edge: 'se', dx: 160, dy: 0 })
+    pip.gesture({ phase: 'start', edge: 'nw', dx: 0, dy: 0 })
+    pip.gesture({ phase: 'move', edge: 'nw', dx: -160, dy: 0 })
+    expect(f.bounds()).toEqual({ x: 1156, y: 606, width: 640, height: 360 })
+    pip.gesture({ phase: 'end', edge: 'nw', dx: -160, dy: 0 })
     pip.gesture({ phase: 'move', edge: 'move', dx: 10, dy: 10 })
-    expect(f.bounds()).toEqual({ x: 1316, y: 696, width: 640, height: 360 })
+    expect(f.bounds()).toEqual({ x: 1156, y: 606, width: 640, height: 360 })
   })
 
   it('the end of a gesture only saves: the last move already placed the window', async () => {
@@ -119,6 +119,20 @@ describe('PipWindow', () => {
     pip.gesture({ phase: 'end', edge: 'nw', dx: -320, dy: -180 })
     expect(f.bounds()).toEqual({ x: 1256, y: 656, width: 640, height: 360 })
     expect(f.saved.at(-1)).toEqual({ x: 1256, y: 656, width: 640, height: 360 })
+  })
+
+  it('a drag can carry the window onto the next display', async () => {
+    const f = fake()
+    const WA2 = { x: 1920, y: 0, width: 2560, height: 1400 }
+    const pip = createPipWindow({
+      ...f.deps,
+      workAreas: () => [WA, WA2],
+      workAreaFor: (r) => (r.x + r.width / 2 >= 1920 ? WA2 : WA)
+    })
+    await pip.enter()
+    pip.gesture({ phase: 'start', edge: 'move', dx: 0, dy: 0 })
+    pip.gesture({ phase: 'move', edge: 'move', dx: 800, dy: 0 })
+    expect(f.bounds()).toEqual({ ...CORNER, x: 2216 })
   })
 
   it('a move gesture before entering is ignored', () => {

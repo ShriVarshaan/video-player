@@ -96,8 +96,13 @@ export function createPipWindow(deps: PipDeps): PipWindow {
         return
       }
       const { start } = gesture
-      const area = deps.workAreaFor(start)
-      win.setBounds(g.edge === 'move' ? movePip(start, g.dx, g.dy, area) : resizePip(start, g.edge, g.dx, g.dy, area))
+      if (g.edge === 'move') {
+        // Kept on the display it is being dragged onto, so it can go from one screen to another.
+        const area = deps.workAreaFor({ ...start, x: start.x + g.dx, y: start.y + g.dy })
+        win.setBounds(movePip(start, g.dx, g.dy, area))
+      } else {
+        win.setBounds(resizePip(start, g.edge, g.dx, g.dy, deps.workAreaFor(start)))
+      }
     }
   }
 }

@@ -1042,3 +1042,35 @@ describe('picture in picture', () => {
     expect(lastState().pip).toBe(true)
   })
 })
+
+describe('picture in picture review fixes', () => {
+  it('leaving PiP works after mpv is gone for good', async () => {
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.command({ type: 'pip', on: true })
+    mpv().crash()
+    await flush()
+    mpv().crash()
+    await flush()
+    expect(emitted('player.error')).toHaveLength(1)
+    await player.command({ type: 'pip', on: false })
+    expect(pip.exit).toHaveBeenCalledTimes(1)
+  })
+
+  it('stop asks PiP to leave even while it is still entering', async () => {
+    await player.play({ key: 'movie:2' })
+    // Entering has not finished: isOn() is still false.
+    pip.enter.mockImplementation(() => new Promise<void>(() => {}))
+    void player.command({ type: 'pip', on: true })
+    await player.stop({})
+    expect(pip.exit).toHaveBeenCalled()
+  })
+
+  it('full screen asks PiP to leave even while it is still entering', async () => {
+    await player.play({ key: 'movie:2' })
+    pip.enter.mockImplementation(() => new Promise<void>(() => {}))
+    void player.command({ type: 'pip', on: true })
+    await player.command({ type: 'fullScreen', on: true })
+    expect(pip.exit).toHaveBeenCalled()
+  })
+})

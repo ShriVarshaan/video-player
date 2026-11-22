@@ -37,7 +37,8 @@ export function movePip(start: Rect, dx: number, dy: number, workArea: Rect): Re
 }
 
 // Resizes from an edge or corner, keeping 16:9 and the opposite side where it is.
-// A corner follows whichever axis moved more.
+// A corner follows whichever axis moved more. It never grows past the work area: the
+// room beyond the anchored side, across and down, caps the width.
 export function resizePip(start: Rect, edge: PipEdge, dx: number, dy: number, workArea: Rect): Rect {
   const sx = edge.includes('e') ? 1 : edge.includes('w') ? -1 : 0
   const sy = edge.includes('s') ? 1 : edge.includes('n') ? -1 : 0
@@ -45,7 +46,10 @@ export function resizePip(start: Rect, edge: PipEdge, dx: number, dy: number, wo
   if (sx) candidates.push(start.width + sx * dx)
   if (sy) candidates.push(((start.height + sy * dy) * 16) / 9)
   const proposed = candidates.reduce((a, b) => (Math.abs(b - start.width) > Math.abs(a - start.width) ? b : a))
-  const width = Math.round(clamp(proposed, PIP_MIN_WIDTH, Math.max(PIP_MIN_WIDTH, workArea.width)))
+  const roomX = sx < 0 ? start.x + start.width - workArea.x : workArea.x + workArea.width - start.x
+  const roomY = sy < 0 ? start.y + start.height - workArea.y : workArea.y + workArea.height - start.y
+  const maxWidth = Math.min(roomX, Math.floor((roomY * 16) / 9))
+  const width = clamp(Math.round(proposed), PIP_MIN_WIDTH, Math.max(PIP_MIN_WIDTH, maxWidth))
   const height = heightFor(width)
   return {
     x: sx < 0 ? start.x + start.width - width : start.x,
