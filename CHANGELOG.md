@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- Picture in picture: press P, or the new button left of Audio, and the film keeps playing in a small window on top while you work in other apps.
+- Drag the small window anywhere, resize it from its edges and corners, and it opens in the same spot next time.
+- Press P again, Esc, or double-click the picture to go back to the full-size player.
+
 ## 1.1.0
 
 - Press C while watching to change the aspect ratio, going through the same ratios as VLC. Press Shift+C to go straight back to the film's own ratio.
