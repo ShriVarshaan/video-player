@@ -13,6 +13,7 @@ import { getPrefs, savePrefs } from './titlePrefs'
 import { toCue } from '../subtitles/cue'
 import type { ExternalSub, LoadedSub } from '../subtitles/match'
 import type { StyleStore } from '../subtitles/styleStore'
+import type { PipWindow } from './pipWindow'
 import { originalLanguage } from '../subtitles/titleInfo'
 import type { ParsedCue } from '../subtitles/parse'
 import { TEXT_CODECS } from '../subtitles/extract'
@@ -104,6 +105,8 @@ export function createPlayerService(deps: {
   emit: Emit
   window: { setFullScreen(on: boolean): void; isFullScreen(): boolean }
   overlay: { show(): void; hide(): void }
+  // Picture in picture: the app window as a small floating player.
+  pip: Pick<PipWindow, 'isOn' | 'enter' | 'exit' | 'gesture'>
   now: () => number
   subtitles: SubtitleSource
   styles: StyleStore
@@ -213,6 +216,7 @@ export function createPlayerService(deps: {
       audioId: st.aid,
       subtitleId: st.sid,
       fullScreen: deps.window.isFullScreen(),
+      pip: deps.pip.isOn(),
       aspect: st.aspect,
       aspectNative: st.aspectNative,
       picture: st.aspect ? st.picture : null
@@ -499,6 +503,8 @@ export function createPlayerService(deps: {
       const p = proc
       proc = null
       if (p) await p.quit().catch(() => {})
+      // The title page comes back at full size.
+      if (deps.pip.isOn()) await deps.pip.exit()
       if (deps.window.isFullScreen()) deps.window.setFullScreen(false)
       deps.overlay.hide()
       const titleKey = cur!.title.key
@@ -552,8 +558,17 @@ export function createPlayerService(deps: {
         return emitState(true)
       }
       case 'fullScreen':
+        // Full screen from the floating window: back to the normal window first.
+        if (c.on && deps.pip.isOn()) await deps.pip.exit()
         deps.window.setFullScreen(c.on)
         return emitState(true)
+      case 'pip':
+        await (c.on ? deps.pip.enter() : deps.pip.exit())
+        return emitState(true)
+      case 'pipGesture': {
+        const { phase, edge, dx, dy } = c
+        return deps.pip.gesture({ phase, edge, dx, dy })
+      }
       case 'cycleAspect':
         return setAspect(nextAspect(st.aspect))
       case 'resetAspect':

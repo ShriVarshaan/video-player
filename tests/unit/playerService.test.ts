@@ -88,6 +88,7 @@ let events: { event: keyof ApiEvents; payload: unknown }[]
 let overlay: { show: ReturnType<typeof vi.fn<() => void>>; hide: ReturnType<typeof vi.fn<() => void>> }
 let win: { full: boolean; setFullScreen: (on: boolean) => void; isFullScreen: () => boolean }
 let player: PlayerService
+let pip: { on: boolean; isOn(): boolean; enter: ReturnType<typeof vi.fn<() => Promise<void>>>; exit: ReturnType<typeof vi.fn<() => Promise<void>>>; gesture: ReturnType<typeof vi.fn<(g: unknown) => void>> }
 let gate: Promise<void> | null
 let failLaunch: boolean
 
@@ -148,6 +149,13 @@ beforeEach(() => {
   }
   gate = null
   failLaunch = false
+  pip = {
+    on: false,
+    isOn: () => pip.on,
+    enter: vi.fn(async () => void (pip.on = true)),
+    exit: vi.fn(async () => void (pip.on = false)),
+    gesture: vi.fn<(g: unknown) => void>()
+  }
   player = createPlayerService({
     db,
     launch: async () => {
@@ -160,6 +168,7 @@ beforeEach(() => {
     emit: (event, payload) => events.push({ event, payload }),
     window: win,
     overlay,
+    pip,
     now: () => Date.now(),
     subtitles: {
       find: async () => externals,
@@ -606,7 +615,7 @@ describe('subtitles (milestone 5)', () => {
     const find = vi.fn(async () => [])
     player = createPlayerService({
       db, launch: async () => (fakes.push(fakeMpv()), mpv().proc), emit: (event, payload) => events.push({ event, payload }),
-      window: win, overlay, now: () => Date.now(),
+      window: win, overlay, pip, now: () => Date.now(),
       subtitles: { find, load: async (s) => s.path, userData: 'C:/data', cues: async () => [] },
       styles: createStyleStore(db, { now: () => 1, defaultLanguage: 'fre' })
     })
@@ -977,5 +986,59 @@ describe('subtitle timing review fixes (milestone 6)', () => {
     await player.command({ type: 'subtitle', id: 1 })
     mpv().set('sid', false)
     expect(await player.nudgeSubtitle(0.05)).toBeNull()
+  })
+})
+
+describe('picture in picture', () => {
+  const lastState = () => {
+    vi.advanceTimersByTime(50)
+    return emitted('player.state').at(-1) as { pip: boolean }
+  }
+
+  it('pip on/off enters and leaves, and the state says so', async () => {
+    await player.play({ key: 'movie:2' })
+    await loaded()
+    await player.command({ type: 'pip', on: true })
+    expect(pip.enter).toHaveBeenCalledTimes(1)
+    expect(lastState().pip).toBe(true)
+    await player.command({ type: 'pip', on: false })
+    expect(pip.exit).toHaveBeenCalledTimes(1)
+    expect(lastState().pip).toBe(false)
+  })
+
+  it('gestures pass through', async () => {
+    await player.play({ key: 'movie:2' })
+    await player.command({ type: 'pipGesture', phase: 'move', edge: 'move', dx: 5, dy: 6 })
+    expect(pip.gesture).toHaveBeenCalledWith({ phase: 'move', edge: 'move', dx: 5, dy: 6 })
+  })
+
+  it('full screen while floating leaves PiP first', async () => {
+    await player.play({ key: 'movie:2' })
+    const order: string[] = []
+    pip.exit.mockImplementation(async () => void (order.push('exit'), (pip.on = false)))
+    const set = win.setFullScreen.bind(win)
+    win.setFullScreen = (on) => (order.push(`full ${on}`), set(on))
+    await player.command({ type: 'pip', on: true })
+    await player.command({ type: 'fullScreen', on: true })
+    expect(order).toEqual(['exit', 'full true'])
+  })
+
+  it('stop leaves PiP before hiding the overlay', async () => {
+    await player.play({ key: 'movie:2' })
+    await player.command({ type: 'pip', on: true })
+    await player.stop({})
+    expect(pip.exit).toHaveBeenCalled()
+    expect(pip.exit.mock.invocationCallOrder[0]!).toBeLessThan(overlay.hide.mock.invocationCallOrder[0]!)
+    expect(emitted('player.closed')).toHaveLength(1)
+  })
+
+  it('a new play keeps PiP', async () => {
+    await player.play({ key: 'tmdb:1396', videoId: 5, from: 'start' })
+    await loaded(3000)
+    await player.command({ type: 'pip', on: true })
+    await player.play({ key: 'tmdb:1396', videoId: 6, from: 'start' })
+    await loaded(3000)
+    expect(pip.exit).not.toHaveBeenCalled()
+    expect(lastState().pip).toBe(true)
   })
 })

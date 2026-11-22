@@ -45,6 +45,7 @@ export type PlayerState = {
   aspect: AspectRatio | null // null: the file's own ratio
   aspectNative: number | null // the file's own width / height, once known
   picture: PictureInsets | null // where a forced ratio put the picture; null at the file's own ratio
+  pip: boolean // the window is the small floating player (picture in picture)
 }
 
 export type NextEpisode = { videoId: number; season: number; episode: number; title: string | null; stillUrl: string }
@@ -60,6 +61,8 @@ export type PlayerCommand =
   | { type: 'fullScreen'; on: boolean }
   | { type: 'cycleAspect' }
   | { type: 'resetAspect' }
+  | { type: 'pip'; on: boolean }
+  | ({ type: 'pipGesture' } & PipGesture)
 
 // Picture in picture: the edge or corner being dragged to resize the floating window.
 export type PipEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
