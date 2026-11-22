@@ -63,6 +63,9 @@ export type PlayerCommand =
 
 // Picture in picture: the edge or corner being dragged to resize the floating window.
 export type PipEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
+// One step of dragging the floating window ('move') or one of its edges.
+// dx/dy are screen DIPs since the gesture's start.
+export type PipGesture = { phase: 'start' | 'move' | 'end'; edge: PipEdge | 'move'; dx: number; dy: number }
 
 // The subtitle line on screen now, as the overlay draws it.
 export type CueSpan = { text: string; italic: boolean; bold: boolean }

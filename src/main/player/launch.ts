@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
-import { createRequire } from 'node:module'
 import { connectMpv, type MpvClient } from './mpvIpc'
 import type { MpvProcess } from './service'
+import { loadUser32, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE } from './user32'
 
 // mpv flags from the mpv-ipc skill. --sub-visibility=no: the overlay draws text
 // subtitles; the service turns it on only for picture-based tracks.
@@ -28,28 +28,6 @@ let launches = 0
 
 // mpv's child window is created below Chromium's own surfaces inside the app
 // window, so it must be raised once it exists (see the milestone 4 design).
-type User32 = {
-  FindWindowExW(parent: bigint, after: bigint, cls: string, name: string | null): bigint | number
-  SetWindowPos(h: bigint | number, after: bigint, x: number, y: number, cx: number, cy: number, flags: number): boolean
-}
-let user32: User32 | null = null
-function loadUser32(): User32 {
-  if (user32) return user32
-  const koffi = createRequire(__filename)('koffi') as {
-    load(name: string): { func(signature: string): (...args: unknown[]) => unknown }
-  }
-  const lib = koffi.load('user32.dll')
-  user32 = {
-    FindWindowExW: lib.func('intptr __stdcall FindWindowExW(intptr parent, intptr after, str16 cls, str16 name)') as User32['FindWindowExW'],
-    SetWindowPos: lib.func('bool __stdcall SetWindowPos(intptr h, intptr after, int x, int y, int cx, int cy, uint flags)') as User32['SetWindowPos']
-  }
-  return user32
-}
-
-const SWP_NOSIZE = 0x0001
-const SWP_NOMOVE = 0x0002
-const SWP_NOACTIVATE = 0x0010
-
 async function raiseMpvWindow(parent: bigint, timeoutMs = 3000): Promise<boolean> {
   const u = loadUser32()
   const deadline = Date.now() + timeoutMs

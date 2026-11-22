@@ -8,7 +8,7 @@ export function createOverlay(
   main: BrowserWindow,
   load: (w: BrowserWindow) => void,
   webPreferences: Electron.WebPreferences
-): { window: BrowserWindow; show(): void; hide(): void } {
+): { window: BrowserWindow; show(): void; hide(): void; setPip(on: boolean): void } {
   const w = new BrowserWindow({
     parent: main,
     show: false,
@@ -26,8 +26,12 @@ export function createOverlay(
   load(w)
 
   let shown = false
+  // Picture in picture: the main window has no frame then, so its client area is its whole
+  // rect; getContentBounds() would still take a title bar off.
+  let pip = false
+  const area = () => (pip ? main.getBounds() : main.getContentBounds())
   const follow = () => {
-    if (shown && !w.isDestroyed() && !main.isMinimized()) w.setBounds(main.getContentBounds())
+    if (shown && !w.isDestroyed() && !main.isMinimized()) w.setBounds(area())
   }
   for (const event of FOLLOW) main.on(event as 'move', follow)
   // Alt+Tab or the taskbar focuses the main window; keys belong to the overlay while playing.
@@ -49,7 +53,7 @@ export function createOverlay(
     window: w,
     show() {
       shown = true
-      w.setBounds(main.getContentBounds())
+      w.setBounds(area())
       w.show()
       w.focus()
     },
@@ -58,6 +62,13 @@ export function createOverlay(
       if (w.isDestroyed()) return
       w.hide()
       main.focus()
+    },
+    setPip(on) {
+      pip = on
+      if (w.isDestroyed()) return
+      // Owned windows ride above their owner, but both go on top so other apps can't come between.
+      w.setAlwaysOnTop(on, 'floating')
+      follow()
     }
   }
 }
