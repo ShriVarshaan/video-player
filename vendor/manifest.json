@@ -1,20 +1,38 @@
 {
+  "mirror": { "repo": "ShriVarshaan/video-player", "tag": "third-party-2026-11" },
   "packages": [
     {
       "name": "mpv",
       "version": "20261021-git-e471496c56",
-      "url": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-x86_64-20261021-git-e471496c56.7z",
+      "url": "https://github.com/ShriVarshaan/video-player/releases/download/third-party-2026-11/mpv-x86_64-20261021-git-e471496c56.7z",
+      "upstream": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20261021/mpv-x86_64-20261021-git-e471496c56.7z",
       "sha256": "4a355f3e89c83fabc730d33fb4e759dfec747806ed2287b61a90d1681b83e8d3",
       "from": "",
-      "keep": ["mpv.exe", "*.dll"]
+      "keep": ["mpv.exe", "*.dll"],
+      "sources": [
+        { "name": "mpv", "repo": "https://github.com/mpv-player/mpv.git", "commit": "e471496c56f0f49c133bd88b50aed62b845f1909" },
+        { "name": "mpv-winbuild-cmake", "repo": "https://github.com/shinchiro/mpv-winbuild-cmake.git", "commit": "1f8d2e76255abc48f0456d9be99b4cab9c6566e6" },
+        { "name": "FFmpeg", "repo": "https://github.com/FFmpeg/FFmpeg.git", "commit": "9a861e9687d30e657d59521817cad18405995983" },
+        { "name": "libplacebo", "repo": "https://github.com/haasn/libplacebo.git", "commit": "285d1cc8af2ab79b72ac662eb09736de8c12392b" }
+      ]
     },
     {
       "name": "ffmpeg",
       "version": "n9.0.2-37-gae19868753 (autobuild-2026-10-29-19-17)",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-29-19-17/ffmpeg-n9.0.2-37-gae19868753-win64-lgpl-shared-9.0.zip",
-      "sha256": "44280849ca9ad4cffa466e1f244b8eaf3c4f28c3b1bef00801fadba9ec4f676b",
+      "url": "https://github.com/ShriVarshaan/video-player/releases/download/third-party-2026-11/ffmpeg-n9.0.2-37-gae19868753-win64-lgpl-shared-9.0.zip",
+      "upstream": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-29-19-17/ffmpeg-n9.0.2-37-gae19868753-win64-lgpl-shared-9.0.zip",
+      "sha256": "1e02f81d485843401e2c875233adb2a9a24123bfb14d19367c83ce428438e17d",
       "from": "ffmpeg-n9.0.2-37-gae19868753-win64-lgpl-shared-9.0/bin",
-      "keep": ["ffmpeg.exe", "ffprobe.exe", "*.dll"]
+      "keep": ["ffmpeg.exe", "ffprobe.exe", "*.dll"],
+      "sources": [
+        { "name": "FFmpeg", "repo": "https://github.com/FFmpeg/FFmpeg.git", "commit": "ae19868753c5bcc2044e331d7a64187e58dde619" },
+        {
+          "name": "FFmpeg-Builds",
+          "repo": "https://github.com/FFmpeg-Builds/FFmpeg-Builds.git",
+          "commit": "5031c6f1082414e53688d39e521849905071070d",
+          "dependencies": { "target": "win64", "variant": "lgpl-shared", "addins": "9.0" }
+        }
+      ]
     }
   ]
 }

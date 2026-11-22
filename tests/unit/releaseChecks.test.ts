@@ -37,7 +37,10 @@ describe('checkRelease', () => {
     ['no token', { hasToken: false }, /GH_TOKEN/],
     ['no changelog entry', { version: '2.0.0' }, /CHANGELOG/],
     // It would be compiled in, and everyone who updated would seem to lose their library.
-    ['the test data folder switch is set', { dataFolderOverride: 'video-player-update-test' }, /VP_DATA_FOLDER/]
+    ['the test data folder switch is set', { dataFolderOverride: 'video-player-update-test' }, /VP_DATA_FOLDER/],
+    // Upstream builds get deleted: the source offer and fetch-vendor depend on our own copy.
+    ['a vendor file downloads from someone else', { vendorOffMirror: ['ffmpeg'] }, /ffmpeg.*mirror/],
+    ['the mirror is not up', { mirrorMissing: ['mpv-x.7z'] }, /mpv-x\.7z.*publish-third-party/]
   ])('%s is a problem', (_name, change, message) => {
     const problems = checkRelease({ ...good, ...change })
     expect(problems).toHaveLength(1)

@@ -8,9 +8,13 @@ Plays the video. Runs as a separate program.
 
 Version: 20261021-git-e471496c56
 Licence: mpv is GPL-2.0-or-later. This build includes FFmpeg configured with --enable-gpl --enable-version3, so as a whole it is under GPL-3.0-or-later.
-This build: https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261021
-Source and build scripts: https://github.com/shinchiro/mpv-winbuild-cmake
-mpv's source: https://github.com/mpv-player/mpv
+Binaries and source: https://github.com/ShriVarshaan/video-player/releases/tag/third-party-2026-11
+Built by: https://github.com/shinchiro/mpv-winbuild-cmake
+Built from:
+mpv e471496c56f0f49c133bd88b50aed62b845f1909
+mpv-winbuild-cmake 1f8d2e76255abc48f0456d9be99b4cab9c6566e6
+FFmpeg 9a861e9687d30e657d59521817cad18405995983
+libplacebo 285d1cc8af2ab79b72ac662eb09736de8c12392b
 
 ````text
 GNU GENERAL PUBLIC LICENSE
@@ -1036,9 +1040,11 @@ Reads video details and extracts subtitles and audio. Runs as a separate program
 
 Version: n9.0.2-37-gae19868753 (autobuild-2026-10-29-19-17)
 Licence: LGPL-3.0-or-later (built with --enable-version3). The LGPL adds to the GPL: its text is below, and the GPL's is in the mpv section above.
-This build: https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-10-29-19-17
-Source and build scripts: https://github.com/BtbN/FFmpeg-Builds
-FFmpeg's source: https://ffmpeg.org/download.html
+Binaries and source: https://github.com/ShriVarshaan/video-player/releases/tag/third-party-2026-11
+Built by: https://github.com/FFmpeg-Builds/FFmpeg-Builds
+Built from:
+FFmpeg ae19868753c5bcc2044e331d7a64187e58dde619
+FFmpeg-Builds 5031c6f1082414e53688d39e521849905071070d
 
 ````text
 GNU LESSER GENERAL PUBLIC LICENSE

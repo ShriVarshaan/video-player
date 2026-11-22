@@ -13,9 +13,14 @@ describe('third-party notices', () => {
   const text = generateNotices(root)
 
   it('names the exact mpv and FFmpeg builds, with their source and licences', () => {
-    expect(LINKS.mpvSource).toBe('https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261021')
-    expect(text).toContain(LINKS.mpvSource)
-    expect(text).toContain(LINKS.ffmpegSource)
+    const mpv = text.slice(text.indexOf('## mpv'), text.indexOf('## FFmpeg'))
+    const ffmpeg = text.slice(text.indexOf('## FFmpeg'), text.indexOf('## Electron'))
+    for (const section of [mpv, ffmpeg]) expect(section).toContain(`Binaries and source: ${LINKS.thirdPartySource}`)
+    // Where each build came from, and the commits it was built from.
+    expect(mpv).toContain('Built by: https://github.com/shinchiro/mpv-winbuild-cmake')
+    expect(mpv).toContain('mpv e471496c56f0f49c133bd88b50aed62b845f1909')
+    expect(ffmpeg).toContain('Built by: https://github.com/FFmpeg-Builds/FFmpeg-Builds')
+    expect(ffmpeg).toContain('FFmpeg ae19868753c5bcc2044e331d7a64187e58dde619')
     for (const { version } of manifest.packages) expect(text).toContain(version)
     expect(text).toContain('GNU GENERAL PUBLIC LICENSE\n                       Version 2')
     expect(text).toContain('GNU GENERAL PUBLIC LICENSE\n                       Version 3')

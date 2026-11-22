@@ -5,8 +5,8 @@ export const LINKS = {
   openSubtitlesSignup: 'https://www.opensubtitles.com/en/users/sign_up',
   openSubtitlesConsumers: 'https://www.opensubtitles.com/en/consumers',
   repo: 'https://github.com/ShriVarshaan/video-player',
-  mpvSource: 'https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20261021',
-  ffmpegSource: 'https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-10-29-19-17',
+  // Our own copy of the exact mpv and FFmpeg builds and their source (vendor/manifest.json's mirror).
+  thirdPartySource: 'https://github.com/ShriVarshaan/video-player/releases/tag/third-party-2026-11',
   tmdb: 'https://www.themoviedb.org/'
 } as const
 

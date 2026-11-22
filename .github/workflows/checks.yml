@@ -1,0 +1,50 @@
+# Typecheck and unit tests on every push to main and every pull request.
+# End-to-end tests stay local: they drive real windows and want a second monitor (CLAUDE.md).
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # mpv and ffmpeg from the third-party mirror, pinned by hash in vendor/manifest.json.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            vendor/mpv
+            vendor/ffmpeg
+            vendor/.installed.json
+          key: vendor-${{ hashFiles('vendor/manifest.json') }}
+      - run: npm run fetch-vendor
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            tests/fixtures/media
+            tests/fixtures/library
+          key: fixtures-${{ hashFiles('scripts/make-fixtures.mjs', 'tests/fixtures/lines.txt', 'vendor/manifest.json') }}
+      - run: node scripts/make-fixtures.mjs
+
+      - run: npm run typecheck
+      - run: npm test

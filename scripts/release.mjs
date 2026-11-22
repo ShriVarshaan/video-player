@@ -5,6 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { checkRelease, notesFor } from './releaseChecks.mjs'
+import { offMirror } from './third-party-lib.mjs'
 
 const REPO = 'ShriVarshaan/video-player'
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
@@ -25,6 +26,16 @@ async function publishedVersions(token) {
   return releases.filter((r) => !r.draft).map((r) => r.tag_name.replace(/^v/, ''))
 }
 
+// The installer's About links and fetch-vendor point at the mirror: every file must be downloadable.
+async function mirrorMissing(manifest) {
+  const missing = []
+  for (const p of manifest.packages) {
+    const res = await fetch(p.url, { method: 'HEAD', redirect: 'follow' }).catch(() => null)
+    if (!res?.ok) missing.push(p.url.split('/').pop())
+  }
+  return missing
+}
+
 // Runs a step without the token, so no test or build can see it.
 function step(label, command, env = {}) {
   console.log(`\n== ${label}`)
@@ -37,6 +48,7 @@ async function release() {
   const token = process.env.GH_TOKEN ?? ''
   const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
   const changelog = readFileSync('CHANGELOG.md', 'utf8')
+  const manifest = JSON.parse(readFileSync(join('vendor', 'manifest.json'), 'utf8'))
 
   git('fetch', 'origin', 'main')
   const problems = checkRelease({
@@ -48,7 +60,9 @@ async function release() {
     published: await publishedVersions(token),
     hasToken: token !== '',
     changelog,
-    dataFolderOverride: process.env.VP_DATA_FOLDER
+    dataFolderOverride: process.env.VP_DATA_FOLDER,
+    vendorOffMirror: offMirror(manifest),
+    mirrorMissing: await mirrorMissing(manifest)
   })
   if (problems.length > 0) stop(problems)
 

@@ -54,12 +54,11 @@ test('About shows the licences, credits and source links', async () => {
   await expect.poll(() => win.getByTestId('tmdb-logo').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
 
   await win.getByRole('button', { name: 'Source on GitHub' }).click()
-  await win.getByRole('button', { name: 'mpv source' }).click()
-  await win.getByRole('button', { name: 'FFmpeg source' }).click()
+  await win.getByRole('button', { name: 'mpv and FFmpeg source' }).click()
   await win.getByRole('button', { name: 'The Movie Database' }).click()
   await expect
     .poll(() => app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened))
-    .toEqual([LINKS.repo, LINKS.mpvSource, LINKS.ffmpegSource, LINKS.tmdb])
+    .toEqual([LINKS.repo, LINKS.thirdPartySource, LINKS.tmdb])
 
   await win.getByRole('button', { name: 'Show third-party notices' }).click()
   await expect(win.getByTestId('notices')).toContainText('mpv')

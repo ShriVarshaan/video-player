@@ -23,7 +23,7 @@ The full plan, with architecture, milestones and verification, is in [`docs/PROJ
 
 ```
 npm install
-npm run fetch-vendor          # mpv + LGPL ffmpeg into vendor/ (pinned in vendor/manifest.json)
+npm run fetch-vendor          # mpv + LGPL ffmpeg into vendor/ (pinned in vendor/manifest.json, from our third-party mirror release)
 node scripts/make-fixtures.mjs  # test clips + fake movie/TV library (gitignored)
 npm run dev                   # app with hot reload
 npm run typecheck             # tsc for main/preload and renderer
@@ -36,7 +36,10 @@ npm run package               # installer in release/ (needs the sidecar build);
 npm run test:packaged         # tests release/win-unpacked
 npm run make-notices          # regenerates THIRD_PARTY_NOTICES.md; fails if a licence text is missing
 npm run release               # draft GitHub release; only with the user's permission (release-windows)
+node scripts/make-third-party.mjs     # mpv/FFmpeg binaries + source into release/third-party/
+node scripts/publish-third-party.mjs  # uploads them to the mirror pre-release; GH_TOKEN, user's permission only
 ```
+- CI (`.github/workflows/checks.yml`, Windows): typecheck and unit tests on every push to `main` and every PR. E2E stays local.
 - The app is called Cinewall; the repo, npm package and data folder stay `video-player`. Renaming the data folder would lose people's libraries and logins.
 - `VP_FIRST_RUN=off` (dev builds only) skips first-run setup; `launchApp` sets it unless a test asks for setup. `VP_UPDATE_MODE=available|fail-check|fail-download` (dev builds only) feeds fake updates.
 - The library DB is `%APPDATA%\video-player\library.db` (one per Windows user). `--user-data-dir=<dir>` points the app elsewhere; E2E tests always do.

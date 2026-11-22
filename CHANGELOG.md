@@ -5,6 +5,7 @@
 - Picture in picture: press P, or the new button left of Audio, and the film keeps playing in a small window on top while you work in other apps.
 - Drag the small window anywhere, resize it from its edges and corners, and it opens in the same spot next time.
 - Press P again, Esc, or double-click the picture to go back to the full-size player.
+- Settings → About: the mpv and FFmpeg source link works again. It now points to a copy kept with Cinewall's own releases.
 
 ## 1.1.0
 

@@ -22,6 +22,10 @@ export function checkRelease(s) {
   if (s.published.includes(s.version)) problems.push(`Version ${s.version} is already released: raise the version in package.json.`)
   if (!s.hasToken) problems.push('GH_TOKEN is not set: give it for this one command, and never save it to a file.')
   if (!notesFor(s.changelog, s.version)) problems.push(`CHANGELOG.md has no entry for ${s.version}.`)
+  if (s.vendorOffMirror?.length)
+    problems.push(`vendor/manifest.json downloads ${s.vendorOffMirror.join(', ')} from outside the third-party mirror: upstream builds get deleted, so mirror it first.`)
+  if (s.mirrorMissing?.length)
+    problems.push(`The third-party mirror doesn't have ${s.mirrorMissing.join(', ')}: run node scripts/make-third-party.mjs, then scripts/publish-third-party.mjs.`)
   if (s.dataFolderOverride) problems.push('VP_DATA_FOLDER is set: it would be built in, and people who update would seem to lose their library. Clear it.')
   return problems
 }

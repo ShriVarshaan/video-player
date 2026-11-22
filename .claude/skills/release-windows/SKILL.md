@@ -11,10 +11,15 @@ The app is **Cinewall**; the repo and npm package stay `video-player`, and so do
 
 ## 1. Vendor binaries (`scripts/fetch-vendor.mjs` → `vendor/`, gitignored)
 - `vendor/manifest.json` (committed) pins each binary's **URL, version and SHA-256**. The script downloads to a temp directory, checks the hash, then extracts. A mismatch is a hard failure.
+- **Downloads come from our own mirror**, never upstream: the pre-release `third-party-<yyyy-mm>` in this repo (`mirror` in the manifest; `upstream` records where each build first came from). FFmpeg-Builds deletes daily builds after a few weeks, which broke the 1.0/1.1 About link and fresh clones. The mirror also holds each build's source, as the GPL/LGPL offer (`LINKS.thirdPartySource`, the notices).
+  - `node scripts/make-third-party.mjs` fills `release/third-party/`: the shipped archives (hash-checked) plus `<pkg>-source.tar` from the manifest's `sources` (full commits). For FFmpeg-Builds it reads `scripts.d` **as text** (`scriptEnabled`/`parseScriptPins` in `third-party-lib.mjs`) and fetches every enabled library at its pinned commit; svn ones (lame) over plain HTTP. It never runs downloaded scripts.
+  - `GH_TOKEN=… node scripts/publish-third-party.mjs` (with the user's permission) uploads it. The release **must stay a pre-release, never "latest"**: installed copies update from the latest release, and a release without `latest.yml` would break every update check (`mirrorRelease`).
+  - `npm run release` refuses while a vendor URL is off the mirror or a mirrored file isn't downloadable.
+  - mpv-winbuild-cmake builds most libraries from each one's newest commit on the day and doesn't record them: only mpv, its FFmpeg and libplacebo (what `mpv --version` reports) and the build scripts are pinned. Say so if asked about completeness.
 - **mpv:** a Windows x86_64 build from the shinchiro `mpv-winbuild-cmake` GitHub releases. Use plain `x86_64` (not `-v3`) for compatibility with older CPUs. We only need `mpv.exe` and its DLLs.
 - **ffmpeg/ffprobe:** a BtbN `FFmpeg-Builds` **LGPL shared** win64 build. The app only decodes and extracts, so it needs no GPL encoders.
 - Treat downloaded archives as untrusted: extract into a fresh empty directory and run nothing from inside it.
-- Update binaries by bumping the manifest, re-running the script, updating `LINKS.mpvSource`/`ffmpegSource` in `src/shared/links.ts` and `make-notices`, and running the full suites. `tests/unit/notices.test.ts` catches a mismatch.
+- Update binaries by pinning the new build in the manifest (`upstream`, hash, `sources` with full commits), moving `mirror.tag` to a new month, making and publishing the mirror, then pointing `url` and `LINKS.thirdPartySource` at it, running `make-notices` and the full suites. `tests/unit/links.test.ts`, `notices.test.ts` and `thirdParty.test.ts` catch a mismatch. Keep old mirror releases: installed copies link to them.
 
 ## 2. Resolving binary paths at runtime
 `src/main/paths.ts` → `binaryPath(name, base)` maps `mpv` → `vendor/mpv/mpv.exe`, `ffmpeg`/`ffprobe` → `vendor/ffmpeg/*.exe`. `sidecarCommand` finds `sidecar/vp-sync/vp-sync.exe`. `src/main/index.ts` picks the base:
@@ -54,8 +59,8 @@ Unsigned, on purpose: SmartScreen shows "Windows protected your PC", and `docs/I
 
 | Component | License | Obligation |
 |---|---|---|
-| mpv (shinchiro build) | GPL-2.0+, and GPL-3.0+ as built (its FFmpeg has `--enable-gpl --enable-version3`) | Ship the license texts and link to the exact source and build scripts. It runs as a separate executable over IPC. |
-| FFmpeg (BtbN "lgpl" shared) | LGPL-3.0+ (`--enable-version3`; the DLLs say so) | Ship the LGPL and GPL texts, link to the source, keep the DLLs replaceable (shared build). |
+| mpv (shinchiro build) | GPL-2.0+, and GPL-3.0+ as built (its FFmpeg has `--enable-gpl --enable-version3`) | Ship the license texts and offer the source from our mirror (§1). It runs as a separate executable over IPC. |
+| FFmpeg (BtbN "lgpl" shared) | LGPL-3.0+ (`--enable-version3`; the DLLs say so) | Ship the LGPL and GPL texts, offer the source (FFmpeg, build scripts, every pinned library) from our mirror, keep the DLLs replaceable (shared build). |
 | Electron, React, Fuse.js etc. | MIT and others | Include the license texts. |
 | Auto sync sidecar | MIT, BSD, Apache-2.0, MPL, PSF | Include each license text. No GPL code: auditok is excluded. |
 | TMDB | API terms | Show *"This product uses the TMDB API but is not endorsed or certified by TMDB."* with the TMDB logo in About. |

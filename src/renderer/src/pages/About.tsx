@@ -98,11 +98,8 @@ export function About({ info, update, onHome, onError }: { info: AppInfo | null;
 
       <h3 className="about-heading">Third-party software</h3>
       <p className="muted small">
-        <button type="button" className="setup-link" onClick={() => open('mpvSource')}>
-          mpv source ↗
-        </button>{' '}
-        <button type="button" className="setup-link" onClick={() => open('ffmpegSource')}>
-          FFmpeg source ↗
+        <button type="button" className="setup-link" onClick={() => open('thirdPartySource')}>
+          mpv and FFmpeg source ↗
         </button>
       </p>
       <button type="button" aria-expanded={notices !== null} onClick={() => void toggleNotices()}>

@@ -9,4 +9,6 @@ export function checkRelease(s: {
   hasToken: boolean
   changelog: string
   dataFolderOverride?: string
+  vendorOffMirror?: string[]
+  mirrorMissing?: string[]
 }): string[]
