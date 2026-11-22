@@ -110,6 +110,17 @@ describe('PipWindow', () => {
     expect(f.bounds()).toEqual({ x: 1316, y: 696, width: 640, height: 360 })
   })
 
+  it('the end of a gesture only saves: the last move already placed the window', async () => {
+    const f = fake()
+    const pip = createPipWindow(f.deps)
+    await pip.enter()
+    pip.gesture({ phase: 'start', edge: 'nw', dx: 0, dy: 0 })
+    pip.gesture({ phase: 'move', edge: 'nw', dx: -160, dy: -90 })
+    pip.gesture({ phase: 'end', edge: 'nw', dx: -320, dy: -180 })
+    expect(f.bounds()).toEqual({ x: 1256, y: 656, width: 640, height: 360 })
+    expect(f.saved.at(-1)).toEqual({ x: 1256, y: 656, width: 640, height: 360 })
+  })
+
   it('a move gesture before entering is ignored', () => {
     const f = fake()
     const pip = createPipWindow(f.deps)

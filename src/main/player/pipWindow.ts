@@ -89,13 +89,15 @@ export function createPipWindow(deps: PipDeps): PipWindow {
         return
       }
       if (!gesture) return
-      const { start } = gesture
-      const area = deps.workAreaFor(start)
-      win.setBounds(g.edge === 'move' ? movePip(start, g.dx, g.dy, area) : resizePip(start, g.edge, g.dx, g.dy, area))
+      // The last move already placed the window; the end only remembers where it is.
       if (g.phase === 'end') {
         gesture = null
         deps.save(win.getBounds())
+        return
       }
+      const { start } = gesture
+      const area = deps.workAreaFor(start)
+      win.setBounds(g.edge === 'move' ? movePip(start, g.dx, g.dy, area) : resizePip(start, g.edge, g.dx, g.dy, area))
     }
   }
 }

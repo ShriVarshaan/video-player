@@ -1,29 +1,14 @@
-import { useRef, useState } from 'react'
 import type { PlayerCommand, PlayerState, Track } from '@shared/player'
 import { formatOffset } from '@shared/subtitleTiming'
 import { formatTime } from '@shared/time'
+import { Icon, ICONS } from './icons'
+import { SeekBar } from './SeekBar'
 import { TrackMenu, type MenuItem } from './TrackMenu'
 
 // The open menu or panel; panels ('style', 'search') open from the Subtitles menu.
 export type Menu = 'audio' | 'subtitles' | 'style' | 'search' | null
 
 const send = (c: PlayerCommand) => void window.api.player.command(c)
-
-const Icon = ({ d, label }: { d: string; label?: string }) => (
-  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden={label ? undefined : true} role={label ? 'img' : undefined}>
-    <path d={d} fill="currentColor" />
-  </svg>
-)
-const ICONS = {
-  play: 'M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z',
-  pause: 'M7 5h3.5v14H7zM13.5 5H17v14h-3.5z',
-  back: 'M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Z',
-  forward: 'M12 5V2l5 4-5 4V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8Z',
-  volume: 'M4 9v6h4l5 4V5L8 9H4Zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4ZM13 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6Z',
-  mute: 'M4 9v6h4l5 4V5L8 9H4Zm12.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3L16.6 12Z',
-  full: 'M5 5h5v2H7v3H5V5Zm9 0h5v5h-2V7h-3V5ZM5 14h2v3h3v2H5v-5Zm12 3v-3h2v5h-5v-2h3Z',
-  exitFull: 'M8 5h2v5H5V8h3V5Zm6 0h2v3h3v2h-5V5ZM5 14h5v5H8v-3H5v-2Zm9 0h5v2h-3v3h-2v-5Z'
-}
 
 // Subtitle timing commands in the Subtitles menu.
 export type SubtitleAction = 'auto' | 'offset' | 'sync' | 'reset' | 'export'
@@ -42,7 +27,7 @@ function subtitleItems(subs: Track[], selected: number | null, offset: number | 
   })
 }
 
-// The bottom bar: seek bar, then play/skip, volume, time, Audio, Subtitles, full screen.
+// The bottom bar: seek bar, then play/skip, volume, time, picture in picture, Audio, Subtitles, full screen.
 // Time and the seek fill are written by the overlay's frame loop through the refs.
 export function ControlBar({
   state,
@@ -71,53 +56,13 @@ export function ControlBar({
         ...(offset ? [{ label: 'Reset timing', onPick: () => onSubtitleAction('reset') }] : []),
         ...(showing.image ? [] : [{ label: 'Export synced .srt', onPick: () => onSubtitleAction('export') }])
       ]
-  const track = useRef<HTMLDivElement>(null)
-  const [preview, setPreview] = useState<number | null>(null)
   const duration = state.durationS ?? 0
-
-  const at = (clientX: number) => {
-    const r = track.current!.getBoundingClientRect()
-    return Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * duration
-  }
-
   const boost = state.volume > 100
   const volumeFill = `${(state.volume / 200) * 100}%`
 
   return (
     <div className="player-bottom">
-      <div
-        ref={track}
-        className="seek"
-        data-testid="seek"
-        role="slider"
-        aria-label="Position"
-        aria-valuemin={0}
-        aria-valuemax={Math.round(duration)}
-        aria-valuenow={Math.round(state.positionS)}
-        aria-valuetext={formatTime(state.positionS)}
-        onPointerDown={(e) => {
-          if (!duration) return
-          e.currentTarget.setPointerCapture(e.pointerId)
-          setPreview(at(e.clientX))
-        }}
-        onPointerMove={(e) => {
-          if (preview !== null) setPreview(at(e.clientX))
-        }}
-        onPointerUp={(e) => {
-          if (preview === null) return
-          send({ type: 'seek', toS: at(e.clientX) })
-          setPreview(null)
-        }}
-      >
-        <span className="seek-track">
-          <i ref={fillRef} style={preview !== null && duration ? { transform: `scaleX(${preview / duration})` } : undefined} />
-        </span>
-        {preview !== null && (
-          <span className="seek-preview" style={{ left: `${(preview / (duration || 1)) * 100}%` }}>
-            {formatTime(preview)}
-          </span>
-        )}
-      </div>
+      <SeekBar durationS={duration} positionS={state.positionS} fillRef={fillRef} />
 
       <div className="bar-row">
         <button
@@ -173,6 +118,17 @@ export function ControlBar({
         </span>
 
         <span className="bar-spacer" />
+
+        <button
+          type="button"
+          className="icon"
+          data-testid="pip-button"
+          aria-label="Picture in picture"
+          title="Picture in picture (P)"
+          onClick={() => send({ type: 'pip', on: true })}
+        >
+          <Icon d={ICONS.pip} />
+        </button>
 
         <div className="menu-anchor">
           <button

@@ -11,18 +11,22 @@ import { ConfirmCard } from './ConfirmCard'
 import { ControlBar, type Menu, type SubtitleAction } from './ControlBar'
 import { NextCard } from './NextCard'
 import { OffsetPanel } from './OffsetPanel'
+import { PIP_EDGES, PipControls } from './PipControls'
 import { SearchPanel } from './SearchPanel'
 import { StylePanel } from './StylePanel'
 import { SubtitleView } from './SubtitleView'
 import { SyncCard } from './SyncCard'
 import { TimingNote } from './TimingNote'
+import { usePipGestures } from './usePipGestures'
 
 const HIDE_AFTER_MS = 2500
 const send = (c: PlayerCommand) => void window.api.player.command(c)
 
 // The picture, and the dark strips and words over it. Gaps between the buttons don't
 // count, so a near miss on a control doesn't pause.
-const isVideoSurface = (el: Element) => el.matches('.overlay, .player-top, .player-bottom, .player-heading') || el.closest('.subs') !== null
+const isVideoSurface = (el: Element) =>
+  el.matches('.overlay, .player-top, .player-bottom, .player-heading, .pip-controls, .pip-top, .pip-middle, .pip-bottom') ||
+  el.closest('.subs') !== null
 
 // The player's controls, in the see-through window over the app window.
 export function Overlay() {
@@ -79,6 +83,14 @@ export function Overlay() {
           setError(null)
           // A toggle sent as the last file closed never gets an answer: don't carry it over.
           pausedIntent.current = { value: s.paused, sent: null }
+        }
+        // The floating window has no room for menus, panels or cards.
+        if (!prev?.pip && s.pip) {
+          stopAutoSync()
+          setMenu(null)
+          setSyncing(false)
+          setOffsetOpen(false)
+          setConfirm(null)
         }
         // The sync card and the replace prompt are about one subtitle: another one closes them.
         if (prev?.videoId !== s.videoId || prev?.subtitleId !== s.subtitleId) {
@@ -154,14 +166,16 @@ export function Overlay() {
   const showingKey = state?.subtitles.find((t) => t.id === state.subtitleId)?.key ?? null
 
   // Where the control bar starts while it shows, so low subtitles can sit above it.
+  // The bar is the floating window's own while in picture in picture, so it is measured again then.
   const hasControls = state !== null && !hidden
+  const inPip = state?.pip ?? false
   useEffect(() => {
     if (!hasControls) return setControlsTop(null)
-    const measure = () => setControlsTop(document.querySelector('.player-bottom .seek')?.getBoundingClientRect().top ?? null)
+    const measure = () => setControlsTop(document.querySelector('.controls .seek')?.getBoundingClientRect().top ?? null)
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [hasControls])
+  }, [hasControls, inPip])
 
   const say = useCallback((text: string) => setNote((n) => ({ text, n: (n?.n ?? 0) + 1 })), [])
   const sayOffset = useCallback((o: number) => say(`Subtitles ${formatOffset(o)}`), [say])
@@ -283,6 +297,7 @@ export function Overlay() {
         if (menu) setMenu(null)
         else if (offsetOpen) setOffsetOpen(false)
         else if (confirm) setConfirm(null)
+        else if (s?.pip) send({ type: 'pip', on: false })
         else if (s?.fullScreen) send({ type: 'fullScreen', on: false })
         return
       }
@@ -331,13 +346,19 @@ export function Overlay() {
         }
         case 's':
         case 'S':
-          if (s.subtitleId === null || e.repeat) return
+          if (s.subtitleId === null || e.repeat || s.pip) return
           startSync()
           break
         case 'a':
         case 'A':
-          if (s.subtitleId === null || e.repeat) return
+          if (s.subtitleId === null || e.repeat || s.pip) return
           startAutoSync()
+          break
+        // Picture in picture: the window floats small over other apps, and back.
+        case 'p':
+        case 'P':
+          if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return
+          send({ type: 'pip', on: !s.pip })
           break
         // Aspect ratio: C next, Shift+C straight back to the file's own. (VLC has no key for that.)
         case 'c':
@@ -355,6 +376,9 @@ export function Overlay() {
     return () => window.removeEventListener('keydown', onKey)
   }, [menu, offsetOpen, confirm, wake, togglePause, nudge, startSync, startAutoSync])
 
+  const pip = state?.pip ?? false
+  const gestures = usePipGestures(pip)
+
   const playNext = useCallback(() => {
     const s = stateRef.current
     if (!s || !next) return
@@ -366,17 +390,29 @@ export function Overlay() {
     <div
       className="overlay"
       data-idle={hidden}
-      onPointerMove={wake}
+      data-pip={pip}
+      onPointerMove={(e) => {
+        wake()
+        gestures.move(e)
+      }}
+      onPointerUp={gestures.end}
+      onPointerCancel={gestures.end}
       onPointerDown={(e) => {
         wake()
         pressedVideo.current = !menu && !offsetOpen && !confirm && isVideoSurface(e.target as Element)
         if (menu && !(e.target as Element).closest('.menu-anchor, .style-panel')) setMenu(null)
+        // In the floating window, the picture is also the handle that moves it.
+        if (pressedVideo.current) gestures.begin(e, 'move')
       }}
       onClick={(e) => {
+        // A press that moved the window is not a click on the picture.
+        if (pip && gestures.wasDrag()) return
         if (state && !next && pressedVideo.current && isVideoSurface(e.target as Element)) togglePause()
       }}
       onDoubleClick={(e) => {
-        if (state && isVideoSurface(e.target as Element)) send({ type: 'fullScreen', on: !state.fullScreen })
+        if (!state || !isVideoSurface(e.target as Element)) return
+        if (state.pip) send({ type: 'pip', on: false })
+        else send({ type: 'fullScreen', on: !state.fullScreen })
       }}
     >
       {state && (
@@ -389,35 +425,57 @@ export function Overlay() {
         />
       )}
       <div className="controls" data-testid="controls" data-hidden={hidden}>
-        <div className="player-top">
-          <button type="button" className="player-close" data-testid="player-close" aria-label="Close player" onClick={close}>
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            </svg>
-          </button>
-          <span className="player-heading" data-testid="player-heading">
-            {state?.heading ?? ''}
-          </span>
-        </div>
-        {state && (
-          <ControlBar
-            state={state}
-            timeRef={timeRef}
-            fillRef={fillRef}
-            menu={menu}
-            onMenu={setMenu}
-            offset={offset}
-            onSubtitleAction={onSubtitleAction}
-          />
+        {state?.pip ? (
+          <PipControls state={state} timeRef={timeRef} fillRef={fillRef} onClose={close} onTogglePause={togglePause} />
+        ) : (
+          <>
+            <div className="player-top">
+              <button type="button" className="player-close" data-testid="player-close" aria-label="Close player" onClick={close}>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                </svg>
+              </button>
+              <span className="player-heading" data-testid="player-heading">
+                {state?.heading ?? ''}
+              </span>
+            </div>
+            {state && (
+              <ControlBar
+                state={state}
+                timeRef={timeRef}
+                fillRef={fillRef}
+                menu={menu}
+                onMenu={setMenu}
+                offset={offset}
+                onSubtitleAction={onSubtitleAction}
+              />
+            )}
+          </>
         )}
       </div>
+      {pip &&
+        PIP_EDGES.map((edge) => (
+          <div
+            key={edge}
+            className="pip-edge"
+            data-testid="pip-edge"
+            data-edge={edge}
+            aria-hidden="true"
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              wake()
+              gestures.begin(e, edge)
+            }}
+          />
+        ))}
       {state && (
         <AspectLabel
           aspect={state.aspect}
           native={state.aspectNative}
           style={subStyle}
           subtitlesOn={state.subtitleId !== null}
-          controlsShown={!hidden}
+          // The floating window's top corner holds a button: there it shows only after C.
+          controlsShown={!hidden && !inPip}
           pressed={aspectPresses}
         />
       )}

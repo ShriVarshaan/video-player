@@ -862,3 +862,95 @@ button.text {
     animation: none;
   }
 }
+
+/* Picture in picture: the window itself is the small floating player. */
+.pip-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pip-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 28px;
+  background: linear-gradient(rgba(0, 0, 0, 0.55), transparent);
+  pointer-events: auto;
+}
+
+.pip-top .player-close {
+  width: 30px;
+  height: 30px;
+}
+
+.pip-middle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.pip-middle button {
+  pointer-events: auto;
+}
+
+button.pip-play {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.pip-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 28px 12px 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  pointer-events: auto;
+}
+
+.pip-bottom .player-time {
+  margin-left: 0;
+  font-size: 12px;
+}
+
+/* Resize handles along the floating window's edges; always live, even with the controls faded. */
+.pip-edge {
+  position: absolute;
+  z-index: 5;
+}
+.pip-edge[data-edge='n'] { top: 0; left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.pip-edge[data-edge='s'] { bottom: 0; left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.pip-edge[data-edge='e'] { right: 0; top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.pip-edge[data-edge='w'] { left: 0; top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.pip-edge[data-edge='nw'] { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+.pip-edge[data-edge='se'] { bottom: 0; right: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+.pip-edge[data-edge='ne'] { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+.pip-edge[data-edge='sw'] { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+
+/* The next-episode card, small enough for the floating window. */
+.overlay[data-pip='true'] .next-card {
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  width: auto;
+  padding: 12px;
+}
+.overlay[data-pip='true'] .next-still {
+  display: none;
+}
+
+.overlay[data-pip='true'] .aspect-label {
+  top: 52px;
+  right: 14px;
+}

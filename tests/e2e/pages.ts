@@ -59,6 +59,14 @@ export const overlayVisible = (app: ElectronApplication) =>
 export const isFullScreen = (app: ElectronApplication) =>
   app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.isFullScreen()))
 
+// The main window's bounds, its display's work area, and whether it floats on top (picture in picture).
+export const mainBounds = (app: ElectronApplication) =>
+  app.evaluate(({ BrowserWindow, screen }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => !x.webContents.getURL().endsWith('overlay.html'))!
+    const bounds = w.getBounds()
+    return { ...bounds, onTop: w.isAlwaysOnTop(), workArea: screen.getDisplayMatching(bounds).workArea }
+  })
+
 // Where the overlay and mpv's own window really are on screen, in physical pixels, read
 // from Windows: Electron's bounds can't see mpv, which fills the main window's whole client area.
 export const overlayAndVideoRects = (app: ElectronApplication) =>
