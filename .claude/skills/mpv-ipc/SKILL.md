@@ -112,6 +112,14 @@ new BrowserWindow({ parent: mainWin, transparent: true, frame: false, hasShadow:
 - Esc closes an open panel, otherwise leaves full screen, otherwise does nothing; only ✕ closes the player. A click on the video (or the dark strips behind the controls) toggles pause and a double-click toggles full screen: the first click pauses at once and the second undoes it. Pause toggles track what was last sent, since the two clicks land before mpv reports the first.
 - Hide the cursor after 2.5 s without movement during playback using CSS `cursor: none` on the overlay.
 
+## Picture in picture (`P`)
+
+The main window itself becomes the floating player (spec `docs/superpowers/specs/2026-11-22-picture-in-picture-design.md`), so mpv's `--wid` child and the overlay carry on untouched: no restart, no second mpv.
+- `player/pipWindow.ts` saves the normal bounds, maximized and full-screen state, leaves full screen first (waits for `leave-full-screen`), then takes the frame off, sets always on top and sizes the window from `player/pip.ts` (480×270 bottom right, 24 px in, 16:9 locked, min width 320; remembered under the `player.pipBounds` setting). Enter and exit run one at a time.
+- Electron can't change a frame after creation: `player/win32Frame.ts` clears `WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX` with `SetWindowLongPtrW` + `SWP_FRAMECHANGED` and restores the exact old style. Win32 calls share one koffi load in `player/user32.ts`.
+- While floating, the overlay follows `main.getBounds()`, not `getContentBounds()` (which would still subtract a title bar), and is always on top too.
+- The overlay moves and resizes the window: drags send `pipGesture` commands with cumulative screen deltas; `end` only saves (the last `move` placed it). A press must move 4 px before it is a drag, so a click still pauses. Double-click and Esc leave PiP; `F` leaves PiP and goes full screen; S/A do nothing while floating; ✕ stops and restores the window first.
+
 ## Aspect ratio (`C` / `Shift+C`)
 
 `shared/aspect.ts` has VLC's list and order. `C` cycles, `Shift+C` returns to the file's own ratio (VLC has no such key; its `A` is aspect and `C` is crop, but `A` is auto sync here). Spiked on the vendor mpv:
