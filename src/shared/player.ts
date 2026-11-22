@@ -62,6 +62,7 @@ export type PlayerCommand =
   | { type: 'cycleAspect' }
   | { type: 'resetAspect' }
   | { type: 'pip'; on: boolean }
+  | { type: 'pipToggle' }
   | ({ type: 'pipGesture' } & PipGesture)
 
 // Picture in picture: the edge or corner being dragged to resize the floating window.

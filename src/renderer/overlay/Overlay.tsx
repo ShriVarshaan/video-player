@@ -84,9 +84,9 @@ export function Overlay() {
           // A toggle sent as the last file closed never gets an answer: don't carry it over.
           pausedIntent.current = { value: s.paused, sent: null }
         }
-        // The floating window has no room for menus, panels or cards.
+        // The floating window has no room for menus, panels or cards. A running auto sync
+        // carries on (its card is hidden there); its result still shows as a note.
         if (!prev?.pip && s.pip) {
-          stopAutoSync()
           setMenu(null)
           setSyncing(false)
           setOffsetOpen(false)
@@ -358,7 +358,8 @@ export function Overlay() {
         case 'p':
         case 'P':
           if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return
-          send({ type: 'pip', on: !s.pip })
+          // Main decides in or out after anything queued, so two quick presses go in and back out.
+          send({ type: 'pipToggle' })
           break
         // Aspect ratio: C next, Shift+C straight back to the file's own. (VLC has no key for that.)
         case 'c':
@@ -490,7 +491,7 @@ export function Overlay() {
       {state && offsetOpen && showingKey && (
         <OffsetPanel offset={offset ?? 0} subtitleKey={showingKey} onClose={() => setOffsetOpen(false)} />
       )}
-      {state && autoSync && <AutoSyncCard progress={autoSync.progress} onCancel={stopAutoSync} />}
+      {state && autoSync && !state.pip && <AutoSyncCard progress={autoSync.progress} onCancel={stopAutoSync} />}
       {state && syncing && <SyncCard getPosition={getPosition} onSynced={sayOffset} onClose={closeSync} />}
       {state && confirm && (
         <ConfirmCard

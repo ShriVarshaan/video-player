@@ -137,3 +137,15 @@ test('playback keys work while syncing', async () => {
   await overlay.keyboard.press(' ')
   await expect(overlay.getByTestId('play-pause')).toHaveAttribute('aria-label', 'Play')
 })
+
+test('picture in picture lets a running sync finish: the card hides, the result still lands', async () => {
+  library('speech.shift+3.2.srt', 'speech-long.mkv')
+  ;({ app, win, userData } = await launchApp(dir))
+  const overlay = await play()
+  await overlay.keyboard.press('a')
+  await expect(card(overlay)).toBeVisible()
+  await overlay.keyboard.press('p')
+  await expect(overlay.getByTestId('pip-controls')).toBeVisible()
+  await expect(card(overlay)).toHaveCount(0)
+  await expect.poll(() => existsSync(join(dir, SYNCED)), { timeout: 30_000 }).toBe(true)
+})

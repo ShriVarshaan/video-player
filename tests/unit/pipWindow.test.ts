@@ -182,3 +182,74 @@ describe('PipWindow', () => {
     expect(f.calls).toContain('setBounds 1416,746 480x270')
   })
 })
+
+describe('PipWindow minor fixes', () => {
+  it('toggle decides after the queue, so two quick toggles go in and back out', async () => {
+    const f = fake()
+    const pip = createPipWindow(f.deps)
+    const a = pip.toggle()
+    const b = pip.toggle()
+    await Promise.all([a, b])
+    expect(pip.isOn()).toBe(false)
+    expect(f.calls.filter((c) => c === 'frame.remove')).toHaveLength(1)
+    expect(f.calls.filter((c) => c === 'frame.restore')).toHaveLength(1)
+    expect(f.bounds()).toEqual(NORMAL)
+  })
+
+  it('an enter that fails after the frame came off puts the window back as it was', async () => {
+    const f = fake()
+    let fail = true
+    const setBounds = f.deps.win.setBounds
+    const pip = createPipWindow({
+      ...f.deps,
+      win: {
+        ...f.deps.win,
+        setBounds: (r) => {
+          if (fail) {
+            fail = false
+            throw new Error('setBounds failed')
+          }
+          setBounds(r)
+        }
+      }
+    })
+    await pip.enter()
+    expect(pip.isOn()).toBe(false)
+    expect(f.calls).toContain('frame.restore')
+    expect(f.calls.at(-1)).toBe('onTop false')
+    expect(f.bounds()).toEqual(NORMAL)
+  })
+
+  it('leaving puts the window on a display when its old spot is gone', async () => {
+    const f = fake()
+    let areas = [WA, { x: 1920, y: 0, width: 1920, height: 1040 }]
+    const pip = createPipWindow({ ...f.deps, workAreas: () => areas })
+    f.deps.win.setBounds({ x: 2120, y: 100, width: 1280, height: 800 })
+    await pip.enter()
+    areas = [WA] // the second monitor was unplugged
+    await pip.exit()
+    // Centred on the display the floating window is on, same size.
+    expect(f.bounds()).toEqual({ x: 320, y: 120, width: 1280, height: 800 })
+  })
+
+  it('a save that fails is logged, not left as an unhandled rejection', async () => {
+    const f = fake()
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const pip = createPipWindow({ ...f.deps, save: () => Promise.reject(new Error('db closed')) })
+    await pip.enter()
+    await pip.exit()
+    await flush()
+    expect(errors).toHaveBeenCalled()
+    errors.mockRestore()
+  })
+
+  it('abandon leaves the window as it is: the app is closing', async () => {
+    const f = fake({ maximized: true })
+    const pip = createPipWindow(f.deps)
+    await pip.enter()
+    f.calls.length = 0
+    await pip.abandon()
+    expect(f.calls).toEqual([])
+    expect(f.saved.at(-1)).toEqual(CORNER)
+  })
+})

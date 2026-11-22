@@ -106,7 +106,7 @@ export function createPlayerService(deps: {
   window: { setFullScreen(on: boolean): void; isFullScreen(): boolean }
   overlay: { show(): void; hide(): void }
   // Picture in picture: the app window as a small floating player.
-  pip: Pick<PipWindow, 'isOn' | 'enter' | 'exit' | 'gesture'>
+  pip: Pick<PipWindow, 'isOn' | 'enter' | 'exit' | 'toggle' | 'abandon' | 'gesture'>
   now: () => number
   subtitles: SubtitleSource
   styles: StyleStore
@@ -493,7 +493,8 @@ export function createPlayerService(deps: {
     emitState(true)
   }
 
-  async function stop() {
+  // closingApp: the window is about to close, so the big window isn't brought back first.
+  async function stop(opts: { closingApp?: boolean } = {}) {
     if (closing) return closing
     if (!cur) return
     closing = (async () => {
@@ -504,7 +505,7 @@ export function createPlayerService(deps: {
       proc = null
       if (p) await p.quit().catch(() => {})
       // The title page comes back at full size (after an enter still under way, if any).
-      await deps.pip.exit()
+      await (opts.closingApp ? deps.pip.abandon() : deps.pip.exit())
       if (deps.window.isFullScreen()) deps.window.setFullScreen(false)
       deps.overlay.hide()
       const titleKey = cur!.title.key
@@ -524,8 +525,8 @@ export function createPlayerService(deps: {
   async function command(c: PlayerCommand) {
     if (!cur) return
     // The floating window is the app's own: it can always be moved or left, even with mpv gone.
-    if (c.type === 'pip') {
-      await (c.on ? deps.pip.enter() : deps.pip.exit())
+    if (c.type === 'pip' || c.type === 'pipToggle') {
+      await (c.type === 'pipToggle' ? deps.pip.toggle() : c.on ? deps.pip.enter() : deps.pip.exit())
       return emitState(true)
     }
     if (c.type === 'pipGesture') {
@@ -643,7 +644,7 @@ export function createPlayerService(deps: {
     play,
     stop: () => stop(),
     command,
-    shutdown: () => stop(),
+    shutdown: () => stop({ closingApp: true }),
     current: () => (cur ? { videoId: cur.videoId, titleKey: cur.title.key, path: cur.path } : null),
     notifyStyle,
     addSubtitle,

@@ -88,7 +88,7 @@ let events: { event: keyof ApiEvents; payload: unknown }[]
 let overlay: { show: ReturnType<typeof vi.fn<() => void>>; hide: ReturnType<typeof vi.fn<() => void>> }
 let win: { full: boolean; setFullScreen: (on: boolean) => void; isFullScreen: () => boolean }
 let player: PlayerService
-let pip: { on: boolean; isOn(): boolean; enter: ReturnType<typeof vi.fn<() => Promise<void>>>; exit: ReturnType<typeof vi.fn<() => Promise<void>>>; gesture: ReturnType<typeof vi.fn<(g: unknown) => void>> }
+let pip: { on: boolean; isOn(): boolean; enter: ReturnType<typeof vi.fn<() => Promise<void>>>; exit: ReturnType<typeof vi.fn<() => Promise<void>>>; toggle: ReturnType<typeof vi.fn<() => Promise<void>>>; abandon: ReturnType<typeof vi.fn<() => Promise<void>>>; gesture: ReturnType<typeof vi.fn<(g: unknown) => void>> }
 let gate: Promise<void> | null
 let failLaunch: boolean
 
@@ -154,6 +154,8 @@ beforeEach(() => {
     isOn: () => pip.on,
     enter: vi.fn(async () => void (pip.on = true)),
     exit: vi.fn(async () => void (pip.on = false)),
+    toggle: vi.fn(async () => void (pip.on = !pip.on)),
+    abandon: vi.fn(async () => {}),
     gesture: vi.fn<(g: unknown) => void>()
   }
   player = createPlayerService({
@@ -1072,5 +1074,24 @@ describe('picture in picture review fixes', () => {
     void player.command({ type: 'pip', on: true })
     await player.command({ type: 'fullScreen', on: true })
     expect(pip.exit).toHaveBeenCalled()
+  })
+})
+
+describe('picture in picture minor fixes', () => {
+  it('pipToggle lets PiP decide after anything queued', async () => {
+    await player.play({ key: 'movie:2' })
+    await player.command({ type: 'pipToggle' })
+    await player.command({ type: 'pipToggle' })
+    expect(pip.toggle).toHaveBeenCalledTimes(2)
+    expect(pip.on).toBe(false)
+  })
+
+  it('shutdown while floating abandons PiP instead of restoring the big window', async () => {
+    await player.play({ key: 'movie:2' })
+    await player.command({ type: 'pip', on: true })
+    await player.shutdown()
+    expect(pip.exit).not.toHaveBeenCalled()
+    expect(pip.abandon).toHaveBeenCalled()
+    expect(emitted('player.closed')).toHaveLength(1)
   })
 })
