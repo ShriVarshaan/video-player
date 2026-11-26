@@ -14,6 +14,8 @@ A Windows player for the videos on your computer.
 
 Download the installer from [Releases](https://github.com/ShriVarshaan/video-player/releases). Windows will warn you the first time, because the installer isn't code-signed: see [docs/INSTALL.md](docs/INSTALL.md) for what to do and why.
 
+Keyboard shortcuts and mouse gestures are listed in [docs/SHORTCUTS.md](docs/SHORTCUTS.md).
+
 ## Build it yourself
 
 You need Windows, Node 24 and Python 3.12.
