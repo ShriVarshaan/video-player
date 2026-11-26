@@ -58,6 +58,9 @@ function gitArchive(pin, dest) {
   for (const url of [pin.repo, pin.mirror].filter(Boolean)) {
     try {
       git(dir, 'fetch', '-q', '--depth=1', url, pin.ref)
+      // Relative submodule URLs (glib's `../../GNOME/gvdb.git`) resolve against origin; without
+      // one git resolves them against the local folder, a file:// clone that is refused above.
+      git(dir, 'remote', 'add', 'origin', url)
       fetched = true
       break
     } catch {}
