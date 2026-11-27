@@ -28,6 +28,16 @@ jobs:
 
       - run: npm ci
 
+      # The sidecar's venv: make-notices reads its packages' licences (notices.test.ts).
+      # The venv is made with setup-python's 3.12 so setup-sidecar needn't find it through `py`.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: sidecar/requirements*.txt
+      - run: python -m venv sidecar/.venv
+      - run: npm run setup-sidecar
+
       # mpv and ffmpeg from the third-party mirror, pinned by hash in vendor/manifest.json.
       - uses: actions/cache@v4
         with:
