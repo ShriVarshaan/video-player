@@ -110,7 +110,9 @@ export function generateNotices(root) {
   const mpv = binary('mpv')
   const ffmpeg = binary('ffmpeg')
   const own = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  const electronLicence = read(join(root, 'node_modules', 'electron', 'dist', 'LICENSE'))
+  // The package's own copy: dist/ only exists once Electron's binary has been downloaded, which
+  // `npm ci` no longer does (CI has none). The text is the same.
+  const electronLicence = read(join(root, 'node_modules', 'electron', 'LICENSE'))
   const electronVersion = JSON.parse(readFileSync(join(root, 'node_modules', 'electron', 'package.json'), 'utf8')).version
   const npm = npmPackages(root, [...Object.keys(own.dependencies ?? {}), ...BUNDLED])
   const sidecar = sidecarPackages(root)
