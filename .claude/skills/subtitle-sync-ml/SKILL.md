@@ -14,7 +14,7 @@ sidecar/
   vp_sync/sync.py       ffmpeg → 16 kHz WAV with progress, ffsubsync, the check
   vp_sync/signals.py    10 ms speech/cue masks, alignment score, enough_cues
   tests/                pytest (protocol, signals, sync on the speech fixtures)
-  requirements.txt      pinned; requirements-dev.txt (pytest, pyinstaller)
+  requirements.txt      pinned; requirements-dev.txt (pytest, pyinstaller); constraints.txt pins every installed package (pip freeze)
   build.spec            PyInstaller onedir → sidecar/dist/vp-sync/
 ```
 

@@ -12,4 +12,5 @@ const run = (cmd, args) => execFileSync(cmd, args, { stdio: 'inherit' })
 
 if (!existsSync(python)) run('py', ['-3.12', '-m', 'venv', venv])
 run(python, ['-m', 'pip', 'install', '--upgrade', 'pip'])
-run(python, ['-m', 'pip', 'install', '-r', join(sidecar, 'requirements.txt'), '-r', join(sidecar, 'requirements-dev.txt')])
+// constraints.txt pins the dependencies' dependencies too, so every venv matches the shipped build.
+run(python, ['-m', 'pip', 'install', '-r', join(sidecar, 'requirements.txt'), '-r', join(sidecar, 'requirements-dev.txt'), '-c', join(sidecar, 'constraints.txt')])
