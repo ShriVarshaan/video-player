@@ -93,11 +93,12 @@ video-player/
   src/preload/     index.ts (contextBridge API)
   src/renderer/    App.tsx, wall/, search/, player/ (PlayerOverlay, SubtitleView, SyncPanel), settings/
   src/shared/      types.ts, ipc channels
-  sidecar/         vp_sync/, tests/, hooks/, requirements*.txt, build.spec (venv: sidecar/.venv, Python 3.12)
-  scripts/         fetch-vendor.mjs, make-fixtures.mjs, setup-sidecar.mjs
-  vendor/          mpv, ffmpeg (fetched, gitignored; pinned in vendor/manifest.json)
+  sidecar/         vp_sync/, tests/, hooks/, requirements*.txt + constraints.txt (every package pinned), build.spec (venv: sidecar/.venv, Python 3.12)
+  scripts/         fetch-vendor.mjs, make-fixtures.mjs, setup-sidecar.mjs, make-/publish-third-party.mjs (the mirror)
+  vendor/          mpv, ffmpeg (fetched from our third-party mirror release, gitignored; pinned in vendor/manifest.json)
   tests/           unit (vitest), e2e (Playwright-Electron), fixtures/
-  docs/            PROJECT_PLAN.md
+  docs/            PROJECT_PLAN.md, SHORTCUTS.md (every key and gesture)
+  .github/         workflows/checks.yml (CI: typecheck + unit tests on Windows)
 ```
 
 ## Milestones
@@ -114,7 +115,11 @@ video-player/
 | 9 | **Polish:** fixes from real use: Esc and click in the player, the line over the video, "Ends at" time, menu button in search | `mpv-ipc`, `systematic-debugging`, `apple-design` | ✅ |
 | 10 | **Packaging and publishing:** Cinewall name and logo, MIT licence, NSIS installer (unsigned, with an install note), first-run setup, About and notices, updates from GitHub Releases that people choose to install, one-command draft releases (design: `docs/superpowers/specs/2026-11-05-milestone-10-packaging-design.md`) | `release-windows` | ✅ |
 
-After milestone 10: **picture in picture** (P, or the button left of Audio): the app window becomes a small, always-on-top, draggable 16:9 player (design: `docs/superpowers/specs/2026-11-22-picture-in-picture-design.md`). ✅
+After milestone 10: **picture in picture** (P, or the button left of Audio): the app window becomes a small, always-on-top, draggable 16:9 player (design: `docs/superpowers/specs/2026-11-22-picture-in-picture-design.md`). ✅ Released in 1.2.0.
+
+**Releases:** 1.0.0, 1.1.0 (aspect ratio, C), 1.2.0 (picture in picture; published 2026-11-28, the first update delivered to installed copies through GitHub).
+
+**Third-party mirror and CI (with 1.2.0):** FFmpeg-Builds deleted the build we ship, so mpv and FFmpeg, with all their source, now live in the pre-release `third-party-2026-11` in this repo. `fetch-vendor`, the About source link and the notices point there; it must never be marked latest. GitHub Actions runs typecheck and unit tests (with the sidecar venv, which the notices test reads) on every push to `main` and every PR. Python packages are now pinned in full (`sidecar/constraints.txt`), since a fresh venv drifted from the shipped build.
 
 Every milestone follows the same flow: `brainstorming` → `writing-plans` → `executing-plans` with `test-driven-development` → `verification-before-completion` → `requesting-code-review` / `/code-review`.
 

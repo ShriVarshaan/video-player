@@ -29,7 +29,7 @@ npm run dev                   # app with hot reload
 npm run typecheck             # tsc for main/preload and renderer
 npm test                      # Vitest unit + integration (uses vendor ffmpeg)
 npm run test:e2e              # builds, then Playwright-Electron
-npm run setup-sidecar         # sidecar/.venv (py -3.12) + pinned requirements
+npm run setup-sidecar         # sidecar/.venv (py -3.12) + requirements, every package pinned by constraints.txt
 npm run test:sidecar          # pytest (speech fixtures need make-fixtures)
 npm run build-sidecar         # PyInstaller → sidecar/dist/vp-sync/ (~58 MB)
 npm run package               # installer in release/ (needs the sidecar build); nothing uploaded
@@ -39,7 +39,9 @@ npm run release               # draft GitHub release; only with the user's permi
 node scripts/make-third-party.mjs     # mpv/FFmpeg binaries + source into release/third-party/
 node scripts/publish-third-party.mjs  # uploads them to the mirror pre-release; GH_TOKEN, user's permission only
 ```
-- CI (`.github/workflows/checks.yml`, Windows): typecheck and unit tests on every push to `main` and every PR. E2E stays local.
+- CI (`.github/workflows/checks.yml`, Windows): typecheck and unit tests on every push to `main` and every PR, with vendor, fixtures and the sidecar venv set up first. E2E stays local. CI has no status in `gh` here (not installed); read runs and failing tests from the public API: `actions/runs?head_sha=…`, then `check-runs/<id>/annotations`.
+- Released: 1.2.0 (picture in picture) is the latest. The mirror pre-release `third-party-2026-11` must never be marked latest: installed copies update from the latest release.
+- Adding or changing a key or gesture: update `docs/SHORTCUTS.md`.
 - The app is called Cinewall; the repo, npm package and data folder stay `video-player`. Renaming the data folder would lose people's libraries and logins.
 - `VP_FIRST_RUN=off` (dev builds only) skips first-run setup; `launchApp` sets it unless a test asks for setup. `VP_UPDATE_MODE=available|fail-check|fail-download` (dev builds only) feeds fake updates.
 - The library DB is `%APPDATA%\video-player\library.db` (one per Windows user). `--user-data-dir=<dir>` points the app elsewhere; E2E tests always do.
@@ -70,6 +72,8 @@ node scripts/publish-third-party.mjs  # uploads them to the mirror pre-release; 
 - E2E player tests: faded controls take no clicks (move the mouse first), and a seek sent before mpv has opened the file is dropped (wait for the position to move first). Esc never closes the player: use `closeWithX` from `pages.ts`.
 - The app has no menu (`Menu.setApplicationMenu(null)`, so no F11, Ctrl+R or Ctrl+Shift+I). Don't bring back a menu bar: it sits in the client area mpv fills, and `getContentBounds()` starts below it and updates late, which puts a line across the video.
 - Auto sync E2E needs `sidecar/.venv` and the speech fixtures (it skips without them). `speech.mkv` syncs in ~0.25 s, too fast to act during the card: tests that cancel or press keys mid-sync use `speech-long.mkv`. English audio means subtitles start off: pick one before pressing A.
+- Electron 45 doesn't download its binary during `npm ci` (CI has no `node_modules/electron/dist/`). Don't read files from there in scripts or unit tests; Electron's licence comes from `node_modules/electron/LICENSE`.
+- After changing a sidecar package, refresh `sidecar/constraints.txt` with `pip freeze` and `docs/third-party-sidecar.md`, or CI's notices test fails on the mismatch.
 - The vendor ffmpeg is an LGPL build: no x264/x265 encoders (fixtures use mpeg4/VP9), but it has libwebp and librsvg. TMDB SVG logos rasterize badly, so PNG logos are preferred.
 
 ## Skill routing
